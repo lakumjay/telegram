@@ -1,0 +1,6 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home3/snweba2e/telegram.snwebkarma.in/
+    - /bin/cp -a * $DEPLOYPATH
+    - /bin/cp -a .htaccess $DEPLOYPATH
