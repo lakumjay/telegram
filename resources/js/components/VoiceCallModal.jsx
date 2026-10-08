@@ -99,7 +99,8 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
             // 2. Fetch Config & System Instruction
             const res = await axios.get('/api/voice/config');
-            const { auth_token, is_ephemeral, system_instruction, voice_name } = res.data;
+            const { auth_token, is_ephemeral, system_instruction, voice_name, live_model } = res.data;
+            const targetModel = live_model || 'models/gemini-3.8-live';
 
             if (!auth_token) {
                 setConnectionError('સર્વર તરફથી અધિકૃત ટોકન મળ્યો નથી.');
@@ -123,13 +124,13 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 // Gemini Live Setup message with inputAudioTranscription and tools
                 const setupMessage = {
                     setup: {
-                        model: 'models/gemini-3.8-live',
+                        model: targetModel,
                         generationConfig: {
-                            responseModalities: ["AUDIO"],
+                            responseModalities: ["audio"],
                             speechConfig: {
                                 voiceConfig: {
                                     prebuiltVoiceConfig: {
-                                        voiceName: 'Aoede'
+                                        voiceName: voice_name || 'Aoede'
                                     }
                                 }
                             }
