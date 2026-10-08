@@ -118,7 +118,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             speechConfig: {
                                 voiceConfig: {
                                     prebuiltVoiceConfig: {
-                                        voiceName: voice_name || 'Aoede'
+                                        voiceName: 'Aoede'
                                     }
                                 }
                             }
@@ -441,7 +441,9 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
             // Helper to downsample Float32 to 16kHz Int16 Little-Endian base64
             const convertAndSend = (float32Input) => {
+                // IMPORTANT: If user is muted, or setup is not complete, or AI is currently speaking, DROP audio to prevent echo feedback loop!
                 if (isMuted || !isSetupCompleteRef.current || ws.readyState !== WebSocket.OPEN) return;
+                if (activeAudioNodesRef.current.length > 0) return; // Drop while AI speaker is active
 
                 const ratio = nativeRate / 16000;
                 const newLength = Math.round(float32Input.length / ratio);
