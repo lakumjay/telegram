@@ -48,6 +48,11 @@ class Document extends Model
         return $this->belongsTo(Folder::class);
     }
 
+    public function pages(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(DocumentPage::class);
+    }
+
     public function getDownloadUrlAttribute(): string
     {
         return url('/api/documents/' . $this->id . '/download');

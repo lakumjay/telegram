@@ -257,74 +257,69 @@ class VoiceAgentController extends Controller
             $docs = \App\Models\Document::with('company')->get();
         }
 
-        $matchedSnippets = [];
+        // Query document_pages table directly for millisecond-scale indexing
+        $pageMatches = [];
         $searchTerms = array_filter(explode(' ', mb_strtolower($query)), fn($t) => mb_strlen($t) > 1);
 
-        foreach ($docs as $doc) {
-            $text = $doc->ocr_text;
-            if (empty($text)) continue;
+        $pagesQuery = \App\Models\DocumentPage::with('document.company');
+        if (!empty($docName)) {
+            $pagesQuery->whereHas('document', function($dq) use ($docName) {
+                $dq->where('title', 'LIKE', "%{$docName}%")
+                   ->orWhere('original_filename', 'LIKE', "%{$docName}%")
+                   ->orWhere('doc_type', 'LIKE', "%{$docName}%")
+                   ->orWhereHas('company', function($cq) use ($docName) {
+                       $cq->where('name', 'LIKE', "%{$docName}%");
+                   });
+            });
+        }
 
-            $lowerText = mb_strtolower($text);
-            $foundPositions = [];
-
-            // 1. Direct query matching
-            $pos = mb_strpos($lowerText, mb_strtolower($query));
-            if ($pos !== false) {
-                $foundPositions[] = $pos;
-            }
-
-            // 2. Individual keywords matching
+        // Search full query or individual terms in page content
+        $pagesQuery->where(function($q) use ($query, $searchTerms) {
+            $q->where('content', 'LIKE', "%{$query}%");
             foreach ($searchTerms as $term) {
-                $p = mb_strpos($lowerText, $term);
-                if ($p !== false && !in_array($p, $foundPositions)) {
-                    $foundPositions[] = $p;
+                $q->orWhere('content', 'LIKE', "%{$term}%");
+            }
+        });
+
+        $matchedPages = $pagesQuery->limit(5)->get();
+
+        foreach ($matchedPages as $page) {
+            $doc = $page->document;
+            $content = $page->content;
+            
+            // Find best matching 300-char window on this page
+            $pos = mb_strpos(mb_strtolower($content), mb_strtolower($query));
+            if ($pos === false && !empty($searchTerms)) {
+                foreach ($searchTerms as $term) {
+                    $p = mb_strpos(mb_strtolower($content), $term);
+                    if ($p !== false) {
+                        $pos = $p;
+                        break;
+                    }
                 }
             }
 
-            // Extract context around matches with page number detection
-            foreach (array_slice($foundPositions, 0, 3) as $fPos) {
-                // Find nearest preceding [Page X] marker if available
-                $precedingText = mb_substr($text, 0, $fPos);
-                $pageInfo = '';
-                if (preg_match_all('/\[Page\s+(\d+)\]/i', $precedingText, $pMatches)) {
-                    $lastPage = end($pMatches[1]);
-                    $pageInfo = " (પાના નં. {$lastPage})";
-                }
+            $start = $pos !== false ? max(0, $pos - 100) : 0;
+            $snippet = mb_substr($content, $start, 400);
+            $cleanSnippet = trim(preg_replace('/\s+/', ' ', $snippet));
 
-                $start = max(0, $fPos - 120);
-                $rawSnippet = mb_substr($text, $start, 450);
-                $cleanSnippet = trim(preg_replace('/\s+/', ' ', $rawSnippet));
-
-                $matchedSnippets[] = [
-                    'document_title' => $doc->title . $pageInfo,
-                    'company' => $doc->company?->name ?? 'જનરલ',
-                    'snippet' => $cleanSnippet,
-                ];
-            }
+            $pageMatches[] = [
+                'document_title' => "{$doc->title} (પાના નં. {$page->page_number})",
+                'company' => $doc->company?->name ?? 'જનરલ',
+                'snippet' => $cleanSnippet,
+                'entities' => $page->extracted_entities,
+            ];
         }
 
-        if (empty($matchedSnippets)) {
-            // General excerpt from first available doc
-            foreach ($docs->take(2) as $doc) {
-                if (!empty($doc->ocr_text)) {
-                    $matchedSnippets[] = [
-                        'document_title' => $doc->title,
-                        'company' => $doc->company?->name ?? 'જનરલ',
-                        'snippet' => mb_substr(trim(preg_replace('/\s+/', ' ', $doc->ocr_text)), 0, 350),
-                    ];
-                }
-            }
-        }
-
-        $summary = count($matchedSnippets) > 0 
-            ? "દસ્તાવેજમાંથી મળેલ મુદ્દા: " . implode(' | ', array_map(fn($s) => $s['document_title'] . ': ' . $s['snippet'], array_slice($matchedSnippets, 0, 3)))
+        $summary = count($pageMatches) > 0 
+            ? "દસ્તાવેજમાંથી મળેલ મુદ્દા: " . implode(' | ', array_map(fn($s) => $s['document_title'] . ': ' . $s['snippet'], array_slice($pageMatches, 0, 3)))
             : "આ વિગત દસ્તાવેજમાં મળી નથી.";
 
         return response()->json([
             'success' => true,
             'query' => $query,
-            'results_count' => count($matchedSnippets),
-            'snippets' => $matchedSnippets,
+            'results_count' => count($pageMatches),
+            'snippets' => $pageMatches,
             'summary' => $summary,
         ]);
     }

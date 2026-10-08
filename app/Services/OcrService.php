@@ -42,6 +42,9 @@ class OcrService
                 'metadata' => array_merge((array) $document->metadata, $extractedMetadata['extra']),
             ]);
 
+            // Index individual pages in document_pages table
+            $this->indexDocumentPages($document, $ocrText);
+
             return [
                 'success' => true,
                 'ocr_text' => $ocrText,
@@ -211,4 +214,65 @@ class OcrService
             'keywords' => $keywords,
         ];
     }
+
+    /**
+     * Index multi-page chunks into document_pages table
+     */
+    public function indexDocumentPages(Document $document, string $ocrText): void
+    {
+        if (empty(trim($ocrText))) return;
+
+        // Delete existing pages if re-indexing
+        \App\Models\DocumentPage::where('document_id', $document->id)->delete();
+
+        // Check if text has [Page X] markers
+        if (preg_match('/\[Page\s+\d+\]/', $ocrText)) {
+            $parts = preg_split('/\[Page\s+(\d+)\]/', $ocrText, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+            
+            for ($i = 0; $i < count($parts); $i += 2) {
+                $pageNum = isset($parts[$i]) ? (int)$parts[$i] : 1;
+                $pageContent = isset($parts[$i + 1]) ? trim($parts[$i + 1]) : '';
+                
+                if (!empty($pageContent)) {
+                    $entities = $this->extractPageEntities($pageContent);
+                    \App\Models\DocumentPage::create([
+                        'document_id' => $document->id,
+                        'page_number' => $pageNum,
+                        'content' => $pageContent,
+                        'extracted_entities' => $entities,
+                    ]);
+                }
+            }
+        } else {
+            // Single page document
+            $entities = $this->extractPageEntities($ocrText);
+            \App\Models\DocumentPage::create([
+                'document_id' => $document->id,
+                'page_number' => 1,
+                'content' => trim($ocrText),
+                'extracted_entities' => $entities,
+            ]);
+        }
+    }
+
+    /**
+     * Extract specific entities from a single page (dates, amounts, addresses)
+     */
+    protected function extractPageEntities(string $pageText): array
+    {
+        $entities = [];
+
+        // Dates
+        if (preg_match_all('/\b(\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4})\b/', $pageText, $mDates)) {
+            $entities['dates'] = array_unique($mDates[1]);
+        }
+
+        // Amounts (₹, Rs, INR)
+        if (preg_match_all('/(?:₹|Rs\.?|INR)\s*([\d,]+(?:\.\d{2})?)/i', $pageText, $mAmounts)) {
+            $entities['amounts'] = array_unique($mAmounts[1]);
+        }
+
+        return $entities;
+    }
 }
+
