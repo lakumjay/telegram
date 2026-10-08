@@ -462,7 +462,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     recognition.lang = 'gu-IN'; // Gujarati / Hindi recognition
 
                     recognition.onresult = (event) => {
-                        // STRICT ECHO GUARD: If AI is talking or audio buffer is actively playing, DROP COMPLETELY!
+                        // Drop if AI is actively speaking
                         if (isAiSpeakingRef.current || activeAudioNodesRef.current.length > 0) {
                             return;
                         }
@@ -477,20 +477,36 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                         const spoken = finalTranscript.trim();
                         if (!spoken) return;
 
-                        // Anti-Echo Check: If the text is part of AI's own recent speech, ignore
-                        const isEcho = recentAiUtterancesRef.current.some(utt => utt.includes(spoken) || spoken.includes(utt));
-                        if (isEcho || (currentAiText && currentAiText.trim().includes(spoken))) {
-                            console.log('[Echo Shield] Ignored speaker loopback text:', spoken);
-                            return;
+                        // Check if the user is asking for documents or expressing intent
+                        const userKeywords = [
+                            'જીએસટી', 'gst', 'પેન', 'પાન', 'pan', 'સ્ટેમ્પ', 'stamp',
+                            'આધાર', 'ડોક્યુમેન્ટ', 'કાગળ', 'જોઈએ', 'જોવે', 'આપો', 'મોકલો',
+                            'મોકલી', 'મારે', 'મને', 'હું', 'કરવું', 'કરો', 'કેમ', 'શું', 'હા'
+                        ];
+                        const hasUserIntent = userKeywords.some(kw => spoken.toLowerCase().includes(kw));
+
+                        // Echo guard ONLY applies if there is NO user intent and it matches AI verbatim
+                        if (!hasUserIntent) {
+                            const isExactEcho = recentAiUtterancesRef.current.some(utt => utt.trim() === spoken);
+                            if (isExactEcho || (currentAiText && currentAiText.trim() === spoken)) {
+                                console.log('[Echo Shield] Ignored speaker loopback text:', spoken);
+                                return;
+                            }
                         }
 
                         console.log('[Speech Recognition Heard User]:', spoken);
                         setUserSpokenText(spoken);
+                        setTranscriptHistory(history => [...history, { sender: 'user', text: spoken }]);
 
-                        // If user finished a spoken sentence, send turnComplete so Gemini responds immediately
+                        // Send user turn with text directly to Gemini WebSocket!
                         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
+                            console.log('[Live Voice Turn Sent to Gemini]:', spoken);
                             wsRef.current.send(JSON.stringify({
                                 clientContent: {
+                                    turns: [{
+                                        role: "user",
+                                        parts: [{ text: spoken }]
+                                    }],
                                     turnComplete: true
                                 }
                             }));
@@ -581,10 +597,13 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                                 this.buffer = new Float32Array(this.bufferSize);
                                 this.bytesWritten = 0;
                             }
-                            process(inputs) {
+                            process(inputs, outputs) {
                                 const input = inputs[0];
                                 if (!input || !input[0]) return true;
                                 const channelData = input[0];
+                                if (outputs && outputs[0] && outputs[0][0]) {
+                                    outputs[0][0].set(channelData);
+                                }
                                 for (let i = 0; i < channelData.length; i++) {
                                     this.buffer[this.bytesWritten++] = channelData[i];
                                     if (this.bytesWritten >= this.bufferSize) {
