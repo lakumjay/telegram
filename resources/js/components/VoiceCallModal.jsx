@@ -7,15 +7,15 @@ import {
     Sparkles, 
     Radio,
     AlertCircle,
-    Send,
-    RefreshCw
+    RefreshCw,
+    FileText
 } from 'lucide-react';
 import axios from 'axios';
 
 export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 999888777 }) {
     if (!isOpen) return null;
 
-    const [callState, setCallState] = useState('connecting'); // connecting, setup_complete, connected, ended
+    const [callState, setCallState] = useState('connecting'); // connecting, connected, ended
     const [callDuration, setCallDuration] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
     const [isAiSpeaking, setIsAiSpeaking] = useState(false);
@@ -23,19 +23,23 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     const [micPermissionError, setMicPermissionError] = useState(null);
     const [connectionError, setConnectionError] = useState(null);
     
+    // Live User speech transcription from Gemini
+    const [userSpokenText, setUserSpokenText] = useState('');
     const [transcriptHistory, setTranscriptHistory] = useState([
-        { sender: 'ai', text: 'સર્વર સાથે કનેક્ટ થઈ રહ્યું છે...' }
+        { sender: 'ai', text: 'સર્વર સાથે જોડાઈ રહ્યું છે...' }
     ]);
     const [currentAiText, setCurrentAiText] = useState('');
+    const [lastToolEvent, setLastToolEvent] = useState(null);
 
     const wsRef = useRef(null);
     const audioContextRef = useRef(null);
     const micStreamRef = useRef(null);
-    const processorRef = useRef(null);
+    const workletNodeRef = useRef(null);
+    const fallbackProcessorRef = useRef(null);
     const analyserRef = useRef(null);
     const animFrameRef = useRef(null);
     const nextPlayTimeRef = useRef(0);
-    const activeAudioNodesRef = useRef([]); // Track active nodes for instant interruption
+    const activeAudioNodesRef = useRef([]);
     const transcriptEndRef = useRef(null);
     const isSetupCompleteRef = useRef(false);
 
@@ -52,7 +56,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
     useEffect(() => {
         transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [transcriptHistory, currentAiText]);
+    }, [transcriptHistory, currentAiText, userSpokenText, lastToolEvent]);
 
     useEffect(() => {
         if (isOpen) {
@@ -67,40 +71,43 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         setConnectionError(null);
         setCallState('connecting');
         isSetupCompleteRef.current = false;
+        setUserSpokenText('');
+        setLastToolEvent(null);
         
         try {
-            // 1. Initialize Audio Context IMMEDIATELY on user gesture (Fix for Deadlock)
+            // 1. AudioContext initialized on user gesture
             const AudioContext = window.AudioContext || window.webkitAudioContext;
-            const audioCtx = new AudioContext(); // REMOVED sampleRate: 16000 to fix silent mic bug
+            const audioCtx = new AudioContext();
             audioContextRef.current = audioCtx;
             if (audioCtx.state === 'suspended') {
                 await audioCtx.resume();
             }
             nextPlayTimeRef.current = audioCtx.currentTime;
+            console.log(`[Audio] AudioContext initialized. SampleRate: ${audioCtx.sampleRate} Hz`);
 
-            // 2. Get Config
+            // 2. Fetch Config & System Instruction
             const res = await axios.get('/api/voice/config');
             const { api_key, system_instruction, voice_name } = res.data;
 
             if (!api_key) {
-                setConnectionError('API Key ગુમ છે.');
+                setConnectionError('Gemini API Key સર્વર પર સેટ કરેલી નથી (.env ચેક કરો).');
                 setCallState('ended');
                 return;
             }
 
-            // 3. Connect WebSocket
+            // 3. Connect to Gemini Multimodal Live WebSocket
             const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${api_key}`;
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
             ws.onopen = () => {
-                console.log('WS Connected. Sending Setup...');
-                setTranscriptHistory([{ sender: 'ai', text: 'ઓડિયો સેટઅપ થઈ રહ્યું છે...' }]);
+                console.log('[WebSocket] Connected. Sending Setup with get_document tool...');
+                setTranscriptHistory([{ sender: 'ai', text: 'કૉલ જોડાઈ રહ્યો છે...' }]);
                 
-                // ONLY send setup. Do NOT send audio or text until setupComplete.
-                ws.send(JSON.stringify({
+                // Gemini Live Setup message with tools & transcription
+                const setupMessage = {
                     setup: {
-                        model: 'models/gemini-3.8-live',
+                        model: 'models/gemini-2.0-flash-exp', // Or gemini-3.8-live per current beta
                         generationConfig: {
                             responseModalities: ["AUDIO"],
                             speechConfig: {
@@ -113,9 +120,32 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                         },
                         systemInstruction: {
                             parts: [{ text: system_instruction }]
-                        }
+                        },
+                        tools: [
+                            {
+                                functionDeclarations: [
+                                    {
+                                        name: "get_document",
+                                        description: "Search user's verified company document and deliver it directly into their Telegram chat.",
+                                        parameters: {
+                                            type: "OBJECT",
+                                            properties: {
+                                                document_type: {
+                                                    type: "STRING",
+                                                    enum: ["gst", "pan", "stamp"],
+                                                    description: "The type of document to deliver. Must strictly be gst, pan, or stamp."
+                                                }
+                                            },
+                                            required: ["document_type"]
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
                     }
-                }));
+                };
+
+                ws.send(JSON.stringify(setupMessage));
             };
 
             ws.onmessage = async (event) => {
@@ -123,19 +153,23 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 if (event.data instanceof Blob) {
                     text = await event.data.text();
                 }
+                
+                // Logging for verification
+                console.log(`[WS onmessage] ${text.substring(0, 300)}...`);
+
                 const msg = JSON.parse(text);
 
-                // Phase A: Setup Complete (CRITICAL FIX FOR DISCONNECTS)
+                // Phase A: Setup Complete
                 if (msg.setupComplete) {
-                    console.log('Setup Complete received.');
+                    console.log('[WS] Setup Complete confirmed by Gemini.');
                     isSetupCompleteRef.current = true;
                     setCallState('connected');
-                    setTranscriptHistory([{ sender: 'ai', text: 'લાઇવ કૉલ શરૂ થઈ ગયો છે. બોલવાનું શરૂ કરો.' }]);
+                    setTranscriptHistory([{ sender: 'ai', text: 'નમસ્તે! રિયા લાઈવ છે. તમે બોલી શકો છો...' }]);
                     
-                    // Now safe to init mic and send data
-                    initMicrophone(audioCtx, ws);
+                    // Initialize Mic streaming pipeline
+                    await initMicrophone(audioCtx, ws);
 
-                    // Send Initial Greeting Trigger
+                    // Send gentle initial trigger
                     ws.send(JSON.stringify({
                         clientContent: {
                             turns: [{ role: "user", parts: [{ text: "Hello! ફોન ઉપાડો અને મારું ટૂંકમાં સ્વાગત કરો." }] }],
@@ -144,7 +178,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     }));
                 }
 
-                // Phase B: Audio & Text Stream Content
+                // Phase B: Audio & Text from AI
                 if (msg.serverContent?.modelTurn?.parts) {
                     const parts = msg.serverContent.modelTurn.parts;
                     for (const part of parts) {
@@ -157,7 +191,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     }
                 }
 
-                // Phase C: Turn Complete (AI Finished Speaking)
+                // Phase C: Turn Complete (AI finished speaking)
                 if (msg.serverContent?.turnComplete) {
                     setIsAiSpeaking(false);
                     setCurrentAiText(prev => {
@@ -168,25 +202,83 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     });
                 }
 
-                // Phase D: Interruption (CRITICAL FIX FOR AUDIO OVERLAP)
+                // Phase D: Interruption (User spoke while AI was talking)
                 if (msg.serverContent?.interrupted) {
-                    console.log('Interrupted! Stopping current audio.');
+                    console.log('[WS] Gemini detected user interruption. Stopping audio.');
                     stopAllAudio();
                     setIsAiSpeaking(false);
                     setCurrentAiText('');
                 }
+
+                // Phase E: Tool Call Handling (get_document)
+                if (msg.toolCall?.functionCalls) {
+                    for (const call of msg.toolCall.functionCalls) {
+                        if (call.name === "get_document") {
+                            const docType = call.args?.document_type;
+                            console.log(`[ToolCall] Gemini invoked get_document: ${docType}`);
+                            setLastToolEvent(`📄 ${docType?.toUpperCase()} દસ્તાવેજ ટેલિગ્રામમાં મોકલાઈ રહ્યો છે...`);
+
+                            // Call secure backend endpoint with Telegram initData
+                            try {
+                                const tgWebApp = window.Telegram?.WebApp;
+                                const initData = tgWebApp?.initData || '';
+                                
+                                const toolRes = await axios.post('/api/voice/get-document', {
+                                    document_type: docType,
+                                    init_data: initData,
+                                    telegram_user_id: telegramUserId
+                                });
+
+                                const resultPayload = toolRes.data;
+                                console.log('[ToolCall Result]', resultPayload);
+
+                                setLastToolEvent(`✅ ${resultPayload.document_title || docType?.toUpperCase()} મોકલી દેવાયો!`);
+
+                                // Send toolResponse back to Gemini so it confirms via voice
+                                if (ws.readyState === WebSocket.OPEN) {
+                                    ws.send(JSON.stringify({
+                                        toolResponse: {
+                                            functionResponses: [
+                                                {
+                                                    response: { output: resultPayload },
+                                                    id: call.id
+                                                }
+                                            ]
+                                        }
+                                    }));
+                                }
+                            } catch (err) {
+                                console.error('[ToolCall Error]', err);
+                                setLastToolEvent(`❌ દસ્તાવેજ શોધવામાં ક્ષતિ: ${err.response?.data?.message || err.message}`);
+                                
+                                if (ws.readyState === WebSocket.OPEN) {
+                                    ws.send(JSON.stringify({
+                                        toolResponse: {
+                                            functionResponses: [
+                                                {
+                                                    response: { output: { success: false, message: "Document not found." } },
+                                                    id: call.id
+                                                }
+                                            ]
+                                        }
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
             };
 
             ws.onerror = (e) => {
-                console.error("WebSocket Error:", e);
-                setConnectionError("સર્વર સાથે કનેક્શન તૂટી ગયું છે. નેટવર્ક ચેક કરો.");
+                console.error("[WebSocket Error]", e);
+                setConnectionError("સર્વર સાથે કનેક્શન એરર. નેટવર્ક ચેક કરો.");
                 setCallState('ended');
             };
 
-            ws.onclose = () => {
-                console.log("WebSocket Closed");
+            ws.onclose = (event) => {
+                console.log(`[WebSocket onclose] Code: ${event.code}, Reason: ${event.reason || 'None'}`);
                 if (callState !== 'ended') {
-                    setConnectionError("સર્વર દ્વારા કનેક્શન બંધ કરવામાં આવ્યું.");
+                    setConnectionError(`કૉલ પૂર્ણ થયો (Code: ${event.code})`);
                 }
                 setCallState('ended');
             };
@@ -198,83 +290,55 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         }
     };
 
+    // Initialize Microphone with AudioWorklet and 16kHz PCM downsampling
     const initMicrophone = async (audioCtx, ws) => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
             micStreamRef.current = stream;
 
             const source = audioCtx.createMediaStreamSource(stream);
             
-            // Analyser for UI Visualizer
+            // Analyser for on-screen live meter
             const analyser = audioCtx.createAnalyser();
             analyser.fftSize = 64;
             source.connect(analyser);
             analyserRef.current = analyser;
 
-            // Volume and Voice Activity Tracking for instant turn-taking
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            let speechActive = false;
-            let silenceTimer = null;
-
             const updateVolume = () => {
                 if (!analyserRef.current) return;
                 analyserRef.current.getByteFrequencyData(dataArray);
                 let sum = 0;
                 for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
                 const avg = sum / dataArray.length;
-                setAudioLevel(Math.min(100, Math.round(avg * 1.6)));
-
-                // User started speaking -> Interrupt AI if speaking (Barge-In)
-                if (avg > 15) {
-                    if (isAiSpeaking) {
-                        stopAllAudio();
-                        setIsAiSpeaking(false);
-                    }
-                    speechActive = true;
-                    if (silenceTimer) {
-                        clearTimeout(silenceTimer);
-                        silenceTimer = null;
-                    }
-                } else if (speechActive && avg < 8) {
-                    // User was speaking and now fell silent for 900ms -> signal turnComplete!
-                    if (!silenceTimer) {
-                        silenceTimer = setTimeout(() => {
-                            if (speechActive && ws && ws.readyState === WebSocket.OPEN) {
-                                console.log('Speech ended. Triggering Gemini response turn.');
-                                ws.send(JSON.stringify({
-                                    clientContent: {
-                                        turnComplete: true
-                                    }
-                                }));
-                                speechActive = false;
-                            }
-                        }, 900);
-                    }
-                }
-
+                setAudioLevel(Math.min(100, Math.round(avg * 1.8)));
                 animFrameRef.current = requestAnimationFrame(updateVolume);
             };
             updateVolume();
 
-            // Audio Worklet / ScriptProcessor with 1.4x Gain amplification for clear voice
-            const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-            processorRef.current = processor;
-            
             const nativeRate = audioCtx.sampleRate;
-            
-            processor.onaudioprocess = (e) => {
+            console.log(`[Mic Pipeline] Capturing at ${nativeRate} Hz. Converting to 16000 Hz.`);
+
+            // Helper to downsample Float32 to 16kHz Int16 Little-Endian base64
+            const convertAndSend = (float32Input) => {
                 if (isMuted || !isSetupCompleteRef.current || ws.readyState !== WebSocket.OPEN) return;
 
-                const inputData = e.inputBuffer.getChannelData(0);
                 const ratio = nativeRate / 16000;
-                const newLength = Math.round(inputData.length / ratio);
+                const newLength = Math.round(float32Input.length / ratio);
                 const pcm16 = new Int16Array(newLength);
                 
                 for (let i = 0; i < newLength; i++) {
                     const nativeIndex = Math.round(i * ratio);
-                    let s = inputData[nativeIndex < inputData.length ? nativeIndex : inputData.length - 1];
-                    // Amplify microphone input by 1.35x for crystal clear recognition
-                    s = s * 1.35;
+                    let s = float32Input[nativeIndex < float32Input.length ? nativeIndex : float32Input.length - 1];
+                    // Voice boost 1.4x
+                    s = s * 1.4;
                     s = Math.max(-1, Math.min(1, s));
                     pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
@@ -286,6 +350,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 }
                 const base64 = btoa(binary);
 
+                // Send realtime input chunk to Gemini
                 ws.send(JSON.stringify({
                     realtimeInput: {
                         mediaChunks: [{
@@ -296,25 +361,54 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 }));
             };
 
-            const gainNode = audioCtx.createGain();
-            gainNode.gain.value = 0; // Mute playback to prevent echoing mic back to speakers
-            
-            source.connect(processor);
-            processor.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
+            // Try AudioWorklet first (Modern, non-blocking)
+            let workletSuccess = false;
+            try {
+                if (audioCtx.audioWorklet) {
+                    await audioCtx.audioWorklet.addModule('/audio-recorder-worklet.js');
+                    const workletNode = new AudioWorkletNode(audioCtx, 'audio-recorder-worklet');
+                    workletNodeRef.current = workletNode;
+
+                    workletNode.port.onmessage = (event) => {
+                        convertAndSend(event.data);
+                    };
+
+                    source.connect(workletNode);
+                    workletSuccess = true;
+                    console.log('[Mic Pipeline] AudioWorkletNode successfully active!');
+                }
+            } catch (workletErr) {
+                console.warn('[Mic Pipeline] AudioWorklet failed, using ScriptProcessor fallback:', workletErr);
+            }
+
+            // Fallback to ScriptProcessor if AudioWorklet not supported
+            if (!workletSuccess) {
+                const processor = audioCtx.createScriptProcessor(2048, 1, 1);
+                fallbackProcessorRef.current = processor;
+                processor.onaudioprocess = (e) => {
+                    convertAndSend(e.inputBuffer.getChannelData(0));
+                };
+
+                const gainNode = audioCtx.createGain();
+                gainNode.gain.value = 0;
+                source.connect(processor);
+                processor.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                console.log('[Mic Pipeline] ScriptProcessor fallback active.');
+            }
 
         } catch (err) {
-            console.error('Mic Error', err);
+            console.error('Mic initialization error:', err);
             setMicPermissionError('કૃપા કરીને માઇક્રોફોનની પરમિશન Allow કરો.');
         }
     };
 
-    // Robust Audio Scheduler (CRITICAL FIX FOR AUDIO DROPS / STUTTER)
+    // Jitter buffer queue for seamless audio playback
     const playAudioChunk = (base64, audioCtx) => {
         setIsAiSpeaking(true);
         
         if (audioCtx.state === 'suspended') {
-            audioCtx.resume().catch(err => console.error("AudioResume error:", err));
+            audioCtx.resume().catch(e => console.error("Audio resume error:", e));
         }
 
         const binaryStr = atob(base64);
@@ -328,7 +422,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             float32Array[i] = int16Array[i] / 32768.0;
         }
         
-        // Gemini sends 24kHz PCM
+        // Gemini sends 24,000Hz PCM
         const audioBuffer = audioCtx.createBuffer(1, float32Array.length, 24000);
         audioBuffer.getChannelData(0).set(float32Array);
         
@@ -336,17 +430,14 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         source.buffer = audioBuffer;
         source.connect(audioCtx.destination);
         
-        // Track the source so we can stop it if interrupted
         activeAudioNodesRef.current.push(source);
         source.onended = () => {
             activeAudioNodesRef.current = activeAudioNodesRef.current.filter(s => s !== source);
         };
         
         const currentTime = audioCtx.currentTime;
-        
-        // Jitter Buffer Logic: Prevent underflow gaps by padding slightly
         if (nextPlayTimeRef.current < currentTime) {
-            nextPlayTimeRef.current = currentTime + 0.08; // 80ms buffer pad
+            nextPlayTimeRef.current = currentTime + 0.05; // 50ms smooth pad
         }
         
         source.start(nextPlayTimeRef.current);
@@ -369,9 +460,13 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             wsRef.current = null;
         }
         stopAllAudio();
-        if (processorRef.current) {
-            processorRef.current.disconnect();
-            processorRef.current = null;
+        if (workletNodeRef.current) {
+            workletNodeRef.current.disconnect();
+            workletNodeRef.current = null;
+        }
+        if (fallbackProcessorRef.current) {
+            fallbackProcessorRef.current.disconnect();
+            fallbackProcessorRef.current = null;
         }
         if (micStreamRef.current) {
             micStreamRef.current.getTracks().forEach(t => t.stop());
@@ -416,7 +511,6 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     };
 
     const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-    const [showKeypad, setShowKeypad] = useState(false);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/95 backdrop-blur-2xl animate-fadeIn">
@@ -425,9 +519,9 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 
                 {/* Dynamic Island / Top Notch Bar */}
                 <div className="w-full pt-3 pb-2 flex flex-col items-center z-20">
-                    <div className="w-28 h-6 bg-black rounded-full flex items-center justify-between px-3 border border-neutral-800/80 shadow-md">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                        <span className="text-[10px] text-neutral-400 font-medium tracking-tight">Gemini Live</span>
+                    <div className="w-32 h-6 bg-black rounded-full flex items-center justify-between px-3 border border-neutral-800/80 shadow-md">
+                        <div className={`w-2 h-2 rounded-full ${callState === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></div>
+                        <span className="text-[10px] text-neutral-400 font-medium tracking-tight">Gemini Live VAD</span>
                         <div className="w-2.5 h-2.5 rounded-full border border-neutral-600 flex items-center justify-center">
                             <div className="w-1 h-1 rounded-full bg-neutral-400"></div>
                         </div>
@@ -450,20 +544,19 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 )}
 
                 {/* Contact Profile Header */}
-                <div className="flex flex-col items-center text-center mt-6 px-4 z-10">
-                    {/* Animated Avatar with Pulsing Waves */}
-                    <div className="relative flex items-center justify-center my-4">
-                        {/* Audio Wave Ring */}
+                <div className="flex flex-col items-center text-center mt-4 px-4 z-10">
+                    {/* Animated Avatar with Pulsing Audio Waves */}
+                    <div className="relative flex items-center justify-center my-3">
                         <div 
                             className={`absolute rounded-full transition-all duration-150 ${
                                 isAiSpeaking 
                                     ? 'w-40 h-40 bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 opacity-40 blur-xl animate-pulse'
                                     : callState === 'connected' && !isMuted
-                                    ? 'w-36 h-36 bg-emerald-500 opacity-20 blur-lg'
+                                    ? 'w-36 h-36 bg-emerald-500 opacity-25 blur-lg'
                                     : 'w-32 h-32 bg-neutral-700 opacity-10'
                             }`}
                             style={{
-                                transform: isAiSpeaking ? 'scale(1.2)' : `scale(${1 + (audioLevel / 100) * 0.5})`
+                                transform: isAiSpeaking ? 'scale(1.2)' : `scale(${1 + (audioLevel / 100) * 0.6})`
                             }}
                         />
 
@@ -491,32 +584,52 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                         )}
                     </p>
 
-                    {/* Live Speaking Status Pill */}
-                    <div className="mt-2">
-                        {isAiSpeaking ? (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-pink-500/20 text-pink-300 border border-pink-500/30">
-                                <Volume2 className="w-3 h-3 mr-1.5 animate-bounce" />
-                                રિયા બોલી રહી છે...
-                            </span>
-                        ) : !isMuted && callState === 'connected' ? (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                                <Mic className="w-3 h-3 mr-1.5 animate-pulse" />
-                                સાંભળી રહી છે (બોલો)...
-                            </span>
-                        ) : isMuted ? (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-neutral-800 text-neutral-400">
-                                <MicOff className="w-3 h-3 mr-1.5" />
-                                માઇક મ્યૂટ છે
-                            </span>
-                        ) : null}
+                    {/* Live Speaking Status Pill & Mic Level Meter */}
+                    <div className="mt-2 flex flex-col items-center space-y-1">
+                        <div>
+                            {isAiSpeaking ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                                    <Volume2 className="w-3 h-3 mr-1.5 animate-bounce" />
+                                    રિયા બોલી રહી છે...
+                                </span>
+                            ) : !isMuted && callState === 'connected' ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                                    <Mic className="w-3 h-3 mr-1.5 animate-pulse" />
+                                    સાંભળી રહી છે (Auto VAD Active)...
+                                </span>
+                            ) : isMuted ? (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-neutral-800 text-neutral-400">
+                                    <MicOff className="w-3 h-3 mr-1.5" />
+                                    માઇક મ્યૂટ છે
+                                </span>
+                            ) : null}
+                        </div>
+
+                        {/* On-Screen Mic Level Bar */}
+                        {!isMuted && callState === 'connected' && (
+                            <div className="w-24 h-1.5 bg-neutral-800 rounded-full overflow-hidden flex items-center px-0.5">
+                                <div 
+                                    className="h-1 bg-emerald-400 rounded-full transition-all duration-75"
+                                    style={{ width: `${Math.max(5, audioLevel)}%` }}
+                                ></div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Subtitle / Mini Live Transcript Box */}
-                <div className="mx-6 my-2 h-24 overflow-y-auto rounded-2xl bg-neutral-900/60 border border-neutral-800/80 p-3 text-xs leading-relaxed text-neutral-300 backdrop-blur-md shadow-inner flex flex-col justify-end">
+                {/* Tool Event Notification Bar (Telegram Send Confirmation) */}
+                {lastToolEvent && (
+                    <div className="mx-6 px-3 py-2 bg-indigo-950/70 border border-indigo-500/40 rounded-xl text-[11px] text-indigo-200 flex items-center space-x-2 animate-bounce">
+                        <FileText className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                        <span className="truncate">{lastToolEvent}</span>
+                    </div>
+                )}
+
+                {/* Subtitle / Live Transcript Box */}
+                <div className="mx-6 my-2 h-28 overflow-y-auto rounded-2xl bg-neutral-900/60 border border-neutral-800/80 p-3 text-xs leading-relaxed text-neutral-300 backdrop-blur-md shadow-inner flex flex-col justify-end">
                     {transcriptHistory.slice(-2).map((item, idx) => (
                         <div key={idx} className={`mb-1 ${item.sender === 'user' ? 'text-blue-300 font-medium' : 'text-neutral-200'}`}>
-                            <span className="text-[10px] text-neutral-500 block">{item.sender === 'user' ? 'તમે:' : 'રિયા:'}</span>
+                            <span className="text-[10px] text-neutral-500 block">{item.sender === 'user' ? '👤 તમે:' : '👩‍💼 રિયા:'}</span>
                             <span>{item.text}</span>
                         </div>
                     ))}
@@ -528,9 +641,9 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     <div ref={transcriptEndRef} />
                 </div>
 
-                {/* iPhone In-Call 6-Grid Control Buttons */}
-                <div className="px-8 pb-10 pt-2 z-10 flex flex-col items-center">
-                    <div className="grid grid-cols-3 gap-x-8 gap-y-5 mb-8 w-full max-w-[280px]">
+                {/* iPhone In-Call Control Grid */}
+                <div className="px-8 pb-8 pt-1 z-10 flex flex-col items-center">
+                    <div className="grid grid-cols-3 gap-x-8 gap-y-4 mb-6 w-full max-w-[280px]">
                         
                         {/* 1. Mute Button */}
                         <div className="flex flex-col items-center">
@@ -549,7 +662,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             </span>
                         </div>
 
-                        {/* 2. Keypad / Quick Prompt Button */}
+                        {/* 2. Keypad / Quick Greeting Button */}
                         <div className="flex flex-col items-center">
                             <button
                                 onClick={() => sendTextQuery('નમસ્તે રિયા')}
@@ -597,21 +710,21 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             <span className="text-[11px] font-medium text-neutral-300 mt-1.5">PAN Card</span>
                         </div>
 
-                        {/* 6. All Docs Zip Shortcut */}
+                        {/* 6. Stamp Paper Shortcut */}
                         <div className="flex flex-col items-center">
                             <button
-                                onClick={() => sendTextQuery('બધા ડોક્યુમેન્ટ્સ ઝિપ ફાઇલમાં મોકલો')}
+                                onClick={() => sendTextQuery('મને સ્ટેમ્પ પેપર મોકલો')}
                                 className="w-16 h-16 rounded-full bg-neutral-800/90 hover:bg-neutral-700/90 text-white flex items-center justify-center transition active:scale-95 cursor-pointer"
                             >
-                                <span className="text-lg font-bold text-emerald-400">ZIP</span>
+                                <span className="text-base font-bold text-amber-400">STAMP</span>
                             </button>
-                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">All Docs</span>
+                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">Stamp Doc</span>
                         </div>
 
                     </div>
 
                     {/* Big Red iPhone End Call Button */}
-                    <div className="flex justify-center mt-2">
+                    <div className="flex justify-center mt-1">
                         {callState !== 'ended' ? (
                             <button
                                 onClick={endCall}

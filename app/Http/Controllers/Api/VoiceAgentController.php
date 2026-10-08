@@ -183,6 +183,113 @@ class VoiceAgentController extends Controller
     }
 
     /**
+     * Validate Telegram WebApp initData string using Bot Token HMAC-SHA256
+     */
+    protected function validateTelegramInitData(?string $initData): ?array
+    {
+        if (empty($initData)) return null;
+
+        $token = env('TELEGRAM_BOT_TOKEN');
+        if (empty($token)) return null;
+
+        parse_str($initData, $data);
+        if (!isset($data['hash'])) return null;
+
+        $hash = $data['hash'];
+        unset($data['hash']);
+
+        ksort($data);
+        $dataCheckString = [];
+        foreach ($data as $key => $val) {
+            $dataCheckString[] = "{$key}={$val}";
+        }
+        $checkString = implode("\n", $dataCheckString);
+
+        $secretKey = hash_hmac('sha256', $token, 'WebAppData', true);
+        $calculatedHash = hash_hmac('sha256', $checkString, $secretKey);
+
+        if (hash_equals($calculatedHash, $hash)) {
+            if (isset($data['user'])) {
+                return json_decode($data['user'], true);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Tool Call Endpoint: get_document
+     * Whitelist strictly: gst, pan, stamp.
+     * Identifies user ONLY from validated Telegram initData (or fallback authenticated user).
+     */
+    public function getDocumentForTelegram(Request $request): JsonResponse
+    {
+        $request->validate([
+            'document_type' => 'required|string|in:gst,pan,stamp',
+            'init_data' => 'nullable|string',
+        ]);
+
+        $docType = $request->input('document_type');
+        $initData = $request->input('init_data');
+
+        // Authenticate Telegram User strictly via initData
+        $telegramUser = $this->validateTelegramInitData($initData);
+        $chatId = null;
+
+        if ($telegramUser && isset($telegramUser['id'])) {
+            $chatId = $telegramUser['id'];
+        } else {
+            // Local fallback / direct Telegram chat id if authorized
+            $fallbackId = $request->input('telegram_user_id');
+            if ($fallbackId) {
+                $user = TelegramUser::where('telegram_id', $fallbackId)->where('is_authorized', true)->first();
+                if ($user) $chatId = $user->telegram_id;
+            }
+        }
+
+        if (!$chatId) {
+            return response()->json([
+                'success' => false,
+                'status' => 'unauthorized',
+                'message' => 'Telegram authentication required to deliver document to your chat.',
+            ], 403);
+        }
+
+        // Search document by verified document_type
+        $queryMap = [
+            'gst' => 'gst',
+            'pan' => 'pan',
+            'stamp' => 'stamp',
+        ];
+        $searchKey = $queryMap[$docType] ?? $docType;
+
+        $searchResult = app(\App\Services\DeepSearchService::class)->search($searchKey);
+        $docs = $searchResult['documents'];
+
+        if ($docs->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'status' => 'not_found',
+                'message' => "Maaf kijiye, {$docType} document database me nahi mila.",
+            ]);
+        }
+
+        // Deliver matching document(s) directly to user's Telegram chat
+        $this->telegramBotService->sendMessage($chatId, "📞 *AI Voice Call થી વિનંતી કરેલ દસ્તાવેજ:*");
+        $this->telegramBotService->deliverDocumentsToTelegram($chatId, $docs);
+
+        $docTitle = $docs->first()->title ?? strtoupper($docType);
+
+        return response()->json([
+            'success' => true,
+            'status' => 'delivered',
+            'document_title' => $docTitle,
+            'count' => $docs->count(),
+            'message' => "Ji, maine aapka {$docTitle} Telegram chat me bhej diya hai.",
+        ]);
+    }
+
+    /**
      * Get Gemini Live Configuration for Frontend WebSocket
      */
     public function getConfig(): JsonResponse
@@ -192,7 +299,7 @@ Tum "Riya" ho, Jay Sir ki document assistant.
 Tum ek asli insaan ki tarah baat karti ho, robot ki tarah nahi.
 
 ## Tumhara kaam
-Customer ko uska zaroori document bhejna.
+Customer ko uska zaroori document (GST, PAN ya Stamp Paper) Telegram chat me bhejna.
 
 ## Baat karne ka tarika
 - Customer ki bhasha me jawab do (Gujarati, Hindi, Hinglish ya English).
@@ -202,14 +309,10 @@ Customer ko uska zaroori document bhejna.
 - Kabhi mat bolo ki tum AI ya bot ho.
 
 ## Document bhejne ka process
-1. Customer jo document maange, use samjho. Agar clear na ho to sawal poochho.
-2. Agar document available hai, to bolo: "Ji, abhi bhej rahi hu" aur apne jawab ke end me ye exact tag likho (is tag ko bolna nahi hai, sirf text me likhna hai):
-[SEND_DOC: document ka exact naam]
-3. Agar document mere paas nahi hai, to bolo: "Maaf kijiye, ye document mere paas nahi hai. Aap Jay Sir se sampark kar sakte hain."
-
-## Rules
-- Kabhi koi document ya jankari apni taraf se mat banao.
-- Customer ka personal data mat maango.
+Jab customer GST, PAN ya Stamp Paper maange:
+1. Tumhe 'get_document' tool call karna hai with document_type ('gst', 'pan', ya 'stamp').
+2. Jab tool response me success mile, to customer ko bolo: "Ji, maine aapka document Telegram chat me bhej diya hai!"
+3. Agar document na mile to bolo: "Maaf kijiye, ye document mere paas nahi mila."
 EOT;
 
         return response()->json([

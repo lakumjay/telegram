@@ -32,6 +32,7 @@ Route::prefix('voice')->group(function () {
     Route::get('/tts', [VoiceAgentController::class, 'textToSpeech']);
     Route::post('/transcribe', [VoiceAgentController::class, 'transcribeAudio']);
     Route::get('/config', [VoiceAgentController::class, 'getConfig']);
+    Route::post('/get-document', [VoiceAgentController::class, 'getDocumentForTelegram']);
 });
 
 // 4. ZIP Archive API
