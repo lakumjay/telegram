@@ -333,6 +333,9 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             analyserRef.current = analyser;
 
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            let isUserSpeaking = false;
+            let silenceTimer = null;
+
             const updateVolume = () => {
                 if (!analyserRef.current) return;
                 analyserRef.current.getByteFrequencyData(dataArray);
@@ -340,6 +343,36 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
                 const avg = sum / dataArray.length;
                 setAudioLevel(Math.min(100, Math.round(avg * 1.8)));
+
+                // Voice Activity Detection (VAD)
+                if (avg > 12) {
+                    // User is actively speaking
+                    if (isAiSpeaking) {
+                        stopAllAudio();
+                        setIsAiSpeaking(false);
+                    }
+                    isUserSpeaking = true;
+                    if (silenceTimer) {
+                        clearTimeout(silenceTimer);
+                        silenceTimer = null;
+                    }
+                } else if (isUserSpeaking && avg < 7) {
+                    // User stopped speaking -> wait 750ms of silence, then signal turnComplete
+                    if (!silenceTimer) {
+                        silenceTimer = setTimeout(() => {
+                            if (isUserSpeaking && wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
+                                console.log('[VAD] Silence detected. Sending turnComplete to trigger AI response.');
+                                wsRef.current.send(JSON.stringify({
+                                    clientContent: {
+                                        turnComplete: true
+                                    }
+                                }));
+                                isUserSpeaking = false;
+                            }
+                        }, 750);
+                    }
+                }
+
                 animFrameRef.current = requestAnimationFrame(updateVolume);
             };
             updateVolume();
