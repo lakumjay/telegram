@@ -44,6 +44,11 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     const isSetupCompleteRef = useRef(false);
     const recognitionRef = useRef(null);
     const isAiSpeakingRef = useRef(false);
+    const callStateRef = useRef(callState);
+    const isOpenRef = useRef(isOpen);
+
+    useEffect(() => { callStateRef.current = callState; }, [callState]);
+    useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
 
     // Call duration timer
     useEffect(() => {
@@ -178,6 +183,10 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     // Initialize Mic streaming pipeline
                     await initMicrophone(audioCtx, ws);
 
+                    // Shield initial greeting from microphone echo
+                    isAiSpeakingRef.current = true;
+                    setIsAiSpeaking(true);
+
                     // Send gentle initial trigger
                     ws.send(JSON.stringify({
                         clientContent: {
@@ -214,9 +223,16 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     }
                 }
 
-                // Phase C: Turn Complete (AI finished speaking)
+                // Phase C: Turn Complete (AI finished generating speech)
                 if (msg.serverContent?.turnComplete) {
-                    setIsAiSpeaking(false);
+                    const remainingMs = Math.max(0, Math.round((nextPlayTimeRef.current - audioCtx.currentTime) * 1000));
+                    setTimeout(() => {
+                        isAiSpeakingRef.current = false;
+                        setIsAiSpeaking(false);
+                        activeAudioNodesRef.current = [];
+                        console.log('[Echo Guard] AI finished speaking. Microphone 100% UNLOCKED.');
+                    }, remainingMs + 350);
+
                     setCurrentAiText(prev => {
                         if (prev.trim()) {
                             setTranscriptHistory(history => [...history, { sender: 'ai', text: prev.trim() }]);
@@ -295,11 +311,29 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             ws.onerror = (e) => {
                 console.error("[WebSocket Error]", e);
                 setConnectionError("સર્વર સાથે કનેક્શન એરર. નેટવર્ક ચેક કરો.");
-                setCallState('ended');
+                if (isOpenRef.current && callStateRef.current !== 'ended') {
+                    setTimeout(() => { if (isOpenRef.current) startLiveSession(); }, 1000);
+                } else {
+                    setCallState('ended');
+                }
             };
 
             ws.onclose = (event) => {
                 console.log(`[WebSocket onclose] Code: ${event.code}, Reason: ${event.reason || 'None'}`);
+                
+                // If user didn't intentionally hang up and modal is open, auto-reconnect!
+                if (isOpenRef.current && callStateRef.current !== 'ended') {
+                    console.log('[WebSocket] Live call closed. Auto-reconnecting in 800ms...');
+                    setCallState('connecting');
+                    setConnectionError('કનેક્શન ફરીથી જોડાઈ રહ્યું છે...');
+                    setTimeout(() => {
+                        if (isOpenRef.current && callStateRef.current !== 'ended') {
+                            startLiveSession();
+                        }
+                    }, 800);
+                    return;
+                }
+
                 if (callState !== 'ended') {
                     setConnectionError(`કૉલ પૂર્ણ થયો (Code: ${event.code})`);
                 }
@@ -433,11 +467,20 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
                     recognition.onerror = (err) => {
                         console.warn('[Speech Recognition] Note:', err.error);
+                        if (err.error === 'no-speech' || err.error === 'aborted' || err.error === 'network') {
+                            setTimeout(() => {
+                                if (callStateRef.current !== 'ended' && isSetupCompleteRef.current) {
+                                    try { recognition.start(); } catch(e) {}
+                                }
+                            }, 300);
+                        }
                     };
 
                     recognition.onend = () => {
-                        if (callState !== 'ended' && isSetupCompleteRef.current) {
-                            try { recognition.start(); } catch(e) {}
+                        if (callStateRef.current !== 'ended' && isSetupCompleteRef.current) {
+                            setTimeout(() => {
+                                try { recognition.start(); } catch(e) {}
+                            }, 200);
                         }
                     };
 
@@ -632,6 +675,8 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     };
 
     const endCall = () => {
+        callStateRef.current = 'ended';
+        setCallState('ended');
         if (wsRef.current) {
             wsRef.current.close();
             wsRef.current = null;
