@@ -123,7 +123,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 // Gemini Live Setup message with inputAudioTranscription and tools
                 const setupMessage = {
                     setup: {
-                        model: 'models/gemini-2.0-flash-exp',
+                        model: 'models/gemini-3.8-live',
                         generationConfig: {
                             responseModalities: ["AUDIO"],
                             speechConfig: {
