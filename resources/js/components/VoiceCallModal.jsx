@@ -42,6 +42,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     const activeAudioNodesRef = useRef([]);
     const transcriptEndRef = useRef(null);
     const isSetupCompleteRef = useRef(false);
+    const recognitionRef = useRef(null);
 
     // Call duration timer
     useEffect(() => {
@@ -377,6 +378,64 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             };
             updateVolume();
 
+            // Start Browser Web Speech Recognition as an infallible assistant
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                try {
+                    const recognition = new SpeechRecognition();
+                    recognition.continuous = true;
+                    recognition.interimResults = true;
+                    recognition.lang = 'gu-IN'; // Gujarati / Hindi recognition
+
+                    recognition.onresult = (event) => {
+                        let finalTranscript = '';
+                        for (let i = event.resultIndex; i < event.results.length; ++i) {
+                            if (event.results[i].isFinal) {
+                                finalTranscript += event.results[i][0].transcript;
+                            }
+                        }
+
+                        if (finalTranscript.trim()) {
+                            const spoken = finalTranscript.trim();
+                            console.log('[Speech Recognition Heard]', spoken);
+                            setUserSpokenText(spoken);
+                            setTranscriptHistory(h => [...h, { sender: 'user', text: spoken }]);
+
+                            // Stop AI speaking if user speaks
+                            stopAllAudio();
+                            setIsAiSpeaking(false);
+
+                            // Send directly to Gemini as turn with turnComplete
+                            if (ws && ws.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
+                                ws.send(JSON.stringify({
+                                    clientContent: {
+                                        turns: [{ role: "user", parts: [{ text: spoken }] }],
+                                        turnComplete: true
+                                    }
+                                }));
+                            }
+                        }
+                    };
+
+                    recognition.onerror = (err) => {
+                        console.warn('[Speech Recognition] Error/ignored:', err.error);
+                    };
+
+                    recognition.onend = () => {
+                        // Restart if call is still active
+                        if (callState !== 'ended' && isSetupCompleteRef.current) {
+                            try { recognition.start(); } catch(e) {}
+                        }
+                    };
+
+                    recognition.start();
+                    recognitionRef.current = recognition;
+                    console.log('[Speech Recognition] Active and listening for Gujarati/Hindi voice!');
+                } catch(e) {
+                    console.warn('[Speech Recognition] Failed to initialize:', e);
+                }
+            }
+
             const nativeRate = audioCtx.sampleRate;
             console.log(`[Mic Pipeline] Capturing at ${nativeRate} Hz. Converting to 16000 Hz.`);
 
@@ -562,6 +621,10 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         }
         if (animFrameRef.current) {
             cancelAnimationFrame(animFrameRef.current);
+        }
+        if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch(e) {}
+            recognitionRef.current = null;
         }
         setCallState('ended');
     };
