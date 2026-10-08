@@ -286,11 +286,26 @@ class TelegramBotService
                 $caption .= "\n💰 સ્ટેમ્પ કિંમત: ₹{$doc->stamp_value}";
             }
 
-            $filePath = storage_path('app/' . $doc->file_path);
+            $possiblePaths = [
+                storage_path('app/' . $doc->file_path),
+                storage_path('app/private/' . $doc->file_path),
+                storage_path('app/public/' . $doc->file_path),
+                storage_path('app/private/' . ltrim($doc->file_path, '/')),
+            ];
 
-            if (file_exists($filePath)) {
-                $this->sendDocument($chatId, $filePath, $caption);
+            $actualFilePath = null;
+            foreach ($possiblePaths as $p) {
+                if (file_exists($p)) {
+                    $actualFilePath = $p;
+                    break;
+                }
+            }
+
+            if ($actualFilePath) {
+                Log::info("Delivering actual file to Telegram: {$actualFilePath}");
+                $this->sendDocument($chatId, $actualFilePath, $caption);
             } else {
+                Log::warning("Document file not found at any candidate path for {$doc->file_path}");
                 // If demo file, send card message with summary
                 $card = $caption . "\n\n📝 *OCR Content Preview:*\n" . substr($doc->ocr_text, 0, 300) . "...";
                 $this->sendMessage($chatId, $card);

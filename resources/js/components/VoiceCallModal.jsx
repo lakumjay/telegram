@@ -144,7 +144,14 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     sessionRef.current.sendToolResponse({
                         functionResponses: [{
                             id: call.id,
-                            response: { output: resultPayload }
+                            name: call.name,
+                            response: {
+                                output: {
+                                    status: resultPayload.status || "success",
+                                    document_title: resultPayload.document_title || docType,
+                                    message: resultPayload.message || "Document delivered to Telegram successfully"
+                                }
+                            }
                         }]
                     });
                 }
@@ -155,7 +162,13 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     sessionRef.current.sendToolResponse({
                         functionResponses: [{
                             id: call.id,
-                            response: { output: { success: false, message: 'Document not found or error occurred.' } }
+                            name: call.name,
+                            response: {
+                                output: {
+                                    status: "error",
+                                    message: "Document not found or error occurred."
+                                }
+                            }
                         }]
                     });
                 }
@@ -327,14 +340,13 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             functionDeclarations: [
                                 {
                                     name: 'get_document',
-                                    description: 'Search user verified company document and deliver it directly into their Telegram chat.',
+                                    description: 'Search user verified company document (by type: gst, pan, stamp, or by document title/GST number/content) and deliver it directly into their Telegram chat.',
                                     parameters: {
                                         type: 'OBJECT',
                                         properties: {
                                             document_type: {
                                                 type: 'STRING',
-                                                enum: ['gst', 'pan', 'stamp'],
-                                                description: 'Document type: gst, pan, or stamp.'
+                                                description: 'The document identifier or search term (e.g., gst, pan, stamp, GST number, or agreement name).'
                                             }
                                         },
                                         required: ['document_type']

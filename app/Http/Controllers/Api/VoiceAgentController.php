@@ -233,11 +233,11 @@ class VoiceAgentController extends Controller
     public function getDocumentForTelegram(Request $request): JsonResponse
     {
         $request->validate([
-            'document_type' => 'required|string|in:gst,pan,stamp',
+            'document_type' => 'required|string',
             'init_data' => 'nullable|string',
         ]);
 
-        $docType = $request->input('document_type');
+        $docType = trim($request->input('document_type'));
         $initData = $request->input('init_data');
 
         // Authenticate Telegram User strictly via initData
@@ -273,22 +273,35 @@ class VoiceAgentController extends Controller
             ], 403);
         }
 
-        // Search document by verified document_type
+        // Search document by verified document_type or deep search
         $queryMap = [
             'gst' => 'gst',
+            'જીએસટી' => 'gst',
             'pan' => 'pan',
+            'પાન' => 'pan',
+            'પેન' => 'pan',
             'stamp' => 'stamp',
+            'સ્ટેમ્પ' => 'stamp',
         ];
-        $searchKey = $queryMap[$docType] ?? $docType;
+        $searchKey = $queryMap[mb_strtolower($docType)] ?? $docType;
 
         $searchResult = app(\App\Services\DeepSearchService::class)->search($searchKey);
         $docs = $searchResult['documents'];
 
         if ($docs->isEmpty()) {
+            // Direct fallback search across title, ocr_text, search_keywords
+            $docs = \App\Models\Document::where('title', 'LIKE', "%{$searchKey}%")
+                ->orWhere('search_keywords', 'LIKE', "%{$searchKey}%")
+                ->orWhere('ocr_text', 'LIKE', "%{$searchKey}%")
+                ->orWhere('doc_type', 'LIKE', "%{$searchKey}%")
+                ->get();
+        }
+
+        if ($docs->isEmpty()) {
             return response()->json([
                 'success' => false,
                 'status' => 'not_found',
-                'message' => "માફ કરશો, {$docType} દસ્તાવેજ ડેટાબેઝમાં નથી મળ્યો.",
+                'message' => "માફ કરશો, '{$docType}' સંબંધી કોઈ દસ્તાવેજ ડેટાબેઝમાં નથી મળ્યો.",
             ]);
         }
 
