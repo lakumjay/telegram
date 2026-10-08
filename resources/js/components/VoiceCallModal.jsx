@@ -382,11 +382,42 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 }));
             };
 
-            // Try AudioWorklet first (Modern, non-blocking)
+            // Try AudioWorklet first using an INLINE BLOB (100% reliable, no 404 / CORS issues)
             let workletSuccess = false;
             try {
                 if (audioCtx.audioWorklet) {
-                    await audioCtx.audioWorklet.addModule('/audio-recorder-worklet.js');
+                    const workletCode = `
+                        class AudioRecordingProcessor extends AudioWorkletProcessor {
+                            constructor() {
+                                super();
+                                this.bufferSize = 2048;
+                                this.buffer = new Float32Array(this.bufferSize);
+                                this.bytesWritten = 0;
+                            }
+                            process(inputs) {
+                                const input = inputs[0];
+                                if (!input || !input[0]) return true;
+                                const channelData = input[0];
+                                for (let i = 0; i < channelData.length; i++) {
+                                    this.buffer[this.bytesWritten++] = channelData[i];
+                                    if (this.bytesWritten >= this.bufferSize) {
+                                        const out = new Float32Array(this.bytesWritten);
+                                        out.set(this.buffer.subarray(0, this.bytesWritten));
+                                        this.port.postMessage(out);
+                                        this.bytesWritten = 0;
+                                    }
+                                }
+                                return true;
+                            }
+                        }
+                        registerProcessor('audio-recorder-worklet', AudioRecordingProcessor);
+                    `;
+                    const blob = new Blob([workletCode], { type: 'application/javascript' });
+                    const blobUrl = URL.createObjectURL(blob);
+                    
+                    await audioCtx.audioWorklet.addModule(blobUrl);
+                    URL.revokeObjectURL(blobUrl);
+
                     const workletNode = new AudioWorkletNode(audioCtx, 'audio-recorder-worklet');
                     workletNodeRef.current = workletNode;
 
@@ -396,10 +427,10 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
                     source.connect(workletNode);
                     workletSuccess = true;
-                    console.log('[Mic Pipeline] AudioWorkletNode successfully active!');
+                    console.log('[Mic Pipeline] Inline AudioWorkletNode successfully active and sending audio chunks!');
                 }
             } catch (workletErr) {
-                console.warn('[Mic Pipeline] AudioWorklet failed, using ScriptProcessor fallback:', workletErr);
+                console.warn('[Mic Pipeline] AudioWorklet inline failed, using ScriptProcessor fallback:', workletErr);
             }
 
             // Fallback to ScriptProcessor if AudioWorklet not supported
@@ -415,7 +446,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 source.connect(processor);
                 processor.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
-                console.log('[Mic Pipeline] ScriptProcessor fallback active.');
+                console.log('[Mic Pipeline] ScriptProcessor fallback active and sending audio chunks.');
             }
 
         } catch (err) {
