@@ -302,8 +302,8 @@ class TelegramBotService
             }
 
             if ($actualFilePath) {
-                Log::info("Delivering actual file to Telegram: {$actualFilePath}");
-                $this->sendDocument($chatId, $actualFilePath, $caption);
+                Log::info("Delivering actual file to Telegram: {$actualFilePath} with original name: " . ($doc->original_filename ?? basename($actualFilePath)));
+                $this->sendDocument($chatId, $actualFilePath, $caption, $doc->original_filename ?: null);
             } else {
                 Log::warning("Document file not found at any candidate path for {$doc->file_path}");
                 // If demo file, send card message with summary
@@ -395,9 +395,10 @@ class TelegramBotService
     /**
      * Send Document file
      */
-    public function sendDocument(int $chatId, string $filePath, string $caption = ''): array
+    public function sendDocument(int $chatId, string $filePath, string $caption = '', ?string $customFileName = null): array
     {
-        return Http::attach('document', file_get_contents($filePath), basename($filePath))
+        $fileName = $customFileName ?: basename($filePath);
+        return Http::attach('document', file_get_contents($filePath), $fileName)
             ->post("{$this->apiUrl}/sendDocument", [
                 'chat_id' => $chatId,
                 'caption' => $caption,
