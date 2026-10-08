@@ -251,7 +251,36 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
             // User Speech Transcription (Gemini native input transcription)
             if (sc.inputTranscription?.text) {
-                handleTranscript('user', sc.inputTranscription.text);
+                const userSpeech = sc.inputTranscription.text;
+                handleTranscript('user', userSpeech);
+
+                // Proactive Background Search: If user asked a question about documents/address/content,
+                // automatically query backend in parallel (0.01s) so Gemini has the answer without needing tool invocation
+                const questionWords = ['શું', 'ક્યાં', 'કઈ', 'કયો', 'કોણ', 'એડ્રેસ', 'સરનામું', 'નંબર', 'તારીખ', 'શરત', 'કેટલા', 'કેવી', 'address', 'who', 'what', 'where', 'number'];
+                const isQuestion = questionWords.some(w => userSpeech.toLowerCase().includes(w));
+                
+                if (isQuestion && sessionRef.current && !isAiSpeakingRef.current) {
+                    axios.post('/api/voice/query-content', { query: userSpeech })
+                        .then(res => {
+                            if (res.data?.success && res.data?.snippets?.length > 0) {
+                                const bestSnippet = res.data.snippets[0];
+                                console.log('[Proactive Background Knowledge Match]', bestSnippet);
+                                setLastToolEvent(`💡 દસ્તાવેજમાંથી મળેલ: ${bestSnippet.document_title}`);
+                                
+                                // Silently feed context into Gemini Live session
+                                sessionRef.current?.send({
+                                    clientContent: {
+                                        turns: [{
+                                            role: "user",
+                                            parts: [{ text: `[સિસ્ટમ માહિતી: દસ્તાવેજ "${bestSnippet.document_title}" માં આ વિગત લખેલી છે: "${bestSnippet.snippet}". આના આધારે દેશી અવાજમાં સવાલનો સાચો જવાબ આપો.]` }]
+                                        }],
+                                        turnComplete: false
+                                    }
+                                });
+                            }
+                        })
+                        .catch(e => console.warn('[Proactive query note]', e));
+                }
             }
 
             // AI Output Speech Transcription
