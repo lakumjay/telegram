@@ -211,25 +211,58 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             source.connect(analyser);
             analyserRef.current = analyser;
 
+            // Volume and Voice Activity Tracking for instant turn-taking
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            let speechActive = false;
+            let silenceTimer = null;
+
             const updateVolume = () => {
                 if (!analyserRef.current) return;
                 analyserRef.current.getByteFrequencyData(dataArray);
                 let sum = 0;
                 for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                setAudioLevel(Math.min(100, Math.round((sum / dataArray.length) * 1.6)));
+                const avg = sum / dataArray.length;
+                setAudioLevel(Math.min(100, Math.round(avg * 1.6)));
+
+                // User started speaking -> Interrupt AI if speaking (Barge-In)
+                if (avg > 15) {
+                    if (isAiSpeaking) {
+                        stopAllAudio();
+                        setIsAiSpeaking(false);
+                    }
+                    speechActive = true;
+                    if (silenceTimer) {
+                        clearTimeout(silenceTimer);
+                        silenceTimer = null;
+                    }
+                } else if (speechActive && avg < 8) {
+                    // User was speaking and now fell silent for 900ms -> signal turnComplete!
+                    if (!silenceTimer) {
+                        silenceTimer = setTimeout(() => {
+                            if (speechActive && ws && ws.readyState === WebSocket.OPEN) {
+                                console.log('Speech ended. Triggering Gemini response turn.');
+                                ws.send(JSON.stringify({
+                                    clientContent: {
+                                        turnComplete: true
+                                    }
+                                }));
+                                speechActive = false;
+                            }
+                        }, 900);
+                    }
+                }
+
                 animFrameRef.current = requestAnimationFrame(updateVolume);
             };
             updateVolume();
 
-            // Processor to convert float32 to int16 PCM (16kHz)
+            // Audio Worklet / ScriptProcessor with 1.4x Gain amplification for clear voice
             const processor = audioCtx.createScriptProcessor(4096, 1, 1);
             processorRef.current = processor;
             
             const nativeRate = audioCtx.sampleRate;
             
             processor.onaudioprocess = (e) => {
-                // Wait until setup is truly complete and mic is not muted
                 if (isMuted || !isSetupCompleteRef.current || ws.readyState !== WebSocket.OPEN) return;
 
                 const inputData = e.inputBuffer.getChannelData(0);
@@ -240,6 +273,8 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 for (let i = 0; i < newLength; i++) {
                     const nativeIndex = Math.round(i * ratio);
                     let s = inputData[nativeIndex < inputData.length ? nativeIndex : inputData.length - 1];
+                    // Amplify microphone input by 1.35x for crystal clear recognition
+                    s = s * 1.35;
                     s = Math.max(-1, Math.min(1, s));
                     pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }

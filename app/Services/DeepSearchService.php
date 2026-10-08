@@ -67,7 +67,14 @@ class DeepSearchService
         }
 
         if (!empty($parsedIntent['doc_types'])) {
-            $queryBuilder->whereIn('doc_type', $parsedIntent['doc_types']);
+            $docTypes = $parsedIntent['doc_types'];
+            $queryBuilder->where(function ($q) use ($docTypes) {
+                $q->whereIn('doc_type', $docTypes);
+                foreach ($docTypes as $dt) {
+                    $q->orWhere('title', 'LIKE', "%{$dt}%")
+                      ->orWhere('original_filename', 'LIKE', "%{$dt}%");
+                }
+            });
             $hasAnyFilter = true;
         }
 

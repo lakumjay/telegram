@@ -82,6 +82,7 @@ class DocumentController extends Controller
             'company_id' => 'nullable|exists:companies,id',
             'folder_id' => 'nullable|exists:folders,id',
             'title' => 'nullable|string|max:255',
+            'doc_type' => 'nullable|string|max:50',
         ]);
 
         $file = $request->file('file');
@@ -93,11 +94,13 @@ class DocumentController extends Controller
         $absolutePath = storage_path('app/' . $storagePath);
 
         $title = $request->input('title') ?: pathinfo($originalFilename, PATHINFO_FILENAME);
+        $docType = $request->input('doc_type', 'other');
 
         $document = Document::create([
             'company_id' => $request->company_id,
             'folder_id' => $request->folder_id,
             'title' => $title,
+            'doc_type' => $docType,
             'original_filename' => $originalFilename,
             'file_path' => $storagePath,
             'file_size' => $fileSize,

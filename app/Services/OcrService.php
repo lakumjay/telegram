@@ -133,9 +133,9 @@ class OcrService
         // 1. Detect Document Type
         if (preg_match('/(?:aadhaar|aadhar|uidai|આધાર)/i', $combined)) {
             $docType = 'aadhaar';
-        } elseif (preg_match('/(?:pan card|pancard|permanent account number|ઇન્કમ ટેક્સ|પાનકાર્ડ)/i', $combined)) {
+        } elseif (preg_match('/(?:pan card|pancard|permanent account number|ઇન્કમ ટેક્સ|પાનકાર્ડ|\bpan\b)/i', $combined)) {
             $docType = 'pan';
-        } elseif (preg_match('/(?:gstin|gst registration|goods and services tax|જીએસટી)/i', $combined)) {
+        } elseif (preg_match('/(?:gstin|gst registration|goods and services tax|જીએસટી|\bgst\b|gst\s*number)/i', $combined)) {
             $docType = 'gst';
         } elseif (preg_match('/(?:udyam|msme|ઉદ્યમ|ઉદ્યોગ આધાર)/i', $combined)) {
             $docType = 'udyam';

@@ -7,6 +7,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
 
     const [file, setFile] = useState(null);
     const [title, setTitle] = useState('');
+    const [docType, setDocType] = useState('gst');
     const [companyId, setCompanyId] = useState('');
     const [folderId, setFolderId] = useState('');
     const [companies, setCompanies] = useState([]);
@@ -33,6 +34,12 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                 // Auto generate title from filename
                 const nameWithoutExt = f.name.replace(/\.[^/.]+$/, "");
                 setTitle(nameWithoutExt);
+                // Auto detect doc type
+                if (/gst/i.test(nameWithoutExt)) setDocType('gst');
+                else if (/pan/i.test(nameWithoutExt)) setDocType('pan');
+                else if (/aadhaar|aadhar/i.test(nameWithoutExt)) setDocType('aadhaar');
+                else if (/stamp|stemp|करार/i.test(nameWithoutExt)) setDocType('stamp');
+                else if (/bill|light/i.test(nameWithoutExt)) setDocType('lightbill');
             }
         }
     };
@@ -50,6 +57,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('title', title);
+        formData.append('doc_type', docType);
         if (companyId) formData.append('company_id', companyId);
         if (folderId) formData.append('folder_id', folderId);
 
@@ -159,18 +167,41 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                             )}
                         </div>
 
-                        {/* Title Input */}
-                        <div>
-                            <label className="block text-xs font-medium text-slate-300 mb-1">
-                                દસ્તાવેજનું નામ (Title)
-                            </label>
-                            <input
-                                type="text"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                placeholder="દા.ત. Rajeshwari Solar PAN Card, ₹300 Stamp Paper"
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                            />
+                        {/* Title and Doc Type Inputs */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">
+                                    દસ્તાવેજનું નામ (Title)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    placeholder="દા.ત. Rajeshwari Solar GST, ₹300 Stamp"
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">
+                                    દસ્તાવેજનો પ્રકાર (Doc Type)
+                                </label>
+                                <select
+                                    value={docType}
+                                    onChange={(e) => setDocType(e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                >
+                                    <option value="gst">જીએસટી (GST Certificate)</option>
+                                    <option value="pan">પાનકાર્ડ (PAN Card)</option>
+                                    <option value="stamp">સ્ટેમ્પ પેપર (Stamp Paper / કરાર)</option>
+                                    <option value="aadhaar">આધારકાર્ડ (Aadhaar Card)</option>
+                                    <option value="udyam">ઉદ્યમ રજીસ્ટ્રેશન (Udyam)</option>
+                                    <option value="geda">ગેડા (GEDA Document)</option>
+                                    <option value="lightbill">લાઇટ બિલ (Electricity Bill)</option>
+                                    <option value="rc_book">આરસી બુક (RC Book)</option>
+                                    <option value="other">જનરલ દસ્તાવેજ (Other)</option>
+                                </select>
+                            </div>
                         </div>
 
                         {/* Company & Folder Select */}
