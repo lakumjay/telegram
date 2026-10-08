@@ -401,7 +401,6 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             analyserRef.current = analyser;
 
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            let silenceTimer = null;
 
             const updateVolume = () => {
                 if (!analyserRef.current) return;
@@ -424,27 +423,8 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
                     if (avg > speakThreshold) {
                         isUserSpeakingRef.current = true;
-                        if (silenceTimer) {
-                            clearTimeout(silenceTimer);
-                            silenceTimer = null;
-                        }
                     } else if (isUserSpeakingRef.current && avg <= silenceThreshold) {
-                        // User stopped speaking -> wait 600ms of natural silence, then complete user turn
-                        if (!silenceTimer) {
-                            silenceTimer = setTimeout(() => {
-                                if (isUserSpeakingRef.current && wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
-                                    if (!isAiSpeakingRef.current && activeAudioNodesRef.current.length === 0) {
-                                        console.log('[VAD] Natural pause detected. Completing user turn.');
-                                        wsRef.current.send(JSON.stringify({
-                                            clientContent: {
-                                                turnComplete: true
-                                            }
-                                        }));
-                                    }
-                                    isUserSpeakingRef.current = false;
-                                }
-                            }, 600);
-                        }
+                        isUserSpeakingRef.current = false;
                     }
                 }
 

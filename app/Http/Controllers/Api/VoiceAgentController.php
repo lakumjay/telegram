@@ -355,6 +355,7 @@ EOT;
             ])->timeout(10)->post('https://generativelanguage.googleapis.com/v1beta/auth_tokens', [
                 'uses' => 100,
                 'expireTime' => $expireTime,
+                'newSessionExpireTime' => $expireTime,
             ]);
 
             if ($authRes->successful()) {
