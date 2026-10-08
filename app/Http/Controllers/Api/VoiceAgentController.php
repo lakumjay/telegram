@@ -226,6 +226,96 @@ class VoiceAgentController extends Controller
     }
 
     /**
+     * Tool Call Endpoint: query_document_content
+     * High-speed snippet search across entire multi-page document texts (Gujarati, Hindi, English).
+     */
+    public function queryDocumentContent(Request $request): JsonResponse
+    {
+        $request->validate([
+            'query' => 'required|string',
+            'document_name' => 'nullable|string',
+        ]);
+
+        $query = trim($request->input('query'));
+        $docName = trim($request->input('document_name', ''));
+
+        // Query across documents
+        $docsQuery = \App\Models\Document::with('company');
+        if (!empty($docName)) {
+            $docsQuery->where(function($q) use ($docName) {
+                $q->where('title', 'LIKE', "%{$docName}%")
+                  ->orWhere('original_filename', 'LIKE', "%{$docName}%")
+                  ->orWhere('doc_type', 'LIKE', "%{$docName}%")
+                  ->orWhereHas('company', function($cq) use ($docName) {
+                      $cq->where('name', 'LIKE', "%{$docName}%");
+                  });
+            });
+        }
+
+        $docs = $docsQuery->get();
+        if ($docs->isEmpty()) {
+            $docs = \App\Models\Document::with('company')->get();
+        }
+
+        $matchedSnippets = [];
+        $searchTerms = array_filter(explode(' ', mb_strtolower($query)), fn($t) => mb_strlen($t) > 1);
+
+        foreach ($docs as $doc) {
+            $text = $doc->ocr_text;
+            if (empty($text)) continue;
+
+            $lowerText = mb_strtolower($text);
+            $foundPos = false;
+
+            // Search by terms or full query
+            if (mb_strpos($lowerText, mb_strtolower($query)) !== false) {
+                $foundPos = mb_strpos($lowerText, mb_strtolower($query));
+            } else {
+                foreach ($searchTerms as $term) {
+                    $pos = mb_strpos($lowerText, $term);
+                    if ($pos !== false) {
+                        $foundPos = $pos;
+                        break;
+                    }
+                }
+            }
+
+            if ($foundPos !== false) {
+                $start = max(0, $foundPos - 150);
+                $snippet = mb_substr($text, $start, 500);
+                $matchedSnippets[] = [
+                    'document_title' => $doc->title,
+                    'company' => $doc->company?->name ?? 'જનરલ',
+                    'snippet' => trim(preg_replace('/\s+/', ' ', $snippet)),
+                ];
+            }
+        }
+
+        if (empty($matchedSnippets)) {
+            // Fallback: return first 300 chars of matching docs
+            foreach ($docs->take(2) as $doc) {
+                if (!empty($doc->ocr_text)) {
+                    $matchedSnippets[] = [
+                        'document_title' => $doc->title,
+                        'company' => $doc->company?->name ?? 'જનરલ',
+                        'snippet' => mb_substr(trim(preg_replace('/\s+/', ' ', $doc->ocr_text)), 0, 400),
+                    ];
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'query' => $query,
+            'results_count' => count($matchedSnippets),
+            'snippets' => $matchedSnippets,
+            'summary' => count($matchedSnippets) > 0 
+                ? "દસ્તાવેજમાંથી મળેલ વિગતો: " . implode(' | ', array_map(fn($s) => $s['document_title'] . ': ' . $s['snippet'], $matchedSnippets))
+                : "આ બાબત દસ્તાવેજમાં મળી નથી.",
+        ]);
+    }
+
+    /**
      * Tool Call Endpoint: get_document
      * Whitelist strictly: gst, pan, stamp.
      * Identifies user ONLY from validated Telegram initData (or fallback authorized user).

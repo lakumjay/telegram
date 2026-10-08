@@ -119,8 +119,57 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         setIsAiSpeaking(false);
     }, []);
 
-    // Tool call execution (Telegram document delivery)
+    // Tool call execution (Telegram document delivery or live content query)
     const handleToolCall = async (call) => {
+        if (call.name === 'query_document_content') {
+            const queryText = call.args?.query;
+            const docName = call.args?.document_name || '';
+            console.log(`[ToolCall] Gemini invoked query_document_content: query="${queryText}", doc="${docName}"`);
+            setLastToolEvent(`🔍 દસ્તાવેજમાંથી વિગત શોધી રહી છું: "${queryText}"...`);
+
+            try {
+                const res = await axios.post('/api/voice/query-content', {
+                    query: queryText,
+                    document_name: docName
+                });
+                const payload = res.data;
+                console.log('[Content Query Result]', payload);
+
+                if (sessionRef.current) {
+                    sessionRef.current.sendToolResponse({
+                        functionResponses: [{
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                                output: {
+                                    status: "success",
+                                    summary: payload.summary || "વિગત મળી નથી.",
+                                    results_count: payload.results_count || 0
+                                }
+                            }
+                        }]
+                    });
+                }
+            } catch (err) {
+                console.error('[Content Query Error]', err);
+                if (sessionRef.current) {
+                    sessionRef.current.sendToolResponse({
+                        functionResponses: [{
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                                output: {
+                                    status: "error",
+                                    summary: "દસ્તાવેજ વાંચવામાં ટેકનિકલ ક્ષતિ થઈ."
+                                }
+                            }
+                        }]
+                    });
+                }
+            }
+            return;
+        }
+
         if (call.name === 'get_document') {
             const docType = call.args?.document_type;
             console.log(`[ToolCall] Gemini invoked get_document: ${docType}`);
@@ -338,6 +387,24 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     tools: [
                         {
                             functionDeclarations: [
+                                {
+                                    name: 'query_document_content',
+                                    description: 'Fast search inside document pages/OCR text in Gujarati, Hindi or English to answer questions like address, partners, terms, amounts, dates, clauses without sending file.',
+                                    parameters: {
+                                        type: 'OBJECT',
+                                        properties: {
+                                            query: {
+                                                type: 'STRING',
+                                                description: 'The search question or topic (e.g. address, registration number, rent amount, terms).'
+                                            },
+                                            document_name: {
+                                                type: 'STRING',
+                                                description: 'Optional document or company name if known (e.g. rajeshwari solar, gst, pan, agreement).'
+                                            }
+                                        },
+                                        required: ['query']
+                                    }
+                                },
                                 {
                                     name: 'get_document',
                                     description: 'Search user verified company document (by type: gst, pan, stamp, or by document title/GST number/content) and deliver it directly into their Telegram chat.',
