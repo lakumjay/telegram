@@ -443,26 +443,10 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             return;
                         }
 
-                        console.log('[Speech Recognition Heard User]:', spoken);
+                        console.log('[Speech Recognition Preview]:', spoken);
                         setUserSpokenText(spoken);
-                        setTranscriptHistory(h => {
-                            const last = h[h.length - 1];
-                            if (last && last.sender === 'user' && last.text === spoken) return h;
-                            return [...h, { sender: 'user', text: spoken }];
-                        });
-
-                        // Stop AI audio if user interrupts cleanly
-                        stopAllAudio();
-
-                        // Send user utterance to Gemini
-                        if (ws && ws.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
-                            ws.send(JSON.stringify({
-                                clientContent: {
-                                    turns: [{ role: "user", parts: [{ text: spoken }] }],
-                                    turnComplete: true
-                                }
-                            }));
-                        }
+                        // NOTE: We DO NOT inject clientContent.turns into WebSocket here!
+                        // The raw 16kHz PCM audio stream (realtimeInput) is the sole, clean voice channel.
                     };
 
                     recognition.onerror = (err) => {
@@ -522,14 +506,16 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 const base64 = btoa(binary);
 
                 // Send realtime input chunk to Gemini
-                ws.send(JSON.stringify({
-                    realtimeInput: {
-                        mediaChunks: [{
-                            mimeType: "audio/pcm;rate=16000",
-                            data: base64
-                        }]
-                    }
-                }));
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({
+                        realtimeInput: {
+                            mediaChunks: [{
+                                mimeType: "audio/pcm;rate=16000",
+                                data: base64
+                            }]
+                        }
+                    }));
+                }
             };
 
             // Try AudioWorklet first using an INLINE BLOB (100% reliable, no 404 / CORS issues)
@@ -540,7 +526,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                         class AudioRecordingProcessor extends AudioWorkletProcessor {
                             constructor() {
                                 super();
-                                this.bufferSize = 2048;
+                                this.bufferSize = 4096;
                                 this.buffer = new Float32Array(this.bufferSize);
                                 this.bytesWritten = 0;
                             }
