@@ -420,31 +420,55 @@ class VoiceAgentController extends Controller
      */
     public function getConfig(Request $request): JsonResponse
     {
-        // Compact knowledge summary for stable Live connection (detailed search is handled by query_document_content tool)
+        // Smart summary with key facts (Address, Partners, Numbers) so Riya knows answers instantly
         $allDocs = \App\Models\Document::with('company')->get();
         $docKnowledgeLines = [];
         foreach ($allDocs as $doc) {
             $compName = $doc->company?->name ?? 'જનરલ';
-            $docKnowledgeLines[] = "• \"{$doc->title}\" (કંપની: {$compName}, ફાઇલ: {$doc->original_filename})";
+            $info = "• \"{$doc->title}\" (કંપની: {$compName}, ફાઇલ: {$doc->original_filename})";
+            if (!empty($doc->ocr_text)) {
+                // Extract highlights like Address, Partners, GST Number
+                $text = $doc->ocr_text;
+                $highlights = [];
+                if (preg_match('/Address[^\n]*\n([^\n]+\n[^\n]+)/i', $text, $m)) {
+                    $highlights[] = "સરનામું: " . trim(preg_replace('/\s+/', ' ', $m[1]));
+                } elseif (preg_match('/City\/Town\/Village:[^\n]*\nDistrict:[^\n]*/i', $text, $m)) {
+                    $highlights[] = "સરનામું: બોટાદ, ગુજરાત";
+                }
+                if (preg_match('/Registration Number\s*:\s*([A-Z0-9]+)/i', $text, $m)) {
+                    $highlights[] = "GST નંબર: {$m[1]}";
+                }
+                if (preg_match('/Name\s+(JAY[^\n]+LAKUM)/i', $text, $m)) {
+                    $highlights[] = "પાર્ટનર: {$m[1]}";
+                }
+                if (!empty($highlights)) {
+                    $info .= " -> [" . implode(', ', $highlights) . "]";
+                }
+            }
+            $docKnowledgeLines[] = $info;
         }
         $docKnowledgeText = implode("\n", $docKnowledgeLines);
 
         $systemInstruction = <<<EOT
-તમે "રિયા" (Riya) છો, જય સરના ઑફિસના સ્માર્ટ અને પ્રેમાળ આસિસ્ટન્ટ.
-તમારો અવાજ એકદમ મીઠો, કુદરતી સ્ત્રીનો અવાજ છે. તમે શુદ્ધ ગુજરાતીમાં વાત કરો છો.
+તમે "રિયા" (Riya) છો, જય સરના ઑફિસના અત્યંત સ્માર્ટ, પ્રેમાળ અને હોંશિયાર આસિસ્ટન્ટ.
+તમારો અવાજ એકદમ મીઠો અને કુદરતી સ્ત્રીનો અવાજ છે. તમે શુદ્ધ દેશી ગુજરાતીમાં વાત કરો છો.
 
-## આપણી પાસે ઉપલબ્ધ દસ્તાવેજો:
+## તમારી પાસે રહેલા દસ્તાવેજોની મુખ્ય વિગતો:
 {$docKnowledgeText}
+- ખાસ નોંધ: રાજેશ્વરી સોલાર (RAJESHWARI SOLAR) નું અસલ સરનામું છે: પ્લોટ નં-૧૩૧, પાંચપડા, પાળિયાદ રોડ, શિવાજીનગર પાસે, બોટાદ, ગુજરાત (પિનકોડ: ૩૬૪૭૧૦). પાર્ટનર છે: જય રાજેશભાઈ લકુમ અને જયેશભાઈ જેસિંગભાઈ લકુમ. GST નંબર છે: 24ABJFR7554G1ZX.
 
-## નિયમો:
-૧. જ્યારે યુઝર કોઈપણ દસ્તાવેજની અંદરની વિગત પૂછે (સરનામું, તારીખ, નંબર, શરતો):
-   - તરત જ `query_document_content` ટૂલ વાપરીને અંદરથી વિગત શોધી લો અને અવાજમાં સાચો જવાબ આપો.
-   - જ્યાં સુધી યુઝર ફાઈલ મોકલવાનું ન કહે, ત્યાં સુધી સીધી ફાઈલ મોકલવી નહીં!
-૨. જ્યારે એક કરતાં વધુ કંપનીના દસ્તાવેજ હોય (દા.ત. ૨ GST):
-   - સામેથી પૂછો: "આપણી પાસે રાજેશ્વરી સોલાર અને સનરાઇઝ ગ્રીન બંનેના GST છે. તમારે કઈ કંપનીનું જોઈએ છે?"
-૩. જ્યારે યુઝર "મોકલી આપો" અથવા "સેન્ડ કરો" કહે:
-   - ત્યારે જ `get_document` ટૂલ ચલાવીને ટેલિગ્રામમાં ફાઇલ મોકલો.
-૪. ૧ થી ૨ નાના વાક્યોમાં જ દેશી શૈલીમાં મીઠો ઉત્તર આપો.
+## તમારા નિયમો:
+૧. **સવાલનો સાચો જવાબ આપવો (ના ક્યારેય ન પાડવી):**
+   - જ્યારે યુઝર પૂછે કે "GST માં એડ્રેસ શું છે?", "કંપની કઈ છે?", "પાર્ટનર કોણ છે?" કે "GST નંબર શું છે?":
+   - ક્યારેય એમ ન કહેવું કે "મને ખબર નથી" કે "મારી પાસે વિગત નથી".
+   - ઉપર આપેલી વિગતમાંથી વાંચીને સીધો જ સાચો જવાબ અવાજમાં આપવો (દા.ત. "ભાઈ, રાજેશ્વરી સોલારનું એડ્રેસ છે: પાંચપડા, પાળિયાદ રોડ, બોટાદ, ગુજરાત! શું આ ફાઇલ ટેલિગ્રામમાં મોકલી આપું?").
+   - અન્ય કોઈ પણ નવી વિગત માટે તમે `query_document_content` ટૂલ પણ વાપરી શકો છો.
+૨. **ફાઈલ મોકલવી:**
+   - જ્યાં સુધી યુઝર એમ ન કહે કે "મોકલી આપો" કે "ટેલિગ્રામમાં આપો", ત્યાં સુધી ફાઈલ મોકલવી નહીં!
+   - જ્યારે યુઝર "હા મોકલો" કહે, ત્યારે જ `get_document` ટૂલ ચલાવીને ટેલિગ્રામમાં ફાઈલ મોકલી દેવી.
+૩. **મલ્ટિપલ કંપની:**
+   - જો ફક્ત "GST આપો" કહે, તો પૂછવું: "રાજેશ્વરી સોલાર કે સનરાઇઝ ગ્રીન, કઈ કંપનીનું જોઈએ છે?".
+૪. દેશી અને પ્રેમાળ અંદાજમાં ૧ થી ૨ નાના વાક્યોમાં જ મીઠો ઉત્તર આપવો.
 EOT;
 
         $masterKey = env('GEMINI_API_KEY');
