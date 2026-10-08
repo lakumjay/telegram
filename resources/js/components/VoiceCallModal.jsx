@@ -380,191 +380,227 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         }, 500);
     };
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-xl animate-fadeIn">
-            <div className="relative w-full max-w-2xl bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 border border-slate-700/80 rounded-[32px] shadow-2xl shadow-blue-500/10 overflow-hidden flex flex-col max-h-[92vh]">
-                
-                {/* Header Call Status */}
-                <div className="p-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/40">
-                    <div className="flex items-center space-x-2.5">
-                        <div className={`flex items-center space-x-1.5 px-3 py-1 border rounded-full text-xs font-semibold ${
-                            callState === 'connected' 
-                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                                : callState === 'connecting'
-                                ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                                : 'bg-red-500/10 border-red-500/20 text-red-400'
-                        }`}>
-                            <Radio className={`w-3.5 h-3.5 ${callState === 'connected' ? 'animate-pulse' : ''}`} />
-                            <span>
-                                {callState === 'connected' ? `લાઇવ કૉલ ચાલુ છે • ${formatTime(callDuration)}` : 
-                                 callState === 'connecting' ? 'જોડાઈ રહ્યું છે...' : 'કૉલ પૂર્ણ થયો'}
-                            </span>
-                        </div>
-                    </div>
+    const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+    const [showKeypad, setShowKeypad] = useState(false);
 
-                    <div className="flex items-center space-x-2">
-                        {callState !== 'ended' ? (
-                            <button
-                                onClick={endCall}
-                                className="flex items-center space-x-1.5 px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-red-600/30 transition cursor-pointer"
-                            >
-                                <PhoneOff className="w-3.5 h-3.5" />
-                                <span>કૉલ કટ કરો</span>
-                            </button>
-                        ) : (
-                            <button
-                                onClick={onClose}
-                                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition cursor-pointer"
-                            >
-                                બંધ કરો
-                            </button>
-                        )}
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/95 backdrop-blur-2xl animate-fadeIn">
+            {/* iPhone Frame Container */}
+            <div className="relative w-full h-full sm:h-[844px] sm:max-w-[390px] bg-gradient-to-b from-slate-900 via-neutral-950 to-black sm:rounded-[54px] sm:border-[8px] sm:border-neutral-800 shadow-2xl flex flex-col justify-between overflow-hidden text-white font-sans select-none sm:ring-1 sm:ring-neutral-700">
+                
+                {/* Dynamic Island / Top Notch Bar */}
+                <div className="w-full pt-3 pb-2 flex flex-col items-center z-20">
+                    <div className="w-28 h-6 bg-black rounded-full flex items-center justify-between px-3 border border-neutral-800/80 shadow-md">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                        <span className="text-[10px] text-neutral-400 font-medium tracking-tight">Gemini Live</span>
+                        <div className="w-2.5 h-2.5 rounded-full border border-neutral-600 flex items-center justify-center">
+                            <div className="w-1 h-1 rounded-full bg-neutral-400"></div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Error Banner */}
+                {/* Error Banner if any */}
                 {(micPermissionError || connectionError) && (
-                    <div className="m-3 p-3 bg-red-950/60 border border-red-500/40 rounded-2xl text-xs text-red-300 flex items-center justify-between">
+                    <div className="mx-6 p-3 bg-red-950/80 border border-red-500/50 rounded-2xl text-xs text-red-200 flex items-center justify-between z-20">
                         <div className="flex items-center space-x-2">
-                            <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-400" />
-                            <span>{micPermissionError || connectionError}</span>
+                            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                            <span className="text-[11px] leading-tight">{micPermissionError || connectionError}</span>
                         </div>
                         {connectionError && (
-                            <button onClick={reconnect} className="flex items-center space-x-1 px-3 py-1 bg-red-900/50 hover:bg-red-800 rounded-lg border border-red-700 transition cursor-pointer text-white">
-                                <RefreshCw className="w-3.5 h-3.5" />
-                                <span>ફરીથી જોડાઓ</span>
+                            <button onClick={reconnect} className="ml-2 px-2.5 py-1 bg-red-800 hover:bg-red-700 rounded-lg text-[10px] font-bold text-white transition">
+                                ફરી જોડાઓ
                             </button>
                         )}
                     </div>
                 )}
 
-                {/* Dynamic Visualizer Orb */}
-                <div className="py-8 flex flex-col items-center justify-center relative overflow-hidden bg-gradient-to-b from-transparent via-purple-950/20 to-transparent">
-                    <div className="relative flex items-center justify-center">
+                {/* Contact Profile Header */}
+                <div className="flex flex-col items-center text-center mt-6 px-4 z-10">
+                    {/* Animated Avatar with Pulsing Waves */}
+                    <div className="relative flex items-center justify-center my-4">
+                        {/* Audio Wave Ring */}
                         <div 
-                            className={`absolute w-36 h-36 rounded-full transition-all duration-150 ${
+                            className={`absolute rounded-full transition-all duration-150 ${
                                 isAiSpeaking 
-                                    ? 'bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 opacity-60 blur-2xl scale-125 animate-pulse' 
-                                    : !isMuted && callState === 'connected'
-                                    ? 'bg-emerald-500 opacity-40 blur-xl' 
-                                    : 'bg-slate-700 opacity-20 blur-lg'
-                            }`} 
+                                    ? 'w-40 h-40 bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 opacity-40 blur-xl animate-pulse'
+                                    : callState === 'connected' && !isMuted
+                                    ? 'w-36 h-36 bg-emerald-500 opacity-20 blur-lg'
+                                    : 'w-32 h-32 bg-neutral-700 opacity-10'
+                            }`}
                             style={{
-                                transform: isAiSpeaking ? 'scale(1.2)' : `scale(${1 + (audioLevel / 100) * 0.6})`
+                                transform: isAiSpeaking ? 'scale(1.2)' : `scale(${1 + (audioLevel / 100) * 0.5})`
                             }}
                         />
 
-                        <div 
-                            onClick={toggleMute}
-                            className={`relative w-24 h-24 rounded-full p-1 shadow-2xl transition-all duration-200 cursor-pointer ${
-                                isAiSpeaking 
-                                    ? 'bg-gradient-to-tr from-pink-400 via-purple-500 to-indigo-400 animate-spin scale-110 ring-4 ring-pink-400/50' 
-                                    : !isMuted && callState === 'connected'
-                                    ? 'bg-gradient-to-tr from-emerald-400 to-teal-500 ring-4 ring-emerald-500/40' 
-                                    : 'bg-gradient-to-tr from-slate-700 to-slate-800'
-                            }`}
-                            style={{
-                                transform: isAiSpeaking ? 'scale(1.08)' : `scale(${1 + (audioLevel / 100) * 0.3})`
-                            }}
-                        >
-                            <div className="w-full h-full bg-slate-950 rounded-full flex items-center justify-center">
-                                <span className="text-3xl">
-                                    {isAiSpeaking ? '👩‍💼' : isMuted ? '🔇' : '🎙️'}
-                                </span>
+                        {/* Caller Photo / Avatar */}
+                        <div className={`relative w-28 h-28 rounded-full p-1 bg-gradient-to-b from-neutral-700 to-neutral-900 border-2 ${isAiSpeaking ? 'border-pink-500 shadow-lg shadow-pink-500/40' : 'border-neutral-700'} shadow-2xl flex items-center justify-center`}>
+                            <div className="w-full h-full rounded-full bg-gradient-to-tr from-purple-900 via-slate-800 to-indigo-900 flex items-center justify-center overflow-hidden">
+                                <span className="text-5xl filter drop-shadow">👩‍💼</span>
                             </div>
                         </div>
                     </div>
 
-                    {/* Status Label */}
-                    <div className="text-center mt-4 space-y-1">
-                        <div className="flex items-center justify-center space-x-1.5">
-                            <span className="text-sm font-bold text-white">સ્નેહા (Gemini Live)</span>
-                            <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-semibold rounded-full border border-indigo-500/30">
-                                0 Latency WebSocket
+                    {/* Caller Name */}
+                    <h2 className="text-2xl font-semibold tracking-tight text-white mt-1">
+                        રિયા (AI Assistant)
+                    </h2>
+
+                    {/* Call Status / Timer */}
+                    <p className="text-sm font-medium mt-1">
+                        {callState === 'connecting' ? (
+                            <span className="text-neutral-400 animate-pulse">Calling...</span>
+                        ) : callState === 'connected' ? (
+                            <span className="text-neutral-300 font-mono tracking-wider">{formatTime(callDuration)}</span>
+                        ) : (
+                            <span className="text-red-400">Call Ended</span>
+                        )}
+                    </p>
+
+                    {/* Live Speaking Status Pill */}
+                    <div className="mt-2">
+                        {isAiSpeaking ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                                <Volume2 className="w-3 h-3 mr-1.5 animate-bounce" />
+                                રિયા બોલી રહી છે...
                             </span>
-                        </div>
-
-                        <p className="text-xs font-semibold text-slate-300 mt-2">
-                            {callState === 'connecting' ? (
-                                <span className="text-amber-400 animate-pulse">સર્વર સાથે જોડાઈ રહ્યું છે... કૃપા કરીને રાહ જુઓ...</span>
-                            ) : isAiSpeaking ? (
-                                <span className="text-pink-300 flex items-center justify-center">
-                                    <Volume2 className="w-3.5 h-3.5 mr-1 animate-bounce" />
-                                    સ્નેહા બોલી રહી છે... (વચ્ચે બોલીને અટકાવી શકો છો)
-                                </span>
-                            ) : isMuted ? (
-                                <span className="text-slate-400">માઇક બંધ છે</span>
-                            ) : (
-                                <span className="text-emerald-400 flex items-center justify-center">
-                                    <Mic className="w-3.5 h-3.5 mr-1 animate-pulse" />
-                                    માઇક ચાલુ છે • કાંઈક બોલો...
-                                </span>
-                            )}
-                        </p>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-1.5 justify-center px-4">
-                        <button
-                            onClick={() => sendTextQuery('હેલ્લો')}
-                            disabled={callState !== 'connected'}
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-[11px] rounded-lg border border-slate-700 transition cursor-pointer"
-                        >
-                            💬 "હેલ્લો"
-                        </button>
-                        <button
-                            onClick={() => sendTextQuery('રાજેશ્વરી સોલાર પાનકાર્ડ આપો')}
-                            disabled={callState !== 'connected'}
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-[11px] rounded-lg border border-slate-700 transition cursor-pointer"
-                        >
-                            📄 "પાનકાર્ડ માંગો"
-                        </button>
+                        ) : !isMuted && callState === 'connected' ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                                <Mic className="w-3 h-3 mr-1.5 animate-pulse" />
+                                સાંભળી રહી છે (બોલો)...
+                            </span>
+                        ) : isMuted ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-neutral-800 text-neutral-400">
+                                <MicOff className="w-3 h-3 mr-1.5" />
+                                માઇક મ્યૂટ છે
+                            </span>
+                        ) : null}
                     </div>
                 </div>
 
-                {/* Main Transcript Body */}
-                <div className="flex-1 overflow-y-auto px-4 py-2 space-y-3 bg-slate-900/50 shadow-inner">
-                    {transcriptHistory.map((item, idx) => (
-                        <div key={idx} className={`flex ${item.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed shadow-md ${
-                                item.sender === 'user'
-                                    ? 'bg-blue-600 text-white rounded-tr-none'
-                                    : 'bg-slate-800/90 text-slate-100 border border-slate-700/80 rounded-tl-none'
-                            }`}>
-                                <div className="text-[10px] text-slate-400 mb-0.5 font-semibold">
-                                    <span>{item.sender === 'user' ? '👤 તમે' : '👩‍💼 સ્નેહા AI'}</span>
-                                </div>
-                                <p className="whitespace-pre-wrap">{item.text}</p>
-                            </div>
+                {/* Subtitle / Mini Live Transcript Box */}
+                <div className="mx-6 my-2 h-24 overflow-y-auto rounded-2xl bg-neutral-900/60 border border-neutral-800/80 p-3 text-xs leading-relaxed text-neutral-300 backdrop-blur-md shadow-inner flex flex-col justify-end">
+                    {transcriptHistory.slice(-2).map((item, idx) => (
+                        <div key={idx} className={`mb-1 ${item.sender === 'user' ? 'text-blue-300 font-medium' : 'text-neutral-200'}`}>
+                            <span className="text-[10px] text-neutral-500 block">{item.sender === 'user' ? 'તમે:' : 'રિયા:'}</span>
+                            <span>{item.text}</span>
                         </div>
                     ))}
                     {currentAiText && (
-                        <div className="flex justify-start">
-                            <div className="bg-slate-800/90 border border-slate-700 rounded-2xl rounded-tl-none px-4 py-2.5 flex items-center space-x-2 text-xs text-slate-300">
-                                <Sparkles className="w-4 h-4 text-pink-400 animate-spin" />
-                                <span>{currentAiText}</span>
-                            </div>
+                        <div className="text-pink-300 flex items-center space-x-1 animate-pulse">
+                            <span>{currentAiText}</span>
                         </div>
                     )}
                     <div ref={transcriptEndRef} />
                 </div>
 
-                {/* Bottom Control Bar */}
-                {callState === 'connected' && (
-                    <div className="p-3 bg-slate-950 border-t border-slate-800/80 flex items-center justify-center space-x-2">
-                        <button
-                            type="button"
-                            onClick={toggleMute}
-                            className={`p-4 rounded-full border transition cursor-pointer ${
-                                !isMuted
-                                    ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-600/30'
-                                    : 'bg-red-900/60 text-red-400 border-red-800 hover:bg-red-800'
-                            }`}
-                            title={isMuted ? 'માઇક શરૂ કરો' : 'માઇક બંધ કરો'}
-                        >
-                            {!isMuted ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-                        </button>
+                {/* iPhone In-Call 6-Grid Control Buttons */}
+                <div className="px-8 pb-10 pt-2 z-10 flex flex-col items-center">
+                    <div className="grid grid-cols-3 gap-x-8 gap-y-5 mb-8 w-full max-w-[280px]">
+                        
+                        {/* 1. Mute Button */}
+                        <div className="flex flex-col items-center">
+                            <button
+                                onClick={toggleMute}
+                                className={`w-16 h-16 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer ${
+                                    isMuted 
+                                        ? 'bg-white text-black shadow-lg shadow-white/20' 
+                                        : 'bg-neutral-800/90 text-white hover:bg-neutral-700/90'
+                                }`}
+                            >
+                                {isMuted ? <MicOff className="w-7 h-7" /> : <Mic className="w-7 h-7" />}
+                            </button>
+                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">
+                                {isMuted ? 'unmute' : 'mute'}
+                            </span>
+                        </div>
+
+                        {/* 2. Keypad / Quick Prompt Button */}
+                        <div className="flex flex-col items-center">
+                            <button
+                                onClick={() => sendTextQuery('નમસ્તે રિયા')}
+                                className="w-16 h-16 rounded-full bg-neutral-800/90 hover:bg-neutral-700/90 text-white flex items-center justify-center transition active:scale-95 cursor-pointer"
+                            >
+                                <Sparkles className="w-7 h-7 text-amber-300" />
+                            </button>
+                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">Hello AI</span>
+                        </div>
+
+                        {/* 3. Speaker Button */}
+                        <div className="flex flex-col items-center">
+                            <button
+                                onClick={() => setIsSpeakerOn(!isSpeakerOn)}
+                                className={`w-16 h-16 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer ${
+                                    isSpeakerOn 
+                                        ? 'bg-white text-black shadow-lg shadow-white/20' 
+                                        : 'bg-neutral-800/90 text-white hover:bg-neutral-700/90'
+                                }`}
+                            >
+                                <Volume2 className="w-7 h-7" />
+                            </button>
+                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">speaker</span>
+                        </div>
+
+                        {/* 4. Request GST Doc Shortcut */}
+                        <div className="flex flex-col items-center">
+                            <button
+                                onClick={() => sendTextQuery('મને જીએસટી સર્ટિફિકેટ મોકલો')}
+                                className="w-16 h-16 rounded-full bg-neutral-800/90 hover:bg-neutral-700/90 text-white flex items-center justify-center transition active:scale-95 cursor-pointer"
+                            >
+                                <span className="text-lg font-bold text-sky-400">GST</span>
+                            </button>
+                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">GST Doc</span>
+                        </div>
+
+                        {/* 5. Request PAN Doc Shortcut */}
+                        <div className="flex flex-col items-center">
+                            <button
+                                onClick={() => sendTextQuery('મને પાનકાર્ડ ડોક્યુમેન્ટ મોકલો')}
+                                className="w-16 h-16 rounded-full bg-neutral-800/90 hover:bg-neutral-700/90 text-white flex items-center justify-center transition active:scale-95 cursor-pointer"
+                            >
+                                <span className="text-lg font-bold text-indigo-400">PAN</span>
+                            </button>
+                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">PAN Card</span>
+                        </div>
+
+                        {/* 6. All Docs Zip Shortcut */}
+                        <div className="flex flex-col items-center">
+                            <button
+                                onClick={() => sendTextQuery('બધા ડોક્યુમેન્ટ્સ ઝિપ ફાઇલમાં મોકલો')}
+                                className="w-16 h-16 rounded-full bg-neutral-800/90 hover:bg-neutral-700/90 text-white flex items-center justify-center transition active:scale-95 cursor-pointer"
+                            >
+                                <span className="text-lg font-bold text-emerald-400">ZIP</span>
+                            </button>
+                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">All Docs</span>
+                        </div>
+
                     </div>
-                )}
+
+                    {/* Big Red iPhone End Call Button */}
+                    <div className="flex justify-center mt-2">
+                        {callState !== 'ended' ? (
+                            <button
+                                onClick={endCall}
+                                className="w-20 h-20 rounded-full bg-red-600 hover:bg-red-500 active:scale-90 text-white flex items-center justify-center shadow-2xl shadow-red-600/50 transition cursor-pointer"
+                                title="End Call"
+                            >
+                                <PhoneOff className="w-9 h-9" />
+                            </button>
+                        ) : (
+                            <button
+                                onClick={onClose}
+                                className="px-8 py-3 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-semibold transition active:scale-95 cursor-pointer border border-neutral-700"
+                            >
+                                સ્ક્રીન બંધ કરો
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* iPhone Bottom Home Bar Indicator */}
+                <div className="w-full flex justify-center pb-2 z-20">
+                    <div className="w-32 h-1 bg-neutral-600/60 rounded-full"></div>
+                </div>
+
             </div>
         </div>
     );
