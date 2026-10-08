@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Mic, MicOff, PhoneCall, PhoneOff, Volume2, ShieldCheck, Activity, Terminal } from 'lucide-react';
+import { Mic, MicOff, PhoneCall, PhoneOff, Volume2, ShieldCheck, Activity, Terminal, AlertTriangle, Radio } from 'lucide-react';
 
 export default function StandaloneVoiceTest() {
     const [callState, setCallState] = useState('idle'); // 'idle' | 'connecting' | 'connected' | 'ended'
@@ -13,13 +13,15 @@ export default function StandaloneVoiceTest() {
     const [audioLevel, setAudioLevel] = useState(0);
     const [recentLogs, setRecentLogs] = useState([]);
     const [errorMsg, setErrorMsg] = useState(null);
+    const [micWarning, setMicWarning] = useState(null);
 
-    // Refs
+    // Persistent Audio & Socket References (Prevents V8 Garbage Collection)
     const wsRef = useRef(null);
     const audioContextRef = useRef(null);
     const micStreamRef = useRef(null);
-    const workletNodeRef = useRef(null);
-    const fallbackProcessorRef = useRef(null);
+    const sourceNodeRef = useRef(null);
+    const processorRef = useRef(null);
+    const silentGainRef = useRef(null);
     const analyserRef = useRef(null);
     const animFrameRef = useRef(null);
     const nextPlayTimeRef = useRef(0);
@@ -30,6 +32,7 @@ export default function StandaloneVoiceTest() {
     const isSetupCompleteRef = useRef(false);
     const heartbeatRef = useRef(null);
     const statsTimerRef = useRef(null);
+    const watchdogTimerRef = useRef(null);
     const chunksSentCounterRef = useRef(0);
     const currentRmsRef = useRef(0);
     const lastAudioSentTimeRef = useRef(Date.now());
@@ -51,7 +54,8 @@ export default function StandaloneVoiceTest() {
     }, [callState]);
 
     const addLog = (text) => {
-        setRecentLogs(prev => [...prev.slice(-49), text]);
+        const timeStr = new Date().toLocaleTimeString();
+        setRecentLogs(prev => [...prev.slice(-49), `[${timeStr}] ${text}`]);
     };
 
     // Safe socket send with outgoing logging
@@ -75,25 +79,131 @@ export default function StandaloneVoiceTest() {
 
     const startCall = async () => {
         setErrorMsg(null);
+        setMicWarning(null);
         setCallState('connecting');
         setUserInputTranscription('');
         setAiSpokenText('');
         isSetupCompleteRef.current = false;
         chunksSentCounterRef.current = 0;
-        addLog('1. Fetching config & ephemeral token from backend...');
+        addLog('1. માઇક્રોફોન અને ઓડિયો કનેક્શન શરૂ કરી રહ્યા છીએ...');
 
         try {
-            // 1. AudioContext on user gesture
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            const audioCtx = new AudioContext();
+            // STEP 1: Microphone Capture directly in the User Gesture!
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
+            micStreamRef.current = stream;
+
+            const track = stream.getAudioTracks()[0];
+            console.log('[Mic Track]', {
+                label: track?.label,
+                enabled: track?.enabled,
+                muted: track?.muted,
+                readyState: track?.readyState
+            });
+
+            if (track) {
+                if (track.muted) {
+                    setMicWarning('માઇક્રોફોન તમારા OS / સિસ્ટમ સેટિંગ્સમાં Mute છે.');
+                    addLog('⚠️ ચેતવણી: માઇક્રોફોન OS દ્વારા Mute છે!');
+                }
+                track.onmute = () => {
+                    console.warn('[Mic Track] Muted by OS/browser!');
+                    setMicWarning('માઇક્રોફોન તમારા OS / સિસ્ટમ સેટિંગ્સમાં Mute થઈ ગયું છે.');
+                    addLog('⚠️ માઇક્રોફોન સિસ્ટમ દ્વારા Muted');
+                };
+                track.onunmute = () => {
+                    console.log('[Mic Track] Unmuted.');
+                    setMicWarning(null);
+                    addLog('✅ માઇક્રોફોન Unmuted');
+                };
+            }
+
+            // STEP 2: AudioContext Initialization
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            const audioCtx = new AudioContextClass();
             audioContextRef.current = audioCtx;
+
+            audioCtx.onstatechange = () => {
+                console.log(`[AudioContext State]: ${audioCtx.state}`);
+                if (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted') {
+                    audioCtx.resume().catch(e => console.warn('AudioContext resume error:', e));
+                }
+            };
+
             if (audioCtx.state === 'suspended') {
                 await audioCtx.resume();
             }
             nextPlayTimeRef.current = audioCtx.currentTime;
             console.log(`[AudioContext] Initialized at ${audioCtx.sampleRate} Hz`);
 
-            // 2. Fetch Config & Ephemeral Token from existing backend endpoint
+            // STEP 3: MediaStreamSourceNode (held in ref + window to prevent V8 Garbage Collection)
+            const source = audioCtx.createMediaStreamSource(stream);
+            sourceNodeRef.current = source;
+            window._activeMicSourceNode = source;
+
+            // STEP 4: Analyser Node for Live RMS & Meter
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+            analyserRef.current = analyser;
+            window._activeAnalyser = analyser;
+
+            const timeData = new Float32Array(analyser.fftSize);
+            const updateVolumeAndRms = () => {
+                if (!analyserRef.current) return;
+                analyserRef.current.getFloatTimeDomainData(timeData);
+
+                let sumSq = 0;
+                for (let i = 0; i < timeData.length; i++) {
+                    sumSq += timeData[i] * timeData[i];
+                }
+                const rms = Math.sqrt(sumSq / timeData.length);
+                currentRmsRef.current = rms;
+                setAudioLevel(Math.min(100, Math.round(rms * 500)));
+
+                if (!isAiSpeakingRef.current) {
+                    if (rms > 0.015) {
+                        isUserSpeakingRef.current = true;
+                        setIsUserSpeaking(true);
+                    } else if (rms < 0.006) {
+                        isUserSpeakingRef.current = false;
+                        setIsUserSpeaking(false);
+                    }
+                }
+                animFrameRef.current = requestAnimationFrame(updateVolumeAndRms);
+            };
+            updateVolumeAndRms();
+
+            // STEP 5: High-Performance Audio Downsampler & Pipeline
+            const nativeRate = audioCtx.sampleRate;
+            console.log(`[Mic Pipeline] Native Rate: ${nativeRate} Hz -> Target: 16000 Hz`);
+
+            // ScriptProcessorNode (Synchronous, rock-solid, zero worklet-thread serialization crashes)
+            const processor = audioCtx.createScriptProcessor(2048, 1, 1);
+            processorRef.current = processor;
+            window._activeProcessor = processor;
+
+            processor.onaudioprocess = (e) => {
+                const float32Input = e.inputBuffer.getChannelData(0);
+                convertAndSend(float32Input, nativeRate);
+            };
+
+            source.connect(processor);
+            const silentGain = audioCtx.createGain();
+            silentGain.gain.value = 0;
+            silentGainRef.current = silentGain;
+            window._activeSilentGain = silentGain;
+            processor.connect(silentGain);
+            silentGain.connect(audioCtx.destination);
+            console.log('[Mic Pipeline] Audio Processor connected successfully.');
+
+            // STEP 6: Fetch Backend Config & Ephemeral Token
+            addLog('2. સર્વર પાસેથી અધિકૃત Ephemeral Token મેળવી રહ્યા છીએ...');
             const res = await axios.get('/api/voice/config');
             const { auth_token, is_ephemeral, system_instruction, voice_name, live_model } = res.data;
             const targetModel = live_model || 'models/gemini-3.8-live';
@@ -104,7 +214,8 @@ export default function StandaloneVoiceTest() {
                 return;
             }
 
-            addLog(`2. Connecting WebSocket (${targetModel})...`);
+            // STEP 7: Connect WebSocket directly to Gemini Live
+            addLog(`3. Gemini Live WebSocket કનેક્ટ કરી રહ્યા છીએ (${targetModel})...`);
             const wsUrl = is_ephemeral
                 ? `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${auth_token}`
                 : `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${auth_token}`;
@@ -114,9 +225,9 @@ export default function StandaloneVoiceTest() {
 
             ws.onopen = () => {
                 console.log('[WebSocket] Connected! Sending Setup message...');
-                addLog('3. WebSocket open. Sending setup (no tools, pure voice)...');
+                addLog('4. WebSocket ઓપન થયું. સેટેઅપ મેસેજ મોકલી રહ્યા છીએ...');
 
-                // Pure Voice Setup: No tools, No Telegram logic
+                // Standalone Pure Voice Setup: No tools, No Telegram logic
                 const setupMessage = {
                     setup: {
                         model: targetModel,
@@ -150,29 +261,38 @@ export default function StandaloneVoiceTest() {
                 let msg = {};
                 try { msg = JSON.parse(text); } catch (e) { return; }
 
-                // Setup Complete
+                // Setup Complete confirmation
                 if (msg.setupComplete) {
                     console.log('[WS] Setup Complete confirmed by Gemini.');
-                    addLog('4. Setup Complete confirmed by Gemini! Starting 16kHz mic...');
+                    addLog('5. ✅ Gemini સાથે સેશન કનેક્ટ થઈ ગયું! હવે તમે ગુજરાતીમાં બોલી શકો છો...');
                     isSetupCompleteRef.current = true;
                     setCallState('connected');
 
-                    // Start microphone streaming pipeline
-                    await initMicrophone(audioCtx, ws);
-
-                    // Start stats logger (chunks/sec + RMS)
+                    // Stats Logger (chunks/sec + RMS)
                     if (statsTimerRef.current) clearInterval(statsTimerRef.current);
                     statsTimerRef.current = setInterval(() => {
-                        console.log(`[Mic Audio Stats] chunks/sec: ${chunksSentCounterRef.current}, RMS: ${currentRmsRef.current.toFixed(4)}`);
+                        console.log(`[Mic Audio Stats] chunks/sec: ${chunksSentCounterRef.current}, RMS: ${currentRmsRef.current.toFixed(4)}, AI Speaking: ${isAiSpeakingRef.current}`);
                         chunksSentCounterRef.current = 0;
                     }, 1000);
 
-                    // Start Smart Keep-Alive (only if completely idle for > 3.5s)
+                    // Watchdog: Prevents mic from getting stuck if audio playback finishes
+                    if (watchdogTimerRef.current) clearInterval(watchdogTimerRef.current);
+                    watchdogTimerRef.current = setInterval(() => {
+                        if (isAiSpeakingRef.current && audioContextRef.current) {
+                            if (activeAudioNodesRef.current.length === 0 && (audioContextRef.current.currentTime >= nextPlayTimeRef.current)) {
+                                isAiSpeakingRef.current = false;
+                                setIsAiSpeaking(false);
+                                console.log('[Echo Guard Watchdog] Playback finished. Mic UNLOCKED.');
+                            }
+                        }
+                    }, 250);
+
+                    // Smart Keep-Alive (only if completely idle for > 4.0s)
                     if (heartbeatRef.current) clearInterval(heartbeatRef.current);
                     heartbeatRef.current = setInterval(() => {
                         const now = Date.now();
                         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
-                            if (!isAiSpeakingRef.current && !isUserSpeakingRef.current && (now - lastAudioSentTimeRef.current > 3500)) {
+                            if (!isAiSpeakingRef.current && !isUserSpeakingRef.current && (now - lastAudioSentTimeRef.current > 4000)) {
                                 const silent = new Int16Array(320);
                                 const u8 = new Uint8Array(silent.buffer);
                                 let b = '';
@@ -185,15 +305,7 @@ export default function StandaloneVoiceTest() {
                                 lastAudioSentTimeRef.current = now;
                             }
                         }
-                    }, 2500);
-
-                    // Initial pure Gujarati voice trigger (NO English)
-                    safeWsSend({
-                        clientContent: {
-                            turns: [{ role: "user", parts: [{ text: "નમસ્તે! ફોન ઉપાડવા બદલ આભાર, મારું સ્વાગત કરો અને કહો કે તમે લાઈવ સાંભળી રહ્યા છો." }] }],
-                            turnComplete: true
-                        }
-                    }, 'clientContentGreeting');
+                    }, 3000);
                 }
 
                 // Live User Input Transcription from Gemini
@@ -227,8 +339,6 @@ export default function StandaloneVoiceTest() {
                 // Turn Complete signal from Gemini
                 if (msg.serverContent?.turnComplete) {
                     console.log('[WS] Gemini turnComplete received.');
-                    // Note: We do NOT unlock mic at turnComplete.
-                    // We unlock ONLY when audio playback queue is actually empty + 300ms!
                 }
             };
 
@@ -246,188 +356,59 @@ export default function StandaloneVoiceTest() {
 
         } catch (err) {
             console.error('Failed to start Live Session', err);
-            setErrorMsg('લાઇવ સેશન શરૂ કરવામાં ક્ષતિ: ' + err.message);
+            setErrorMsg('લાઇવ સેશન શરૂ કરવામાં ક્ષતિ: ' + (err.message || 'માઇક્રોફોન પરમિશન Allow કરો'));
             cleanupResources();
             setCallState('ended');
         }
     };
 
-    // Initialize 16kHz Downsampling Microphone Pipeline
-    const initMicrophone = async (audioCtx, ws) => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                }
-            });
-            micStreamRef.current = stream;
+    // Convert Float32 to 16kHz Int16 and stream to Gemini
+    const convertAndSend = (float32Input, nativeRate) => {
+        if (isMutedRef.current || !isSetupCompleteRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
-            const source = audioCtx.createMediaStreamSource(stream);
-
-            // Analyser for Live Volume & RMS
-            const analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 256;
-            source.connect(analyser);
-            analyserRef.current = analyser;
-
-            const timeData = new Float32Array(analyser.fftSize);
-
-            const updateVolumeAndRms = () => {
-                if (!analyserRef.current) return;
-                analyserRef.current.getFloatTimeDomainData(timeData);
-
-                // Compute RMS Energy
-                let sumSq = 0;
-                for (let i = 0; i < timeData.length; i++) {
-                    sumSq += timeData[i] * timeData[i];
-                }
-                const rms = Math.sqrt(sumSq / timeData.length);
-                currentRmsRef.current = rms;
-                setAudioLevel(Math.min(100, Math.round(rms * 500)));
-
-                if (!isAiSpeakingRef.current) {
-                    if (rms > 0.02) {
-                        isUserSpeakingRef.current = true;
-                        setIsUserSpeaking(true);
-                    } else if (rms < 0.008) {
-                        isUserSpeakingRef.current = false;
-                        setIsUserSpeaking(false);
-                    }
-                }
-
-                animFrameRef.current = requestAnimationFrame(updateVolumeAndRms);
-            };
-            updateVolumeAndRms();
-
-            const nativeRate = audioCtx.sampleRate;
-            console.log(`[Mic Pipeline] Native Rate: ${nativeRate} Hz -> Target: 16000 Hz`);
-
-            // High-fidelity downsample Float32 to 16kHz Int16 with Linear Interpolation
-            const convertAndSend = (float32Input) => {
-                if (isMutedRef.current || !isSetupCompleteRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-                // STRICT ECHO GUARD: Drop mic audio while AI is playing OR during 300ms queue drain!
-                if (isAiSpeakingRef.current || activeAudioNodesRef.current.length > 0) return;
-
-                const ratio = nativeRate / 16000;
-                const newLength = Math.floor(float32Input.length / ratio);
-                const pcm16 = new Int16Array(newLength);
-
-                for (let i = 0; i < newLength; i++) {
-                    const srcPos = i * ratio;
-                    const i0 = Math.floor(srcPos);
-                    const i1 = Math.min(i0 + 1, float32Input.length - 1);
-                    const frac = srcPos - i0;
-                    let s = float32Input[i0] * (1 - frac) + float32Input[i1] * frac;
-                    // Clarity boost 1.3x, clamped
-                    s = Math.max(-1, Math.min(1, s * 1.3));
-                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                }
-
-                const uint8 = new Uint8Array(pcm16.buffer);
-                let binary = '';
-                for (let i = 0; i < uint8.length; i++) {
-                    binary += String.fromCharCode(uint8[i]);
-                }
-                const base64 = btoa(binary);
-
-                safeWsSend({
-                    realtimeInput: {
-                        mediaChunks: [{
-                            mimeType: "audio/pcm;rate=16000",
-                            data: base64
-                        }]
-                    }
-                }, 'realtimeInput');
-
-                chunksSentCounterRef.current++;
-                lastAudioSentTimeRef.current = Date.now();
-            };
-
-            // AudioWorklet with proper input/output routing
-            let workletSuccess = false;
-            try {
-                if (audioCtx.audioWorklet) {
-                    const workletCode = `
-                        class AudioRecordingProcessor extends AudioWorkletProcessor {
-                            constructor() {
-                                super();
-                                this.bufferSize = 2048;
-                                this.buffer = new Float32Array(this.bufferSize);
-                                this.bytesWritten = 0;
-                            }
-                            process(inputs, outputs) {
-                                const input = inputs[0];
-                                if (!input || !input[0]) return true;
-                                const channelData = input[0];
-                                if (outputs && outputs[0] && outputs[0][0]) {
-                                    outputs[0][0].set(channelData);
-                                }
-                                for (let i = 0; i < channelData.length; i++) {
-                                    this.buffer[this.bytesWritten++] = channelData[i];
-                                    if (this.bytesWritten >= this.bufferSize) {
-                                        const out = new Float32Array(this.bytesWritten);
-                                        out.set(this.buffer.subarray(0, this.bytesWritten));
-                                        this.port.postMessage(out);
-                                        this.bytesWritten = 0;
-                                    }
-                                }
-                                return true;
-                            }
-                        }
-                        registerProcessor('audio-recorder-worklet', AudioRecordingProcessor);
-                    `;
-                    const blob = new Blob([workletCode], { type: 'application/javascript' });
-                    const blobUrl = URL.createObjectURL(blob);
-
-                    await audioCtx.audioWorklet.addModule(blobUrl);
-                    URL.revokeObjectURL(blobUrl);
-
-                    const workletNode = new AudioWorkletNode(audioCtx, 'audio-recorder-worklet');
-                    workletNodeRef.current = workletNode;
-
-                    workletNode.port.onmessage = (event) => {
-                        convertAndSend(event.data);
-                    };
-
-                    const silentGain = audioCtx.createGain();
-                    silentGain.gain.value = 0;
-                    source.connect(workletNode);
-                    workletNode.connect(silentGain);
-                    silentGain.connect(audioCtx.destination);
-
-                    workletSuccess = true;
-                    console.log('[Mic Pipeline] AudioWorklet connected successfully.');
-                }
-            } catch (wErr) {
-                console.warn('[Mic Pipeline] AudioWorklet fallback to ScriptProcessor:', wErr);
-            }
-
-            // Fallback to ScriptProcessor
-            if (!workletSuccess) {
-                const processor = audioCtx.createScriptProcessor(2048, 1, 1);
-                fallbackProcessorRef.current = processor;
-                processor.onaudioprocess = (e) => {
-                    convertAndSend(e.inputBuffer.getChannelData(0));
-                };
-
-                const silentGain = audioCtx.createGain();
-                silentGain.gain.value = 0;
-                source.connect(processor);
-                processor.connect(silentGain);
-                silentGain.connect(audioCtx.destination);
-                console.log('[Mic Pipeline] ScriptProcessor connected successfully.');
-            }
-
-        } catch (err) {
-            console.error('Microphone initialization error:', err);
-            setErrorMsg('માઇક્રોફોન પરમિશન Allow કરો.');
+        // Smart Mic Gating:
+        // When AI is actively playing speech, soft-gate speaker leakage (drop if RMS < 0.012).
+        // If user speaks louder (RMS >= 0.012), let audio through so Gemini detects interruption!
+        // When AI is NOT playing, send 100% of mic audio continuously!
+        if (isAiSpeakingRef.current && currentRmsRef.current < 0.012) {
+            return;
         }
+
+        const ratio = nativeRate / 16000;
+        const newLength = Math.floor(float32Input.length / ratio);
+        const pcm16 = new Int16Array(newLength);
+
+        for (let i = 0; i < newLength; i++) {
+            const srcPos = i * ratio;
+            const i0 = Math.floor(srcPos);
+            const i1 = Math.min(i0 + 1, float32Input.length - 1);
+            const frac = srcPos - i0;
+            let s = float32Input[i0] * (1 - frac) + float32Input[i1] * frac;
+            s = Math.max(-1, Math.min(1, s * 1.3));
+            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+
+        const uint8 = new Uint8Array(pcm16.buffer);
+        let binary = '';
+        for (let i = 0; i < uint8.length; i++) {
+            binary += String.fromCharCode(uint8[i]);
+        }
+        const base64 = btoa(binary);
+
+        safeWsSend({
+            realtimeInput: {
+                mediaChunks: [{
+                    mimeType: "audio/pcm;rate=16000",
+                    data: base64
+                }]
+            }
+        }, 'realtimeInput');
+
+        chunksSentCounterRef.current++;
+        lastAudioSentTimeRef.current = Date.now();
     };
 
-    // Jitter buffer queue for seamless audio playback
+    // High-fidelity Jitter Buffer Audio Playback
     const playAudioChunk = (base64, audioCtx) => {
         isAiSpeakingRef.current = true;
         setIsAiSpeaking(true);
@@ -452,7 +433,7 @@ export default function StandaloneVoiceTest() {
             float32Array[i] = int16Array[i] / 32768.0;
         }
 
-        // Gemini sends 24kHz PCM
+        // Gemini streams 24kHz PCM
         const audioBuffer = audioCtx.createBuffer(1, float32Array.length, 24000);
         audioBuffer.getChannelData(0).set(float32Array);
 
@@ -464,7 +445,6 @@ export default function StandaloneVoiceTest() {
 
         source.onended = () => {
             activeAudioNodesRef.current = activeAudioNodesRef.current.filter(s => s !== source);
-            // REQUIREMENT 3: Unlock mic only when playback queue is ACTUALLY EMPTY and 300ms have passed!
             if (activeAudioNodesRef.current.length === 0) {
                 if (queueDrainTimerRef.current) clearTimeout(queueDrainTimerRef.current);
                 queueDrainTimerRef.current = setTimeout(() => {
@@ -500,6 +480,11 @@ export default function StandaloneVoiceTest() {
     };
 
     const cleanupResources = () => {
+        window._activeMicSourceNode = null;
+        window._activeProcessor = null;
+        window._activeSilentGain = null;
+        window._activeAnalyser = null;
+
         if (heartbeatRef.current) {
             clearInterval(heartbeatRef.current);
             heartbeatRef.current = null;
@@ -507,6 +492,10 @@ export default function StandaloneVoiceTest() {
         if (statsTimerRef.current) {
             clearInterval(statsTimerRef.current);
             statsTimerRef.current = null;
+        }
+        if (watchdogTimerRef.current) {
+            clearInterval(watchdogTimerRef.current);
+            watchdogTimerRef.current = null;
         }
         if (queueDrainTimerRef.current) {
             clearTimeout(queueDrainTimerRef.current);
@@ -517,13 +506,18 @@ export default function StandaloneVoiceTest() {
             animFrameRef.current = null;
         }
         stopAllAudio();
-        if (workletNodeRef.current) {
-            workletNodeRef.current.disconnect();
-            workletNodeRef.current = null;
+
+        if (processorRef.current) {
+            try { processorRef.current.disconnect(); } catch (e) {}
+            processorRef.current = null;
         }
-        if (fallbackProcessorRef.current) {
-            fallbackProcessorRef.current.disconnect();
-            fallbackProcessorRef.current = null;
+        if (silentGainRef.current) {
+            try { silentGainRef.current.disconnect(); } catch (e) {}
+            silentGainRef.current = null;
+        }
+        if (sourceNodeRef.current) {
+            try { sourceNodeRef.current.disconnect(); } catch (e) {}
+            sourceNodeRef.current = null;
         }
         if (micStreamRef.current) {
             micStreamRef.current.getTracks().forEach(t => t.stop());
@@ -531,6 +525,7 @@ export default function StandaloneVoiceTest() {
         }
         if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
             audioContextRef.current.close().catch(() => {});
+            audioContextRef.current = null;
         }
     };
 
@@ -559,59 +554,85 @@ export default function StandaloneVoiceTest() {
                 
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                    <div>
-                        <div className="flex items-center space-x-2">
-                            <Activity className="w-6 h-6 text-cyan-400 animate-pulse" />
-                            <h1 className="text-xl md:text-2xl font-bold tracking-tight">Gemini Live Voice Test</h1>
+                    <div className="flex items-center space-x-3">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
+                            <Radio className="w-6 h-6 animate-pulse" />
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">
-                            Phase 1 Standalone: Pure 16kHz PCM Audio Stream • No Tools • No Telegram
-                        </p>
+                        <div>
+                            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+                                Standalone Voice Test
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                                    Step 1 (Pure Voice)
+                                </span>
+                            </h1>
+                            <p className="text-xs text-slate-400">
+                                16kHz PCM Live Stream • No Tools • No Telegram SDK
+                            </p>
+                        </div>
                     </div>
-                    {callState === 'connected' && (
-                        <div className="bg-slate-800 px-3 py-1.5 rounded-full text-xs font-mono text-cyan-300 border border-cyan-500/30">
-                            ⏱️ {formatTime(callDuration)}
+
+                    <div className="text-right">
+                        <div className="text-xs text-slate-400 font-mono">
+                            {formatTime(callDuration)}
                         </div>
-                    )}
+                        <div className={`text-xs font-semibold ${
+                            callState === 'connected' ? 'text-emerald-400' :
+                            callState === 'connecting' ? 'text-amber-400' : 'text-slate-500'
+                        }`}>
+                            {callState === 'connected' ? '🟢 કૉલ ચાલુ છે' :
+                             callState === 'connecting' ? '🟡 કનેક્ટિંગ...' : '⚪ નિષ્ક્રિય'}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Error Banner */}
                 {errorMsg && (
-                    <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-xl">
-                        {errorMsg}
+                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs flex items-center space-x-2">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span>{errorMsg}</span>
                     </div>
                 )}
 
-                {/* Live Status Badge */}
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
-                    <div className="flex items-center space-x-3">
-                        <span className="text-xs text-slate-400">Live Status:</span>
-                        {callState === 'connected' ? (
-                            isAiSpeaking ? (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse">
-                                    🗣️ Rhea Speaking (રિયા બોલે છે)
+                {/* Mic Warning */}
+                {micWarning && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs flex items-center space-x-2">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span>{micWarning}</span>
+                    </div>
+                )}
+
+                {/* Avatar & Visualizer */}
+                <div className="flex flex-col items-center justify-center py-6 space-y-4">
+                    <div className="relative">
+                        <div className={`w-28 h-28 rounded-full flex items-center justify-center text-5xl transition-all duration-300 shadow-xl ${
+                            isAiSpeaking 
+                                ? 'bg-gradient-to-tr from-pink-500 to-rose-600 scale-110 shadow-pink-500/40 ring-4 ring-pink-500/30' 
+                                : isUserSpeaking 
+                                ? 'bg-gradient-to-tr from-cyan-500 to-blue-600 scale-105 shadow-cyan-500/40 ring-4 ring-cyan-500/30' 
+                                : 'bg-slate-800 border-2 border-slate-700'
+                        }`}>
+                            {isAiSpeaking ? '👩‍💼' : '🎙️'}
+                        </div>
+
+                        {/* Live Audio Waves */}
+                        {callState === 'connected' && (
+                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-slate-950/90 border border-slate-700 rounded-full text-[11px] font-semibold flex items-center space-x-1.5 shadow">
+                                <Activity className={`w-3 h-3 ${isAiSpeaking ? 'text-pink-400 animate-spin' : 'text-cyan-400 animate-pulse'}`} />
+                                <span>
+                                    {isAiSpeaking ? '🗣️ રિયા બોલે છે' : isUserSpeaking ? '👂 તમે બોલો છો' : '👂 સાંભળી રહ્યું છે'}
                                 </span>
-                            ) : isUserSpeaking ? (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse">
-                                    👂 Listening (તમે બોલી રહ્યા છો)
-                                </span>
-                            ) : (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                                    🟢 Ready & Connected (બોલો...)
-                                </span>
-                            )
-                        ) : (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400">
-                                {callState === 'connecting' ? '🔄 કનેક્ટ થઈ રહ્યું છે...' : '🔴 Call Disconnected'}
-                            </span>
+                            </div>
                         )}
                     </div>
 
-                    {/* Live Mic Meter */}
+                    {/* Live Mic Energy Bar */}
                     {callState === 'connected' && (
-                        <div className="flex items-center space-x-2">
-                            <span className="text-xs text-slate-400">Mic Level:</span>
-                            <div className="w-24 h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="w-full max-w-xs space-y-1">
+                            <div className="flex justify-between text-[11px] text-slate-400">
+                                <span>માઇક્રોફોન વોલ્યુમ (RMS)</span>
+                                <span className="font-mono">{audioLevel}%</span>
+                            </div>
+                            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
                                 <div 
                                     className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-75"
                                     style={{ width: `${audioLevel}%` }}
@@ -621,94 +642,97 @@ export default function StandaloneVoiceTest() {
                     )}
                 </div>
 
-                {/* Live Transcript Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* User Transcription Card */}
-                    <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80 min-h-[120px] flex flex-col justify-between">
-                        <div>
-                            <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-1 flex items-center space-x-1.5">
-                                <Mic className="w-3.5 h-3.5" />
-                                <span>Gemini inputTranscription (તમારો અવાજ)</span>
-                            </div>
-                            <p className="text-sm text-slate-200 mt-2 italic">
-                                {userInputTranscription ? `"${userInputTranscription}"` : 'હજુ સુધી કોઈ અવાજ સાંભળ્યો નથી...'}
-                            </p>
-                        </div>
-                        <span className="text-[10px] text-slate-500 mt-2">Gemini Live native speech transcription</span>
+                {/* Gemini Heard: Live Input Transcription */}
+                <div className="p-4 bg-slate-950/70 border border-slate-800/80 rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span className="flex items-center gap-1.5 font-semibold text-cyan-400">
+                            <Volume2 className="w-3.5 h-3.5" />
+                            Gemini Input Transcription (તમે જે બોલ્યા):
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">Realtime STT</span>
                     </div>
-
-                    {/* AI Rhea Response Card */}
-                    <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800/80 min-h-[120px] flex flex-col justify-between">
-                        <div>
-                            <div className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-1 flex items-center space-x-1.5">
-                                <Volume2 className="w-3.5 h-3.5" />
-                                <span>Rhea Response (રિયાનો જવાબ)</span>
-                            </div>
-                            <p className="text-sm text-slate-200 mt-2">
-                                {aiSpokenText ? aiSpokenText : 'રિયાના જવાબની રાહ જોવાઈ રહી છે...'}
-                            </p>
-                        </div>
-                        <span className="text-[10px] text-slate-500 mt-2">Voice: Aoede (24kHz Native Audio)</span>
+                    <div className="text-sm font-medium text-slate-200 min-h-[40px] leading-relaxed">
+                        {userInputTranscription || (
+                            <span className="text-slate-500 italic">
+                                {callState === 'connected' ? 'તમે બોલવાનું શરૂ કરો (દા.ત. "નમસ્તે રિયા, કેમ છો?")...' : 'કૉલ શરૂ થયા પછી તમારો અવાજ અહીં લખાશે...'}
+                            </span>
+                        )}
                     </div>
                 </div>
 
-                {/* Controls */}
+                {/* AI Spoken Text */}
+                {aiSpokenText && (
+                    <div className="p-4 bg-purple-950/20 border border-purple-800/30 rounded-2xl space-y-1">
+                        <div className="text-xs font-semibold text-purple-400">
+                            રિયાનો ઉત્તર (Rhea Response):
+                        </div>
+                        <div className="text-sm text-slate-200 leading-relaxed">
+                            {aiSpokenText}
+                        </div>
+                    </div>
+                )}
+
+                {/* Control Action Buttons */}
                 <div className="flex items-center justify-center space-x-4 pt-2">
-                    {callState !== 'connected' ? (
+                    {callState !== 'connected' && callState !== 'connecting' ? (
                         <button
                             onClick={startCall}
-                            disabled={callState === 'connecting'}
-                            className="flex items-center space-x-2 px-8 py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white font-semibold rounded-2xl shadow-lg shadow-emerald-900/30 transition-all text-base"
+                            className="px-8 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/30 flex items-center space-x-2 transition cursor-pointer"
                         >
                             <PhoneCall className="w-5 h-5" />
-                            <span>{callState === 'connecting' ? 'કનેક્ટ થઈ રહ્યું છે...' : 'Start Voice Call (કૉલ શરૂ કરો)'}</span>
+                            <span>લાઇવ ટેસ્ટ કૉલ શરૂ કરો</span>
                         </button>
                     ) : (
                         <>
                             <button
                                 onClick={toggleMute}
-                                className={`p-4 rounded-2xl border transition-all ${
+                                className={`p-4 rounded-2xl border transition cursor-pointer ${
                                     isMuted 
-                                        ? 'bg-amber-500/20 border-amber-500/50 text-amber-300' 
+                                        ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' 
                                         : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
                                 }`}
                                 title={isMuted ? 'Unmute Mic' : 'Mute Mic'}
                             >
-                                {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                                {isMuted ? <MicOff className="w-6 h-6 text-amber-400" /> : <Mic className="w-6 h-6" />}
                             </button>
 
                             <button
                                 onClick={endCall}
-                                className="flex items-center space-x-2 px-8 py-3.5 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-2xl shadow-lg shadow-red-900/30 transition-all text-base"
+                                className="px-8 py-3.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/30 flex items-center space-x-2 transition cursor-pointer"
                             >
                                 <PhoneOff className="w-5 h-5" />
-                                <span>End Call (કૉલ પૂરો કરો)</span>
+                                <span>કૉલ પૂરો કરો</span>
                             </button>
                         </>
                     )}
                 </div>
 
-                {/* Live Console Output Box */}
-                <div className="bg-black/90 p-3.5 rounded-2xl border border-slate-800 text-xs font-mono">
-                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-slate-400">
-                        <span className="flex items-center space-x-1.5">
-                            <Terminal className="w-3.5 h-3.5 text-cyan-400" />
-                            <span>Live Activity Logs (F12 Console Mirror)</span>
+                {/* Live Console Output Log */}
+                <div className="border border-slate-800 bg-slate-950 rounded-2xl p-4 space-y-2 font-mono">
+                    <div className="flex items-center justify-between text-xs text-slate-400 border-b border-slate-800/80 pb-2">
+                        <span className="flex items-center gap-1.5 font-semibold">
+                            <Terminal className="w-3.5 h-3.5 text-slate-400" />
+                            Live Diagnostic Console Log
                         </span>
-                        <span className="text-[10px]">Open DevTools Console (F12) for full details</span>
+                        <span className="text-[10px] text-slate-500">Auto-logging</span>
                     </div>
-                    <div className="h-32 overflow-y-auto space-y-1 text-slate-300 scrollbar-thin">
+
+                    <div className="h-40 overflow-y-auto text-[11px] space-y-1 text-slate-300 pr-2">
                         {recentLogs.length === 0 ? (
-                            <span className="text-slate-600">Logs will appear here once call starts...</span>
+                            <div className="text-slate-600 italic">કૉલ શરૂ થયા પછી લૉગ્સ અહીં દેખાશે...</div>
                         ) : (
-                            recentLogs.map((log, i) => (
-                                <div key={i} className="leading-relaxed">
-                                    <span className="text-cyan-400 select-none">&gt; </span>
+                            recentLogs.map((log, idx) => (
+                                <div key={idx} className="leading-tight text-slate-300 font-mono">
                                     {log}
                                 </div>
                             ))
                         )}
                     </div>
+                </div>
+
+                {/* Footer instructions */}
+                <div className="text-center text-xs text-slate-500 pt-2 border-t border-slate-800/60">
+                    Step 1 Target: ૫ મિનિટ સુધી સતત વાતો કરો (હેડફોન અને સ્પીકર) • કોઈ ટૂલ કૉલ કે ટેલિગ્રામ લૉજિક નથી
                 </div>
 
             </div>
