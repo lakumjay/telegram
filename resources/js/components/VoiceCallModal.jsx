@@ -9,7 +9,7 @@ import {
     FileText
 } from 'lucide-react';
 import axios from 'axios';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Modality } from '@google/genai';
 import { PcmPlayer, arrayBufferToBase64, base64ToInt16 } from '../lib/audio';
 
 export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 999888777 }) {
@@ -373,7 +373,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             const session = await ai.live.connect({
                 model: targetModel,
                 config: {
-                    responseModalities: ['audio'],
+                    responseModalities: [Modality.AUDIO],
                     systemInstruction: system_instruction,
                     speechConfig: {
                         voiceConfig: {
@@ -430,13 +430,13 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     onmessage: (msg) => handleLiveMessage(msg),
                     onerror: (e) => {
                         console.error('[Gemini Live Error]', e);
-                        setConnectionError(e?.message || 'કનેક્શનમાં ક્ષતિ થઈ.');
-                        setCallState('ended');
+                        setConnectionError(e?.message || 'કનેક્શનમાં ક્ષતિ આવી.');
                     },
-                    onclose: () => {
+                    onclose: (e) => {
+                        console.log('[Gemini Live onclose]', e);
                         if (!closingRef.current) {
-                            console.log('[Gemini Live] Session closed unexpectedly.');
-                            endCall();
+                            setConnectionError('કનેક્શન ડિસ્કનેક્ટ થયું. ફરીથી જોડાવા માટે નીચે બટન દબાવો.');
+                            setCallState('ended');
                         }
                     }
                 }
