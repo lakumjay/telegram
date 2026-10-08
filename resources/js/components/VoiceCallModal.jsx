@@ -46,6 +46,11 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     const isAiSpeakingRef = useRef(false);
     const callStateRef = useRef(callState);
     const isOpenRef = useRef(isOpen);
+    const heartbeatRef = useRef(null);
+    const recentAiUtterancesRef = useRef([]);
+    const isUserSpeakingRef = useRef(false);
+    const lastAudioSentTimeRef = useRef(Date.now());
+    const ambientFloorRef = useRef(10);
 
     useEffect(() => { callStateRef.current = callState; }, [callState]);
     useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
@@ -118,7 +123,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 // Gemini Live Setup message with inputAudioTranscription and tools
                 const setupMessage = {
                     setup: {
-                        model: 'models/gemini-3.8-live',
+                        model: 'models/gemini-2.0-flash-exp',
                         generationConfig: {
                             responseModalities: ["AUDIO"],
                             speechConfig: {
@@ -179,6 +184,27 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     isSetupCompleteRef.current = true;
                     setCallState('connected');
                     setTranscriptHistory([{ sender: 'ai', text: 'નમસ્તે! રિયા લાઈવ છે. તમે બોલી શકો છો...' }]);
+                    recentAiUtterancesRef.current = ['નમસ્તે', 'રિયા', 'જય સર', 'બોલો', 'કેમ છો'];
+
+                    // Start Smart Keep-Alive Heartbeat: Send comfort silence ONLY if idle for > 3.5s
+                    if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+                    heartbeatRef.current = setInterval(() => {
+                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
+                            const now = Date.now();
+                            if (!isAiSpeakingRef.current && !isUserSpeakingRef.current && (now - lastAudioSentTimeRef.current > 3500)) {
+                                const silent = new Int16Array(320); // 20ms silence
+                                const u8 = new Uint8Array(silent.buffer);
+                                let b = '';
+                                for (let i = 0; i < u8.length; i++) b += String.fromCharCode(u8[i]);
+                                wsRef.current.send(JSON.stringify({
+                                    realtimeInput: {
+                                        mediaChunks: [{ mimeType: "audio/pcm;rate=16000", data: btoa(b) }]
+                                    }
+                                }));
+                                lastAudioSentTimeRef.current = now;
+                            }
+                        }
+                    }, 2500);
                     
                     // Initialize Mic streaming pipeline
                     await initMicrophone(audioCtx, ws);
@@ -187,10 +213,10 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     isAiSpeakingRef.current = true;
                     setIsAiSpeaking(true);
 
-                    // Send gentle initial trigger
+                    // Send pure Gujarati initial trigger (no English words to preserve stable female voice)
                     ws.send(JSON.stringify({
                         clientContent: {
-                            turns: [{ role: "user", parts: [{ text: "Hello! ફોન ઉપાડો અને મારું ટૂંકમાં સ્વાગત કરો." }] }],
+                            turns: [{ role: "user", parts: [{ text: "નમસ્તે! કૉલ શરૂ થઈ ગયો છે, પ્રેમથી સ્વાગત કરો અને પૂછો કે આજે કયું ડોક્યુમેન્ટ જોઈએ છે." }] }],
                             turnComplete: true
                         }
                     }));
@@ -227,15 +253,21 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 if (msg.serverContent?.turnComplete) {
                     const remainingMs = Math.max(0, Math.round((nextPlayTimeRef.current - audioCtx.currentTime) * 1000));
                     setTimeout(() => {
-                        isAiSpeakingRef.current = false;
-                        setIsAiSpeaking(false);
-                        activeAudioNodesRef.current = [];
-                        console.log('[Echo Guard] AI finished speaking. Microphone 100% UNLOCKED.');
-                    }, remainingMs + 350);
+                        if (activeAudioNodesRef.current.length === 0) {
+                            isAiSpeakingRef.current = false;
+                            setIsAiSpeaking(false);
+                            console.log('[Echo Guard] AI finished speaking. Microphone 100% UNLOCKED.');
+                        }
+                    }, remainingMs + 80);
 
                     setCurrentAiText(prev => {
-                        if (prev.trim()) {
-                            setTranscriptHistory(history => [...history, { sender: 'ai', text: prev.trim() }]);
+                        const trimmed = prev.trim();
+                        if (trimmed) {
+                            recentAiUtterancesRef.current.push(trimmed);
+                            if (recentAiUtterancesRef.current.length > 8) {
+                                recentAiUtterancesRef.current.shift();
+                            }
+                            setTranscriptHistory(history => [...history, { sender: 'ai', text: trimmed }]);
                         }
                         return '';
                     });
@@ -369,7 +401,6 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             analyserRef.current = analyser;
 
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            let isUserSpeaking = false;
             let silenceTimer = null;
 
             const updateVolume = () => {
@@ -380,30 +411,39 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 const avg = sum / dataArray.length;
                 setAudioLevel(Math.min(100, Math.round(avg * 1.8)));
 
-                // Voice Activity Detection (VAD) - Only track when AI is NOT playing
-                if (!isAiSpeakingRef.current && activeAudioNodesRef.current.length === 0) {
-                    if (avg > 14) {
-                        isUserSpeaking = true;
+                // Dynamic Voice Activity Detection (VAD)
+                if (isAiSpeakingRef.current || activeAudioNodesRef.current.length > 0) {
+                    // AI is talking, don't trigger user VAD
+                } else {
+                    // Dynamically adapt noise floor during pauses
+                    if (!isUserSpeakingRef.current) {
+                        ambientFloorRef.current = (ambientFloorRef.current * 0.95) + (avg * 0.05);
+                    }
+                    const speakThreshold = Math.max(12, ambientFloorRef.current + 5);
+                    const silenceThreshold = Math.max(6, ambientFloorRef.current + 2);
+
+                    if (avg > speakThreshold) {
+                        isUserSpeakingRef.current = true;
                         if (silenceTimer) {
                             clearTimeout(silenceTimer);
                             silenceTimer = null;
                         }
-                    } else if (isUserSpeaking && avg < 8) {
-                        // User stopped speaking -> wait 800ms of silence, then send turnComplete
+                    } else if (isUserSpeakingRef.current && avg <= silenceThreshold) {
+                        // User stopped speaking -> wait 600ms of natural silence, then complete user turn
                         if (!silenceTimer) {
                             silenceTimer = setTimeout(() => {
-                                if (isUserSpeaking && wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
+                                if (isUserSpeakingRef.current && wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
                                     if (!isAiSpeakingRef.current && activeAudioNodesRef.current.length === 0) {
-                                        console.log('[VAD] Silence detected. Completing user turn.');
+                                        console.log('[VAD] Natural pause detected. Completing user turn.');
                                         wsRef.current.send(JSON.stringify({
                                             clientContent: {
                                                 turnComplete: true
                                             }
                                         }));
                                     }
-                                    isUserSpeaking = false;
+                                    isUserSpeakingRef.current = false;
                                 }
-                            }, 800);
+                            }, 600);
                         }
                     }
                 }
@@ -422,7 +462,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     recognition.lang = 'gu-IN'; // Gujarati / Hindi recognition
 
                     recognition.onresult = (event) => {
-                        // STRICT ECHO GUARD: If AI is talking or audio buffer is playing, DROP COMPLETELY!
+                        // STRICT ECHO GUARD: If AI is talking or audio buffer is actively playing, DROP COMPLETELY!
                         if (isAiSpeakingRef.current || activeAudioNodesRef.current.length > 0) {
                             return;
                         }
@@ -437,16 +477,24 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                         const spoken = finalTranscript.trim();
                         if (!spoken) return;
 
-                        // Anti-Echo Check 2: If the text is part of AI's own last speech, ignore
-                        if (currentAiText && currentAiText.trim().includes(spoken)) {
+                        // Anti-Echo Check: If the text is part of AI's own recent speech, ignore
+                        const isEcho = recentAiUtterancesRef.current.some(utt => utt.includes(spoken) || spoken.includes(utt));
+                        if (isEcho || (currentAiText && currentAiText.trim().includes(spoken))) {
                             console.log('[Echo Shield] Ignored speaker loopback text:', spoken);
                             return;
                         }
 
-                        console.log('[Speech Recognition Preview]:', spoken);
+                        console.log('[Speech Recognition Heard User]:', spoken);
                         setUserSpokenText(spoken);
-                        // NOTE: We DO NOT inject clientContent.turns into WebSocket here!
-                        // The raw 16kHz PCM audio stream (realtimeInput) is the sole, clean voice channel.
+
+                        // If user finished a spoken sentence, send turnComplete so Gemini responds immediately
+                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
+                            wsRef.current.send(JSON.stringify({
+                                clientContent: {
+                                    turnComplete: true
+                                }
+                            }));
+                        }
                     };
 
                     recognition.onerror = (err) => {
@@ -479,22 +527,24 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             const nativeRate = audioCtx.sampleRate;
             console.log(`[Mic Pipeline] Capturing at ${nativeRate} Hz. Converting to 16000 Hz.`);
 
-            // Helper to downsample Float32 to 16kHz Int16 Little-Endian base64
+            // High-fidelity downsample Float32 to 16kHz Int16 Little-Endian base64 with Linear Interpolation
             const convertAndSend = (float32Input) => {
-                // IMPORTANT: Drop mic data if muted, not setup, or AI is speaking to prevent feedback echo!
+                // Drop mic data if muted, not setup, or AI is speaking to prevent feedback echo!
                 if (isMuted || !isSetupCompleteRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
                 if (isAiSpeakingRef.current || activeAudioNodesRef.current.length > 0) return;
 
                 const ratio = nativeRate / 16000;
-                const newLength = Math.round(float32Input.length / ratio);
+                const newLength = Math.floor(float32Input.length / ratio);
                 const pcm16 = new Int16Array(newLength);
                 
                 for (let i = 0; i < newLength; i++) {
-                    const nativeIndex = Math.round(i * ratio);
-                    let s = float32Input[nativeIndex < float32Input.length ? nativeIndex : float32Input.length - 1];
-                    // Voice boost 1.5x
-                    s = s * 1.5;
-                    s = Math.max(-1, Math.min(1, s));
+                    const srcPos = i * ratio;
+                    const i0 = Math.floor(srcPos);
+                    const i1 = Math.min(i0 + 1, float32Input.length - 1);
+                    const frac = srcPos - i0;
+                    let s = float32Input[i0] * (1 - frac) + float32Input[i1] * frac;
+                    // Crisp 1.3x voice clarity boost, clamped cleanly without distortion
+                    s = Math.max(-1, Math.min(1, s * 1.3));
                     pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
 
@@ -515,6 +565,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             }]
                         }
                     }));
+                    lastAudioSentTimeRef.current = Date.now();
                 }
             };
 
@@ -629,13 +680,13 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         source.onended = () => {
             activeAudioNodesRef.current = activeAudioNodesRef.current.filter(s => s !== source);
             if (activeAudioNodesRef.current.length === 0) {
-                // Wait 400ms after final sound so speaker reverb clears from the microphone
+                // Unlock mic quickly (80ms) for seamless, natural human conversation
                 setTimeout(() => {
                     if (activeAudioNodesRef.current.length === 0) {
                         isAiSpeakingRef.current = false;
                         setIsAiSpeaking(false);
                     }
-                }, 400);
+                }, 80);
             }
         };
         
@@ -663,6 +714,10 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     const endCall = () => {
         callStateRef.current = 'ended';
         setCallState('ended');
+        if (heartbeatRef.current) {
+            clearInterval(heartbeatRef.current);
+            heartbeatRef.current = null;
+        }
         if (wsRef.current) {
             wsRef.current.close();
             wsRef.current = null;
