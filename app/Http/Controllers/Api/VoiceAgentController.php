@@ -265,53 +265,67 @@ class VoiceAgentController extends Controller
             if (empty($text)) continue;
 
             $lowerText = mb_strtolower($text);
-            $foundPos = false;
+            $foundPositions = [];
 
-            // Search by terms or full query
-            if (mb_strpos($lowerText, mb_strtolower($query)) !== false) {
-                $foundPos = mb_strpos($lowerText, mb_strtolower($query));
-            } else {
-                foreach ($searchTerms as $term) {
-                    $pos = mb_strpos($lowerText, $term);
-                    if ($pos !== false) {
-                        $foundPos = $pos;
-                        break;
-                    }
+            // 1. Direct query matching
+            $pos = mb_strpos($lowerText, mb_strtolower($query));
+            if ($pos !== false) {
+                $foundPositions[] = $pos;
+            }
+
+            // 2. Individual keywords matching
+            foreach ($searchTerms as $term) {
+                $p = mb_strpos($lowerText, $term);
+                if ($p !== false && !in_array($p, $foundPositions)) {
+                    $foundPositions[] = $p;
                 }
             }
 
-            if ($foundPos !== false) {
-                $start = max(0, $foundPos - 150);
-                $snippet = mb_substr($text, $start, 500);
+            // Extract context around matches with page number detection
+            foreach (array_slice($foundPositions, 0, 3) as $fPos) {
+                // Find nearest preceding [Page X] marker if available
+                $precedingText = mb_substr($text, 0, $fPos);
+                $pageInfo = '';
+                if (preg_match_all('/\[Page\s+(\d+)\]/i', $precedingText, $pMatches)) {
+                    $lastPage = end($pMatches[1]);
+                    $pageInfo = " (પાના નં. {$lastPage})";
+                }
+
+                $start = max(0, $fPos - 120);
+                $rawSnippet = mb_substr($text, $start, 450);
+                $cleanSnippet = trim(preg_replace('/\s+/', ' ', $rawSnippet));
+
                 $matchedSnippets[] = [
-                    'document_title' => $doc->title,
+                    'document_title' => $doc->title . $pageInfo,
                     'company' => $doc->company?->name ?? 'જનરલ',
-                    'snippet' => trim(preg_replace('/\s+/', ' ', $snippet)),
+                    'snippet' => $cleanSnippet,
                 ];
             }
         }
 
         if (empty($matchedSnippets)) {
-            // Fallback: return first 300 chars of matching docs
+            // General excerpt from first available doc
             foreach ($docs->take(2) as $doc) {
                 if (!empty($doc->ocr_text)) {
                     $matchedSnippets[] = [
                         'document_title' => $doc->title,
                         'company' => $doc->company?->name ?? 'જનરલ',
-                        'snippet' => mb_substr(trim(preg_replace('/\s+/', ' ', $doc->ocr_text)), 0, 400),
+                        'snippet' => mb_substr(trim(preg_replace('/\s+/', ' ', $doc->ocr_text)), 0, 350),
                     ];
                 }
             }
         }
+
+        $summary = count($matchedSnippets) > 0 
+            ? "દસ્તાવેજમાંથી મળેલ મુદ્દા: " . implode(' | ', array_map(fn($s) => $s['document_title'] . ': ' . $s['snippet'], array_slice($matchedSnippets, 0, 3)))
+            : "આ વિગત દસ્તાવેજમાં મળી નથી.";
 
         return response()->json([
             'success' => true,
             'query' => $query,
             'results_count' => count($matchedSnippets),
             'snippets' => $matchedSnippets,
-            'summary' => count($matchedSnippets) > 0 
-                ? "દસ્તાવેજમાંથી મળેલ વિગતો: " . implode(' | ', array_map(fn($s) => $s['document_title'] . ': ' . $s['snippet'], $matchedSnippets))
-                : "આ બાબત દસ્તાવેજમાં મળી નથી.",
+            'summary' => $summary,
         ]);
     }
 
@@ -457,18 +471,17 @@ class VoiceAgentController extends Controller
 {$docKnowledgeText}
 - ખાસ નોંધ: રાજેશ્વરી સોલાર (RAJESHWARI SOLAR) નું અસલ સરનામું છે: પ્લોટ નં-૧૩૧, પાંચપડા, પાળિયાદ રોડ, શિવાજીનગર પાસે, બોટાદ, ગુજરાત (પિનકોડ: ૩૬૪૭૧૦). પાર્ટનર છે: જય રાજેશભાઈ લકુમ અને જયેશભાઈ જેસિંગભાઈ લકુમ. GST નંબર છે: 24ABJFR7554G1ZX.
 
-## તમારા નિયમો:
-૧. **સવાલનો સાચો જવાબ આપવો (ના ક્યારેય ન પાડવી):**
-   - જ્યારે યુઝર પૂછે કે "GST માં એડ્રેસ શું છે?", "કંપની કઈ છે?", "પાર્ટનર કોણ છે?" કે "GST નંબર શું છે?":
-   - ક્યારેય એમ ન કહેવું કે "મને ખબર નથી" કે "મારી પાસે વિગત નથી".
-   - ઉપર આપેલી વિગતમાંથી વાંચીને સીધો જ સાચો જવાબ અવાજમાં આપવો (દા.ત. "ભાઈ, રાજેશ્વરી સોલારનું એડ્રેસ છે: પાંચપડા, પાળિયાદ રોડ, બોટાદ, ગુજરાત! શું આ ફાઇલ ટેલિગ્રામમાં મોકલી આપું?").
-   - અન્ય કોઈ પણ નવી વિગત માટે તમે `query_document_content` ટૂલ પણ વાપરી શકો છો.
-૨. **ફાઈલ મોકલવી:**
-   - જ્યાં સુધી યુઝર એમ ન કહે કે "મોકલી આપો" કે "ટેલિગ્રામમાં આપો", ત્યાં સુધી ફાઈલ મોકલવી નહીં!
-   - જ્યારે યુઝર "હા મોકલો" કહે, ત્યારે જ `get_document` ટૂલ ચલાવીને ટેલિગ્રામમાં ફાઈલ મોકલી દેવી.
+## તમારા નિયમો (Strict Protocol):
+૧. **દસ્તાવેજમાંથી સવાલનો જવાબ આપવો (Question & Answer):**
+   - જ્યારે યુઝર દસ્તાવેજની અંદરનો કોઈ પણ નાનો મુદ્દો, વિગત, શરત, સરનામું કે ટોપિક પૂછે:
+   - તમારે ફરજિયાત `query_document_content` ટૂલ વાપરીને અંદરના પાનાઓમાંથી એ ચોક્કસ વિગત વાંચીને દેશી ગુજરાતીમાં સ્પષ્ટ સમજાવી દેવી!
+   - **સખત મનાઈ:** સવાલ પૂછતી વખતે સીધું "શું તમને ફાઈલ મોકલી આપું?" એમ પૂછીને વાત ટાળવી નહીં! પહેલાં સવાલનો ૧૦૦% સાચો અને સંતોષકારક જવાબ આપવો.
+૨. **ફાઈલ મોકલવી (Send File):**
+   - જ્યાં સુધી યુઝર સામેથી સ્પષ્ટ ન કહે કે "મને ફાઈલ મોકલો", "ટેલિગ્રામમાં સેન્ડ કરો", કે "પીડીએફ આપો", ત્યાં સુધી ફાઈલ મોકલવાની વાત પણ કરવી નહીં!
+   - જ્યારે યુઝર "હા મોકલો" કહે, ત્યારે જ `get_document` ટૂલ ચલાવીને ટેલિગ્રામમાં ફાઈલ મોકલવી.
 ૩. **મલ્ટિપલ કંપની:**
    - જો ફક્ત "GST આપો" કહે, તો પૂછવું: "રાજેશ્વરી સોલાર કે સનરાઇઝ ગ્રીન, કઈ કંપનીનું જોઈએ છે?".
-૪. દેશી અને પ્રેમાળ અંદાજમાં ૧ થી ૨ નાના વાક્યોમાં જ મીઠો ઉત્તર આપવો.
+૪. ૧ થી ૨ નાના વાક્યોમાં જ દેશી શૈલીમાં મીઠો અને સાચો ઉત્તર આપવો.
 EOT;
 
         $masterKey = env('GEMINI_API_KEY');

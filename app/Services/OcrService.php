@@ -70,7 +70,22 @@ class OcrService
         try {
             $parser = new PdfParser();
             $pdf = $parser->parseFile($filePath);
-            return (string) $pdf->getText();
+            $pages = $pdf->getPages();
+            
+            if (empty($pages)) {
+                return (string) $pdf->getText();
+            }
+
+            $fullTextParts = [];
+            foreach ($pages as $index => $page) {
+                $pageNum = $index + 1;
+                $pageContent = trim((string) $page->getText());
+                if (!empty($pageContent)) {
+                    $fullTextParts[] = "[Page {$pageNum}]\n" . $pageContent;
+                }
+            }
+
+            return implode("\n\n", $fullTextParts);
         } catch (\Throwable $e) {
             Log::warning('Native PDF parsing failed, trying raw stream: ' . $e->getMessage());
             return '';
