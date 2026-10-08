@@ -448,22 +448,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             await startMic();
 
             setCallState('connected');
-            setTranscriptHistory([{ sender: 'ai', text: 'નમસ્તે! રિયા લાઈવ છે...' }]);
-
-            // Automatically trigger Riya to speak first and warmly greet user
-            try {
-                session.send({
-                    clientContent: {
-                        turns: [{
-                            role: "user",
-                            parts: [{ text: "નમસ્તે! કૉલ શરૂ થઈ ગયો છે. સામેથી ખુશ થઈને બોલો: 'નમસ્તે જય ભાઈ! બોલો, આજે તમારે કયા ડોક્યુમેન્ટની જરૂર છે?'" }]
-                        }],
-                        turnComplete: true
-                    }
-                });
-            } catch (greetErr) {
-                console.warn('[Greeting trigger note]', greetErr);
-            }
+            setTranscriptHistory([{ sender: 'ai', text: 'નમસ્તે! રિયા લાઈવ છે. તમે બોલી શકો છો...' }]);
         } catch (err) {
             console.error('Failed to start Live Session:', err);
             setConnectionError(err.message || 'લાઇવ સેશન શરૂ કરવામાં ભૂલ.');
