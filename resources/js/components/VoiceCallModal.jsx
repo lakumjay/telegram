@@ -43,6 +43,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     const transcriptEndRef = useRef(null);
     const isSetupCompleteRef = useRef(false);
     const recognitionRef = useRef(null);
+    const isAiSpeakingRef = useRef(false);
 
     // Call duration timer
     useEffect(() => {
@@ -345,32 +346,31 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 const avg = sum / dataArray.length;
                 setAudioLevel(Math.min(100, Math.round(avg * 1.8)));
 
-                // Voice Activity Detection (VAD)
-                if (avg > 12) {
-                    // User is actively speaking
-                    if (isAiSpeaking) {
-                        stopAllAudio();
-                        setIsAiSpeaking(false);
-                    }
-                    isUserSpeaking = true;
-                    if (silenceTimer) {
-                        clearTimeout(silenceTimer);
-                        silenceTimer = null;
-                    }
-                } else if (isUserSpeaking && avg < 7) {
-                    // User stopped speaking -> wait 750ms of silence, then signal turnComplete
-                    if (!silenceTimer) {
-                        silenceTimer = setTimeout(() => {
-                            if (isUserSpeaking && wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
-                                console.log('[VAD] Silence detected. Sending turnComplete to trigger AI response.');
-                                wsRef.current.send(JSON.stringify({
-                                    clientContent: {
-                                        turnComplete: true
+                // Voice Activity Detection (VAD) - Only track when AI is NOT playing
+                if (!isAiSpeakingRef.current && activeAudioNodesRef.current.length === 0) {
+                    if (avg > 14) {
+                        isUserSpeaking = true;
+                        if (silenceTimer) {
+                            clearTimeout(silenceTimer);
+                            silenceTimer = null;
+                        }
+                    } else if (isUserSpeaking && avg < 8) {
+                        // User stopped speaking -> wait 800ms of silence, then send turnComplete
+                        if (!silenceTimer) {
+                            silenceTimer = setTimeout(() => {
+                                if (isUserSpeaking && wsRef.current && wsRef.current.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
+                                    if (!isAiSpeakingRef.current && activeAudioNodesRef.current.length === 0) {
+                                        console.log('[VAD] Silence detected. Completing user turn.');
+                                        wsRef.current.send(JSON.stringify({
+                                            clientContent: {
+                                                turnComplete: true
+                                            }
+                                        }));
                                     }
-                                }));
-                                isUserSpeaking = false;
-                            }
-                        }, 750);
+                                    isUserSpeaking = false;
+                                }
+                            }, 800);
+                        }
                     }
                 }
 
@@ -378,7 +378,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             };
             updateVolume();
 
-            // Start Browser Web Speech Recognition as an infallible assistant
+            // Web Speech Recognition: Natural auxiliary recognizer with strict Anti-Echo Shield
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (SpeechRecognition) {
                 try {
@@ -388,6 +388,11 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     recognition.lang = 'gu-IN'; // Gujarati / Hindi recognition
 
                     recognition.onresult = (event) => {
+                        // STRICT ECHO GUARD: If AI is talking or audio buffer is playing, DROP COMPLETELY!
+                        if (isAiSpeakingRef.current || activeAudioNodesRef.current.length > 0) {
+                            return;
+                        }
+
                         let finalTranscript = '';
                         for (let i = event.resultIndex; i < event.results.length; ++i) {
                             if (event.results[i].isFinal) {
@@ -395,34 +400,42 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             }
                         }
 
-                        if (finalTranscript.trim()) {
-                            const spoken = finalTranscript.trim();
-                            console.log('[Speech Recognition Heard]', spoken);
-                            setUserSpokenText(spoken);
-                            setTranscriptHistory(h => [...h, { sender: 'user', text: spoken }]);
+                        const spoken = finalTranscript.trim();
+                        if (!spoken) return;
 
-                            // Stop AI speaking if user speaks
-                            stopAllAudio();
-                            setIsAiSpeaking(false);
+                        // Anti-Echo Check 2: If the text is part of AI's own last speech, ignore
+                        if (currentAiText && currentAiText.trim().includes(spoken)) {
+                            console.log('[Echo Shield] Ignored speaker loopback text:', spoken);
+                            return;
+                        }
 
-                            // Send directly to Gemini as turn with turnComplete
-                            if (ws && ws.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
-                                ws.send(JSON.stringify({
-                                    clientContent: {
-                                        turns: [{ role: "user", parts: [{ text: spoken }] }],
-                                        turnComplete: true
-                                    }
-                                }));
-                            }
+                        console.log('[Speech Recognition Heard User]:', spoken);
+                        setUserSpokenText(spoken);
+                        setTranscriptHistory(h => {
+                            const last = h[h.length - 1];
+                            if (last && last.sender === 'user' && last.text === spoken) return h;
+                            return [...h, { sender: 'user', text: spoken }];
+                        });
+
+                        // Stop AI audio if user interrupts cleanly
+                        stopAllAudio();
+
+                        // Send user utterance to Gemini
+                        if (ws && ws.readyState === WebSocket.OPEN && isSetupCompleteRef.current) {
+                            ws.send(JSON.stringify({
+                                clientContent: {
+                                    turns: [{ role: "user", parts: [{ text: spoken }] }],
+                                    turnComplete: true
+                                }
+                            }));
                         }
                     };
 
                     recognition.onerror = (err) => {
-                        console.warn('[Speech Recognition] Error/ignored:', err.error);
+                        console.warn('[Speech Recognition] Note:', err.error);
                     };
 
                     recognition.onend = () => {
-                        // Restart if call is still active
                         if (callState !== 'ended' && isSetupCompleteRef.current) {
                             try { recognition.start(); } catch(e) {}
                         }
@@ -430,7 +443,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
                     recognition.start();
                     recognitionRef.current = recognition;
-                    console.log('[Speech Recognition] Active and listening for Gujarati/Hindi voice!');
+                    console.log('[Speech Recognition] Active with Anti-Echo Protection for natural conversation!');
                 } catch(e) {
                     console.warn('[Speech Recognition] Failed to initialize:', e);
                 }
@@ -441,9 +454,9 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
             // Helper to downsample Float32 to 16kHz Int16 Little-Endian base64
             const convertAndSend = (float32Input) => {
-                // IMPORTANT: If user is muted, or setup is not complete, or AI is currently speaking, DROP audio to prevent echo feedback loop!
-                if (isMuted || !isSetupCompleteRef.current || ws.readyState !== WebSocket.OPEN) return;
-                if (activeAudioNodesRef.current.length > 0) return; // Drop while AI speaker is active
+                // IMPORTANT: Drop mic data if muted, not setup, or AI is speaking to prevent feedback echo!
+                if (isMuted || !isSetupCompleteRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+                if (isAiSpeakingRef.current || activeAudioNodesRef.current.length > 0) return;
 
                 const ratio = nativeRate / 16000;
                 const newLength = Math.round(float32Input.length / ratio);
@@ -452,8 +465,8 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 for (let i = 0; i < newLength; i++) {
                     const nativeIndex = Math.round(i * ratio);
                     let s = float32Input[nativeIndex < float32Input.length ? nativeIndex : float32Input.length - 1];
-                    // Voice boost 1.4x
-                    s = s * 1.4;
+                    // Voice boost 1.5x
+                    s = s * 1.5;
                     s = Math.max(-1, Math.min(1, s));
                     pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
@@ -519,9 +532,15 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                         convertAndSend(event.data);
                     };
 
+                    // Connect to silent gain node to ensure Chrome keeps the worklet active in audio graph
+                    const silentGain = audioCtx.createGain();
+                    silentGain.gain.value = 0;
                     source.connect(workletNode);
+                    workletNode.connect(silentGain);
+                    silentGain.connect(audioCtx.destination);
+
                     workletSuccess = true;
-                    console.log('[Mic Pipeline] Inline AudioWorkletNode successfully active and sending audio chunks!');
+                    console.log('[Mic Pipeline] Inline AudioWorkletNode successfully active and connected to audio graph!');
                 }
             } catch (workletErr) {
                 console.warn('[Mic Pipeline] AudioWorklet inline failed, using ScriptProcessor fallback:', workletErr);
@@ -551,6 +570,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
     // Jitter buffer queue for seamless audio playback
     const playAudioChunk = (base64, audioCtx) => {
+        isAiSpeakingRef.current = true;
         setIsAiSpeaking(true);
         
         if (audioCtx.state === 'suspended') {
@@ -579,6 +599,15 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         activeAudioNodesRef.current.push(source);
         source.onended = () => {
             activeAudioNodesRef.current = activeAudioNodesRef.current.filter(s => s !== source);
+            if (activeAudioNodesRef.current.length === 0) {
+                // Wait 400ms after final sound so speaker reverb clears from the microphone
+                setTimeout(() => {
+                    if (activeAudioNodesRef.current.length === 0) {
+                        isAiSpeakingRef.current = false;
+                        setIsAiSpeaking(false);
+                    }
+                }, 400);
+            }
         };
         
         const currentTime = audioCtx.currentTime;
@@ -595,6 +624,8 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             try { source.stop(); } catch(e) {}
         });
         activeAudioNodesRef.current = [];
+        isAiSpeakingRef.current = false;
+        setIsAiSpeaking(false);
         if (audioContextRef.current) {
             nextPlayTimeRef.current = audioContextRef.current.currentTime;
         }

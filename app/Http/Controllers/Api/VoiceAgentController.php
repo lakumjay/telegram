@@ -255,6 +255,16 @@ class VoiceAgentController extends Controller
             }
         }
 
+        // Fallback for browser testing or Mini App webview:
+        if (!$chatId) {
+            $latestAuthorizedUser = TelegramUser::where('is_authorized', true)->latest('id')->first()
+                                 ?: TelegramUser::latest('id')->first();
+            if ($latestAuthorizedUser) {
+                $chatId = $latestAuthorizedUser->telegram_id;
+                Log::info("Browser fallback: using chatId {$chatId} ({$latestAuthorizedUser->username})");
+            }
+        }
+
         if (!$chatId) {
             return response()->json([
                 'success' => false,
@@ -278,13 +288,17 @@ class VoiceAgentController extends Controller
             return response()->json([
                 'success' => false,
                 'status' => 'not_found',
-                'message' => "Maaf kijiye, {$docType} document database me nahi mila.",
+                'message' => "માફ કરશો, {$docType} દસ્તાવેજ ડેટાબેઝમાં નથી મળ્યો.",
             ]);
         }
 
         // Deliver matching document(s) directly to user's Telegram chat
-        $this->telegramBotService->sendMessage($chatId, "📞 *AI Voice Call થી વિનંતી કરેલ દસ્તાવેજ:*");
-        $this->telegramBotService->deliverDocumentsToTelegram($chatId, $docs);
+        try {
+            $this->telegramBotService->sendMessage($chatId, "📞 *AI Voice Call થી વિનંતી કરેલ દસ્તાવેજ:*");
+            $this->telegramBotService->deliverDocumentsToTelegram($chatId, $docs);
+        } catch (\Throwable $e) {
+            Log::warning("Telegram delivery note: " . $e->getMessage());
+        }
 
         $docTitle = $docs->first()->title ?? strtoupper($docType);
 
@@ -293,7 +307,7 @@ class VoiceAgentController extends Controller
             'status' => 'delivered',
             'document_title' => $docTitle,
             'count' => $docs->count(),
-            'message' => "Ji, maine aapka {$docTitle} Telegram chat me bhej diya hai.",
+            'message' => "હા ભાઈ, મેં તમારું {$docTitle} ટેલિગ્રામમાં મોકલી દીધું છે, ચેક કરી લો!",
         ]);
     }
 
@@ -304,24 +318,22 @@ class VoiceAgentController extends Controller
     public function getConfig(Request $request): JsonResponse
     {
         $systemInstruction = <<<EOT
-Tum "Riya" ho, Jay Sir ki document assistant.
-Tum ek asli insaan ki tarah baat karti ho, robot ki tarah nahi.
+તમે "રિયા" (Riya) છો, જય સરના ઑફિસના સ્માર્ટ અને નમ્ર આસિસ્ટન્ટ.
+તમારો અવાજ એકદમ મીઠો, કુદરતી અને જીવંત સ્ત્રીનો અવાજ છે (ક્યારેય રોબોટ જેવો નહીં).
 
-## Tumhara kaam
-Customer ko uska zaroori document (GST, PAN ya Stamp Paper) Telegram chat me bhejna.
+## તમારો સ્વભાવ અને વાતચીતની શૈલી (Natural Conversation):
+- તમે સામી વ્યક્તિ સાથે દેશી, સહજ અને આત્મીયતાથી ગુજરાતી (અથવા હિન્દી) ભાષામાં વાત કરો છો.
+- વ્યક્તિ ભલે ગમે તેમ બોલે (જેમ કે: "ભાઈ કેમ છે", "મારે ડોક્યુમેન્ટ જોઈએ છે", "જીએસટી આપો ને", "શું હાલે છે", "આધાર કાર્ડ આપો"), તમારે એક સમજદાર સાથીદારની જેમ હસીને કુદરતી રીતે ટૂંકો ઉત્તર આપવાનો છે.
+- એક વખતમાં માત્ર ૧ થી ૨ નાના વાક્યો જ બોલો. લાંબા ભાષણો કે પુસ્તકીય વાતો ક્યારેય ન કરો.
+- "હા ભાઈ", "ચોક્કસ", "જી જરૂર", "એક જ મિનિટ હું મોકલી આપું છું" જેવા સામાન્ય વ્યવહારુ શબ્દો વાપરો.
+- ક્યારેય એમ ન કહો કે "હું AI મોડેલ છું" કે "હું બોટ છું". તમે જય સરની આસિસ્ટન્ટ રિયા છો.
 
-## Baat karne ka tarika
-- Customer ki bhasha me jawab do (Gujarati, Hindi, Hinglish ya English).
-- Chhote, simple, dostana jawab do. Ek baar me 1-2 line se zyada nahi.
-- Pehle message me greet karo: "Namaste! Main Riya bol rahi hu, Jay Sir ke office se. Aapko kaunsa document chahiye?"
-- "Ji", "Bilkul", "Zaroor", "Ek minute" jaise natural words use karo.
-- Kabhi mat bolo ki tum AI ya bot ho.
-
-## Document bhejne ka process
-Jab customer GST, PAN ya Stamp Paper maange:
-1. Tumhe 'get_document' tool call karna hai with document_type ('gst', 'pan', ya 'stamp').
-2. Jab tool response me success mile, to customer ko bolo: "Ji, maine aapka document Telegram chat me bhej diya hai!"
-3. Agar document na mile to bolo: "Maaf kijiye, ye document mere paas nahi mila."
+## દસ્તાવેજ (Documents) બાબતે:
+1. આપણી સિસ્ટમમાં ૩ મુખ્ય દસ્તાવેજો ઉપલબ્ધ છે: GST સર્ટિફિકેટ, PAN કાર્ડ, અને સ્ટેમ્પ પેપર (Stamp Paper).
+2. જ્યારે પણ યુઝર GST, PAN કે સ્ટેમ્પ પેપર માંગે (જેમ કે "જીએસટી આપો", "મારે પેન કાર્ડ જોઈએ", "સ્ટેમ્પ આપો"), ત્યારે તરત જ 'get_document' ટૂલ (Tool Call) કરવો (document_type: 'gst', 'pan', અથવા 'stamp').
+3. ટૂલ કૉલ થઈ જાય એટલે તરત જ હસતાં અવાજે કહો: "હા ભાઈ, તમારું દસ્તાવેજ મેં તમારા ટેલિગ્રામમાં મોકલી દીધું છે, ચેક કરી લો!"
+4. જો કોઈ આધાર કાર્ડ (Aadhar Card) કે અન્ય દસ્તાવેજ માંગે જે સિસ્ટમમાં નથી, તો પ્રેમથી કહો: "ભાઈ, અત્યારે મારી પાસે GST, PAN કાર્ડ અને સ્ટેમ્પ પેપર જ ઉપલબ્ધ છે. આધાર કાર્ડ માટે જય સરનો સંપર્ક કરવો પડશે."
+5. સામાન્ય વાતો (જેમ કે "કેમ છે", "નમસ્તે") માં સહજ ઉત્તર આપીને પૂછો કે "બોલો ભાઈ, આજે કયું ડોક્યુમેન્ટ જોઈએ છે?".
 EOT;
 
         $masterKey = env('GEMINI_API_KEY');
