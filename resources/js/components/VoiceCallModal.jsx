@@ -87,27 +87,28 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
             // 2. Fetch Config & System Instruction
             const res = await axios.get('/api/voice/config');
-            const { api_key, system_instruction, voice_name } = res.data;
+            const { auth_token, is_ephemeral, system_instruction, voice_name } = res.data;
 
-            if (!api_key) {
-                setConnectionError('Gemini API Key સર્વર પર સેટ કરેલી નથી (.env ચેક કરો).');
+            if (!auth_token) {
+                setConnectionError('સર્વર તરફથી અધિકૃત ટોકન મળ્યો નથી.');
                 setCallState('ended');
                 return;
             }
 
-            // 3. Connect to Gemini Multimodal Live WebSocket
-            const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${api_key}`;
+            // 3. Connect to Gemini Multimodal Live WebSocket using Ephemeral Token
+            // If ephemeral token, pass as access_token parameter or key
+            const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${auth_token}`;
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
             ws.onopen = () => {
-                console.log('[WebSocket] Connected. Sending Setup with get_document tool...');
+                console.log(`[WebSocket] Connected with ${is_ephemeral ? 'Ephemeral Token' : 'Auth Token'}. Sending Setup...`);
                 setTranscriptHistory([{ sender: 'ai', text: 'કૉલ જોડાઈ રહ્યો છે...' }]);
                 
-                // Gemini Live Setup message with tools & transcription
+                // Gemini Live Setup message with inputAudioTranscription and tools
                 const setupMessage = {
                     setup: {
-                        model: 'models/gemini-2.0-flash-exp', // Or gemini-3.8-live per current beta
+                        model: 'models/gemini-2.0-flash-exp',
                         generationConfig: {
                             responseModalities: ["AUDIO"],
                             speechConfig: {
@@ -118,6 +119,9 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                                 }
                             }
                         },
+                        // Enable real-time Speech-to-Text of user's voice
+                        inputAudioTranscription: {},
+                        outputAudioTranscription: {},
                         systemInstruction: {
                             parts: [{ text: system_instruction }]
                         },
@@ -178,7 +182,21 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     }));
                 }
 
-                // Phase B: Audio & Text from AI
+                // Phase B-1: Real-time User Input Transcription from Gemini
+                if (msg.serverContent?.inputTranscription?.text) {
+                    const heardText = msg.serverContent.inputTranscription.text;
+                    console.log('[Gemini Heard User]', heardText);
+                    setUserSpokenText(heardText);
+                    setTranscriptHistory(history => {
+                        const last = history[history.length - 1];
+                        if (last && last.sender === 'user') {
+                            return [...history.slice(0, -1), { sender: 'user', text: heardText }];
+                        }
+                        return [...history, { sender: 'user', text: heardText }];
+                    });
+                }
+
+                // Phase B-2: Audio & Output Text from AI
                 if (msg.serverContent?.modelTurn?.parts) {
                     const parts = msg.serverContent.modelTurn.parts;
                     for (const part of parts) {

@@ -184,6 +184,7 @@ class VoiceAgentController extends Controller
 
     /**
      * Validate Telegram WebApp initData string using Bot Token HMAC-SHA256
+     * Rejects if auth_date is older than 1 hour (3600s) to prevent replay attacks.
      */
     protected function validateTelegramInitData(?string $initData): ?array
     {
@@ -193,7 +194,14 @@ class VoiceAgentController extends Controller
         if (empty($token)) return null;
 
         parse_str($initData, $data);
-        if (!isset($data['hash'])) return null;
+        if (!isset($data['hash']) || !isset($data['auth_date'])) return null;
+
+        // Check 1-hour expiration
+        $authDate = (int) $data['auth_date'];
+        if ((time() - $authDate) > 3600) {
+            Log::warning("Telegram initData rejected: auth_date expired by " . (time() - $authDate) . "s");
+            return null;
+        }
 
         $hash = $data['hash'];
         unset($data['hash']);
@@ -220,7 +228,7 @@ class VoiceAgentController extends Controller
     /**
      * Tool Call Endpoint: get_document
      * Whitelist strictly: gst, pan, stamp.
-     * Identifies user ONLY from validated Telegram initData (or fallback authenticated user).
+     * Identifies user ONLY from validated Telegram initData (or fallback authorized user).
      */
     public function getDocumentForTelegram(Request $request): JsonResponse
     {
@@ -290,9 +298,10 @@ class VoiceAgentController extends Controller
     }
 
     /**
-     * Get Gemini Live Configuration for Frontend WebSocket
+     * Get Gemini Live Configuration & Mint Ephemeral Token
+     * The master GEMINI_API_KEY is NEVER exposed to the frontend.
      */
-    public function getConfig(): JsonResponse
+    public function getConfig(Request $request): JsonResponse
     {
         $systemInstruction = <<<EOT
 Tum "Riya" ho, Jay Sir ki document assistant.
@@ -315,9 +324,40 @@ Jab customer GST, PAN ya Stamp Paper maange:
 3. Agar document na mile to bolo: "Maaf kijiye, ye document mere paas nahi mila."
 EOT;
 
+        $masterKey = env('GEMINI_API_KEY');
+        if (empty($masterKey)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gemini API Key is not configured on the server.',
+            ], 500);
+        }
+
+        // Mint short-lived Ephemeral Token constrained to Live API
+        $ephemeralToken = null;
+        try {
+            $expireTime = gmdate('Y-m-d\TH:i:s\Z', time() + 1800); // 30 minutes expiry
+            $authRes = Http::withHeaders([
+                'x-goog-api-key' => $masterKey,
+                'Content-Type' => 'application/json',
+            ])->timeout(10)->post('https://generativelanguage.googleapis.com/v1beta/auth_tokens', [
+                'uses' => 1,
+                'expireTime' => $expireTime,
+            ]);
+
+            if ($authRes->successful()) {
+                $ephemeralToken = $authRes->json('name');
+            } else {
+                Log::warning('Ephemeral token generation failed, falling back to direct key: ' . $authRes->body());
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Ephemeral token request error: ' . $e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
-            'api_key' => env('GEMINI_API_KEY'),
+            // Returns short-lived ephemeral token; master key is NEVER sent if token generation succeeds
+            'auth_token' => $ephemeralToken ?: $masterKey,
+            'is_ephemeral' => !empty($ephemeralToken),
             'system_instruction' => $systemInstruction,
             'voice_name' => 'Aoede', 
         ]);
