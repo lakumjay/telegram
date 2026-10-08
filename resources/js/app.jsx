@@ -7,7 +7,6 @@ import SecurityWhitelist from './components/SecurityWhitelist';
 import VoiceCallModal from './components/VoiceCallModal';
 import DocumentUploadModal from './components/DocumentUploadModal';
 import SettingsModal from './components/SettingsModal';
-import StandaloneVoiceTest from './components/StandaloneVoiceTest';
 import axios from 'axios';
 import { 
     PhoneCall, 
@@ -26,11 +25,6 @@ function App() {
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [stats, setStats] = useState(null);
-
-    // Standalone Voice Test Page
-    if (window.location.pathname.includes('/voice-test')) {
-        return <StandaloneVoiceTest />;
-    }
 
     // Check if running inside Telegram Mini App
     const isTelegramMiniApp = window.location.pathname.includes('/miniapp') || Boolean(window.Telegram?.WebApp?.initData);
