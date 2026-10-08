@@ -96,8 +96,11 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             }
 
             // 3. Connect to Gemini Multimodal Live WebSocket using Ephemeral Token
-            // If ephemeral token, pass as access_token parameter or key
-            const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${auth_token}`;
+            const wsUrl = is_ephemeral
+                ? `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${auth_token}`
+                : `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${auth_token}`;
+            
+            console.log(`[WebSocket] Connecting to: ${wsUrl.split('?')[0]} with ${is_ephemeral ? 'Ephemeral Access Token' : 'Direct Key'}`);
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
@@ -108,7 +111,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 // Gemini Live Setup message with inputAudioTranscription and tools
                 const setupMessage = {
                     setup: {
-                        model: 'models/gemini-2.0-flash-exp',
+                        model: 'models/gemini-3.8-live',
                         generationConfig: {
                             responseModalities: ["AUDIO"],
                             speechConfig: {
