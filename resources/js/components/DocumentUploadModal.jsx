@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { UploadCloud, File, CheckCircle2, AlertCircle, Sparkles, Building2, Camera, RefreshCw, Scissors } from 'lucide-react';
 import axios from 'axios';
 
-export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
+export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initialMode = 'file' }) {
     if (!isOpen) return null;
 
-    const [uploadMode, setUploadMode] = useState('file'); // 'file' or 'camera'
+    const [uploadMode, setUploadMode] = useState(initialMode); // 'file' or 'camera'
     const [file, setFile] = useState(null);
     const [filePreview, setFilePreview] = useState(null);
     const [title, setTitle] = useState('');
@@ -20,6 +20,38 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
     const [isCameraActive, setIsCameraActive] = useState(false);
     const videoRef = useRef(null);
     const streamRef = useRef(null);
+
+    // Auto-trigger camera if initialMode is camera
+    useEffect(() => {
+        if (isOpen) {
+            if (initialMode === 'camera') {
+                startCamera();
+            } else {
+                setUploadMode('file');
+            }
+        } else {
+            stopCamera();
+        }
+    }, [isOpen, initialMode]);
+
+    // Handle file selection
+    const handleFileChange = (e) => {
+        const selected = e.target.files?.[0];
+        if (selected) {
+            setFile(selected);
+            if (!title) {
+                const nameWithoutExt = selected.name.replace(/\.[^/.]+$/, "");
+                setTitle(nameWithoutExt);
+            }
+            if (selected.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (re) => setFilePreview(re.target.result);
+                reader.readAsDataURL(selected);
+            } else {
+                setFilePreview(null);
+            }
+        }
+    };
 
     // Fetch companies
     useEffect(() => {
@@ -133,39 +165,41 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-            <div className="w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+            <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
                 
                 {/* Header */}
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <div className="flex items-center space-x-2">
-                        <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
                             <UploadCloud className="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 className="text-base font-bold text-white">નવો દસ્તાવેજ અપલોડ કરો</h3>
-                            <p className="text-[11px] text-slate-400">PDF કે ઈમેજ અપલોડ કરો (Auto Deep OCR સાથે)</p>
+                            <h3 className="text-base font-bold text-slate-900">
+                                {uploadMode === 'camera' ? '📷 CamScanner દસ્તાવેજ સ્કેનર' : 'નવો દસ્તાવેજ અપલોડ કરો'}
+                            </h3>
+                            <p className="text-[11px] text-slate-500">PDF કે ઈમેજ અપલોડ કરો (Auto Deep OCR સાથે)</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white">✕</button>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg">✕</button>
                 </div>
 
                 {error && (
-                    <div className="p-3 bg-red-950/50 border border-red-500/40 rounded-xl text-xs text-red-300 flex items-center space-x-2">
-                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center space-x-2">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
                         <span>{error}</span>
                     </div>
                 )}
 
                 {successDoc ? (
                     /* Success State */
-                    <div className="p-6 bg-slate-950 rounded-2xl border border-emerald-500/30 text-center space-y-3">
-                        <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
-                        <h4 className="text-sm font-bold text-white">દસ્તાવેજ સફળતાપૂર્વક અપલોડ & OCR ઇન્ડેક્સ થયો!</h4>
-                        <div className="p-3 bg-slate-900 rounded-xl text-xs text-slate-300 text-left space-y-1">
-                            <p><span className="text-slate-500">નામ:</span> {successDoc.title}</p>
-                            <p><span className="text-slate-500">પ્રકાર:</span> {successDoc.doc_type?.toUpperCase()}</p>
-                            {successDoc.stamp_value && <p><span className="text-slate-500">સ્ટેમ્પ વેલ્યુ:</span> ₹{successDoc.stamp_value}</p>}
+                    <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-200 text-center space-y-3">
+                        <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
+                        <h4 className="text-sm font-bold text-slate-900">દસ્તાવેજ સફળતાપૂર્વક અપલોડ & OCR ઇન્ડેક્સ થયો!</h4>
+                        <div className="p-3 bg-white rounded-xl text-xs text-slate-700 text-left space-y-1 border border-emerald-100 shadow-xs">
+                            <p><span className="text-slate-400">નામ:</span> <strong className="text-slate-900">{successDoc.title}</strong></p>
+                            <p><span className="text-slate-400">પ્રકાર:</span> <span className="font-bold text-blue-600">{successDoc.doc_type?.toUpperCase()}</span></p>
+                            {successDoc.stamp_value && <p><span className="text-slate-400">સ્ટેમ્પ વેલ્યુ:</span> <strong className="text-amber-600">₹{successDoc.stamp_value}</strong></p>}
                         </div>
                         <div className="flex justify-center space-x-2 pt-2">
                             <button
@@ -176,7 +210,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                             </button>
                             <button
                                 onClick={onClose}
-                                className="px-4 py-2 bg-slate-800 text-slate-200 text-xs font-medium rounded-xl hover:bg-slate-700 transition cursor-pointer"
+                                className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200 transition cursor-pointer"
                             >
                                 પૂર્ણ થયું
                             </button>
@@ -187,7 +221,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                     <form onSubmit={handleUpload} className="space-y-4">
                         
                         {/* Selector Tabs: File Upload vs Camera Scanner */}
-                        <div className="flex items-center space-x-2 bg-slate-950 p-1 rounded-2xl border border-slate-800">
+                        <div className="flex items-center space-x-2 bg-slate-100 p-1 rounded-2xl border border-slate-200">
                             <button
                                 type="button"
                                 onClick={() => {
@@ -195,28 +229,28 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                                     setUploadMode('file');
                                 }}
                                 className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center space-x-1.5 ${
-                                    uploadMode === 'file' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                                    uploadMode === 'file' ? 'bg-white text-blue-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-900'
                                 }`}
                             >
                                 <UploadCloud className="w-4 h-4" />
-                                <span>ફાઇલ / ફોટો પસંદ કરો</span>
+                                <span>ફાઇલ / PDF</span>
                             </button>
 
                             <button
                                 type="button"
                                 onClick={startCamera}
                                 className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center space-x-1.5 ${
-                                    uploadMode === 'camera' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                                    uploadMode === 'camera' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'
                                 }`}
                             >
-                                <Camera className="w-4 h-4 text-emerald-300 animate-pulse" />
-                                <span>📷 CamScanner (કેમેરાથી સ્કેન)</span>
+                                <Camera className="w-4 h-4" />
+                                <span>📷 CamScanner (કેમેરા)</span>
                             </button>
                         </div>
 
                         {/* Live Camera Scanner View */}
                         {uploadMode === 'camera' && (
-                            <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-emerald-500/50 aspect-video flex flex-col items-center justify-center shadow-2xl">
+                            <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-emerald-500/60 aspect-video flex flex-col items-center justify-center shadow-xl">
                                 <video
                                     ref={videoRef}
                                     autoPlay
@@ -224,7 +258,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                                     className="w-full h-full object-cover"
                                 />
                                 {/* Scanner Frame Overlay */}
-                                <div className="absolute inset-4 border-2 border-dashed border-emerald-400/70 rounded-xl pointer-events-none flex items-center justify-center">
+                                <div className="absolute inset-4 border-2 border-dashed border-emerald-400 rounded-xl pointer-events-none flex items-center justify-center">
                                     <span className="text-[10px] text-emerald-300 font-bold bg-black/60 px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-sm">
                                         દસ્તાવેજને ફ્રેમમાં રાખો
                                     </span>
@@ -234,10 +268,10 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                                     <button
                                         type="button"
                                         onClick={captureDocument}
-                                        className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-full shadow-lg shadow-emerald-500/50 transition active:scale-95 flex items-center space-x-1.5 cursor-pointer"
+                                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-full shadow-lg shadow-emerald-600/40 transition active:scale-95 flex items-center space-x-1.5 cursor-pointer"
                                     >
                                         <Camera className="w-4 h-4" />
-                                        <span>ફોટો સ્કેન કરો (Auto Crop)</span>
+                                        <span>ફોટો સ્કેન કરો (Capture)</span>
                                     </button>
                                 </div>
                             </div>
@@ -245,7 +279,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
 
                         {/* Drag & Drop Area */}
                         {uploadMode === 'file' && (
-                        <div className="border-2 border-dashed border-slate-700 hover:border-blue-500/80 rounded-2xl p-5 text-center cursor-pointer transition bg-slate-950/40 relative">
+                        <div className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-5 text-center cursor-pointer transition bg-slate-50/70 relative">
                             <input
                                 type="file"
                                 onChange={handleFileChange}
@@ -255,18 +289,18 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                             {file ? (
                                 <div className="space-y-2">
                                     {filePreview ? (
-                                        <img src={filePreview} alt="Preview" className="w-16 h-16 object-cover mx-auto rounded-xl border border-slate-700 shadow-md" />
+                                        <img src={filePreview} alt="Preview" className="w-16 h-16 object-cover mx-auto rounded-xl border border-slate-200 shadow-sm" />
                                     ) : (
-                                        <File className="w-10 h-10 text-blue-400 mx-auto" />
+                                        <File className="w-10 h-10 text-blue-600 mx-auto" />
                                     )}
-                                    <p className="text-xs font-bold text-white">{file.name}</p>
+                                    <p className="text-xs font-bold text-slate-900">{file.name}</p>
                                     <p className="text-[11px] text-slate-500">{(file.size / 1024).toFixed(1)} KB • ક્લિક કરીને બદલી શકો છો</p>
                                 </div>
                             ) : (
                                 <div className="space-y-1.5">
                                     <UploadCloud className="w-10 h-10 text-slate-400 mx-auto" />
-                                    <p className="text-xs font-medium text-slate-200">ફાઇલ અથવા ફોટો પસંદ કરો</p>
-                                    <p className="text-[11px] text-slate-400">PDF, JPG, PNG ફોટો (મહત્તમ 50 MB)</p>
+                                    <p className="text-xs font-bold text-slate-700">ફાઇલ અથવા PDF પસંદ કરો</p>
+                                    <p className="text-[11px] text-slate-400">PDF, JPG, PNG (મહત્તમ 50 MB)</p>
                                 </div>
                             )}
                         </div>
@@ -274,7 +308,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
 
                         {/* Document Title */}
                         <div>
-                            <label className="block text-xs font-medium text-slate-300 mb-1">
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
                                 દસ્તાવેજનું નામ (Title)
                             </label>
                             <input
@@ -282,15 +316,15 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
                                 placeholder="દા.ત. Rajeshwari Solar GST, Sunrise Lease Deed, ₹300 Stamp"
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                             />
                         </div>
 
                         {/* 3 Companies Section Selection */}
                         <div>
-                            <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center justify-between">
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
                                 <span>કંપની પસંદ કરો (Company Selection)</span>
-                                <span className="text-[10px] text-emerald-400">AI Auto-Categorized</span>
+                                <span className="text-[10px] text-emerald-600 font-bold">Auto-Categorized</span>
                             </label>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 {companies.map(c => {
@@ -302,13 +336,13 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                                             onClick={() => setCompanyId(c.id)}
                                             className={`p-3 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
                                                 isSelected 
-                                                    ? 'bg-blue-600/20 border-blue-500 text-white shadow-lg shadow-blue-500/10' 
-                                                    : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                                                    ? 'bg-blue-50 border-blue-500 text-blue-900 shadow-sm' 
+                                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                                             }`}
                                         >
                                             <div className="flex items-center justify-between w-full mb-1">
-                                                <Building2 className={`w-4 h-4 ${isSelected ? 'text-blue-400' : 'text-slate-500'}`} />
-                                                {isSelected && <span className="w-2 h-2 rounded-full bg-blue-400"></span>}
+                                                <Building2 className={`w-4 h-4 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
+                                                {isSelected && <span className="w-2 h-2 rounded-full bg-blue-600"></span>}
                                             </div>
                                             <span className="text-xs font-bold leading-tight">{c.name}</span>
                                         </button>
@@ -318,8 +352,8 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                         </div>
 
                         {/* OCR Info Note */}
-                        <div className="p-3 bg-gradient-to-r from-blue-950/40 to-indigo-950/40 border border-blue-900/50 rounded-xl flex items-center space-x-2 text-[11px] text-blue-200">
-                            <Sparkles className="w-4 h-4 flex-shrink-0 text-amber-400" />
+                        <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl flex items-center space-x-2 text-[11px] text-blue-900">
+                            <Sparkles className="w-4 h-4 flex-shrink-0 text-amber-500" />
                             <span>✨ <strong>Doc Type પસંદ કરવાની જરૂર નથી:</strong> AI આપમેળે ઓળખી લેશે (GST, PAN, લીઝ ડીડ કે અન્ય).</span>
                         </div>
 
@@ -328,14 +362,14 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="px-4 py-2 bg-slate-800 text-slate-300 text-xs font-medium rounded-xl hover:bg-slate-700 transition"
+                                className="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200 transition"
                             >
                                 કેન્સલ
                             </button>
                             <button
                                 type="submit"
                                 disabled={!file || isUploading}
-                                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center space-x-1.5 cursor-pointer"
+                                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center space-x-1.5 cursor-pointer"
                             >
                                 <UploadCloud className="w-4 h-4" />
                                 <span>{isUploading ? `અપલોડ થાય છે... (${uploadProgress}%)` : 'અપલોડ & OCR Index'}</span>

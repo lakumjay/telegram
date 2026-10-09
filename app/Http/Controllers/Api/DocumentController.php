@@ -267,7 +267,10 @@ class DocumentController extends Controller
             'total_documents' => Document::count(),
             'total_companies' => Company::count(),
             'total_ocr_indexed' => Document::where('ocr_status', 'completed')->count(),
-            'stamp_papers_count' => Document::where('doc_type', 'stamp')->count(),
+            'stamp_papers_count' => Document::whereNotNull('stamp_value')
+                ->orWhere('doc_type', 'stamp')
+                ->orWhere('doc_type', 'stamp_paper')
+                ->count(),
             'gst_documents_count' => Document::where('doc_type', 'gst')->count(),
             'pan_documents_count' => Document::where('doc_type', 'pan')->count(),
         ]);

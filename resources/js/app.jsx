@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import Navbar from './components/Navbar';
+import DashboardHome from './components/DashboardHome';
 import DocumentExplorer from './components/DocumentExplorer';
 import TelegramBotSimulator from './components/TelegramBotSimulator';
 import SecurityWhitelist from './components/SecurityWhitelist';
@@ -20,15 +21,19 @@ import {
     CheckCircle2,
     MessageSquare,
     Sliders,
-    LogOut
+    LogOut,
+    Camera
 } from 'lucide-react';
 
 function App() {
-    const [activeTab, setActiveTab] = useState('explorer');
+    const [activeTab, setActiveTab] = useState('home'); // 'home' (Dashboard) | 'files' (My Files) | 'simulator'
+    const [filesFilter, setFilesFilter] = useState({ companyId: '', docType: '', search: '' });
     const [isCallModalOpen, setIsCallModalOpen] = useState(false);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const [uploadModalMode, setUploadModalMode] = useState('file'); // 'file' or 'camera'
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [stats, setStats] = useState(null);
+    const [companies, setCompanies] = useState([]);
     const [currentUser, setCurrentUser] = useState(() => {
         try {
             const saved = localStorage.getItem('auth_user');
@@ -43,6 +48,7 @@ function App() {
 
     useEffect(() => {
         fetchStats();
+        fetchCompanies();
 
         // Initialize Telegram WebApp SDK if present
         if (window.Telegram?.WebApp) {
@@ -60,6 +66,25 @@ function App() {
         } catch (err) {
             console.error('Error fetching stats:', err);
         }
+    };
+
+    const fetchCompanies = async () => {
+        try {
+            const res = await axios.get('/api/companies');
+            setCompanies(res.data.companies || []);
+        } catch (err) {
+            console.error('Error fetching companies:', err);
+        }
+    };
+
+    const handleNavigateToFiles = ({ companyId = '', docType = '', search = '' } = {}) => {
+        setFilesFilter({ companyId, docType, search });
+        setActiveTab('files');
+    };
+
+    const handleOpenUpload = (mode = 'file') => {
+        setUploadModalMode(mode);
+        setIsUploadModalOpen(true);
     };
 
     const handleLogout = () => {
@@ -80,58 +105,89 @@ function App() {
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 onOpenCall={() => setIsCallModalOpen(true)}
-                onOpenUpload={() => setIsUploadModalOpen(true)}
+                onOpenUpload={handleOpenUpload}
                 onOpenSettings={() => setIsSettingsModalOpen(true)}
                 onLogout={handleLogout}
                 stats={stats}
             />
 
-            {/* Main Content Area */}
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
+            {/* Main Content Area with adequate pb-32 so mobile content is never clipped */}
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4 pb-32">
 
-                {/* Tab Views */}
-                {activeTab === 'explorer' && (
-                    <DocumentExplorer
-                        onOpenUpload={() => setIsUploadModalOpen(true)}
+                {/* 1. Home Dashboard View */}
+                {activeTab === 'home' && (
+                    <DashboardHome
+                        stats={stats}
+                        companies={companies}
                         onOpenCall={() => setIsCallModalOpen(true)}
+                        onOpenUpload={handleOpenUpload}
+                        onNavigateToFiles={handleNavigateToFiles}
                     />
                 )}
 
+                {/* 2. My Files View (Dedicated Document Explorer) */}
+                {activeTab === 'files' && (
+                    <DocumentExplorer
+                        onOpenUpload={handleOpenUpload}
+                        onOpenCall={() => setIsCallModalOpen(true)}
+                        initialCompanyId={filesFilter.companyId}
+                        initialDocType={filesFilter.docType}
+                        initialSearch={filesFilter.search}
+                        isMyFilesPage={true}
+                    />
+                )}
+
+                {/* 3. Telegram Simulator */}
                 {activeTab === 'simulator' && (
                     <TelegramBotSimulator
                         onOpenCall={() => setIsCallModalOpen(true)}
                     />
                 )}
 
+                {/* 4. Security Whitelist */}
                 {activeTab === 'whitelist' && (
                     <SecurityWhitelist />
                 )}
 
             </main>
 
-            {/* Mobile Web App Floating Alexa Call Dial & Bottom Bar (Matching user's reference photo) */}
-            <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-4 py-2 sm:hidden flex items-center justify-around shadow-lg">
+            {/* Mobile Web App Floating Call Dial & Bottom Bar (With Home, My Files, Central Call, Chat, Scanner) */}
+            <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-3 py-1.5 sm:hidden flex items-center justify-around shadow-lg">
+                {/* 1. Home Tab */}
                 <button
-                    onClick={() => setActiveTab('explorer')}
-                    className={`flex flex-col items-center py-1 text-[11px] font-bold ${
-                        activeTab === 'explorer' ? 'text-[#2e7d32]' : 'text-slate-400'
+                    onClick={() => setActiveTab('home')}
+                    className={`flex flex-col items-center py-1 text-[10px] font-bold transition ${
+                        activeTab === 'home' ? 'text-[#2e7d32]' : 'text-slate-400'
+                    }`}
+                >
+                    <Bot className="w-5 h-5 mb-0.5" />
+                    <span>હોમ</span>
+                </button>
+
+                {/* 2. My Files Tab */}
+                <button
+                    onClick={() => handleNavigateToFiles({})}
+                    className={`flex flex-col items-center py-1 text-[10px] font-bold transition ${
+                        activeTab === 'files' ? 'text-[#2e7d32]' : 'text-slate-400'
                     }`}
                 >
                     <Layers className="w-5 h-5 mb-0.5" />
                     <span>દસ્તાવેજો</span>
                 </button>
 
-                {/* Central Floating Alexa Call Button in dark forest green matching photo */}
+                {/* 3. Central Floating AI Call Button in emerald green */}
                 <button
                     onClick={() => setIsCallModalOpen(true)}
                     className="relative -top-5 w-14 h-14 rounded-full bg-[#2e7d32] text-white shadow-xl shadow-emerald-700/40 border-4 border-[#f1f5f9] flex items-center justify-center cursor-pointer active:scale-95 transition"
+                    title="AI કૉલ શરૂ કરો"
                 >
                     <PhoneCall className="w-6 h-6 animate-pulse text-white" />
                 </button>
 
+                {/* 4. Voice Chat Tab */}
                 <button
                     onClick={() => setActiveTab('simulator')}
-                    className={`flex flex-col items-center py-1 text-[11px] font-semibold ${
+                    className={`flex flex-col items-center py-1 text-[10px] font-semibold transition ${
                         activeTab === 'simulator' ? 'text-[#2e7d32]' : 'text-slate-400'
                     }`}
                 >
@@ -139,17 +195,18 @@ function App() {
                     <span>વૉઇસ ચેટ</span>
                 </button>
 
+                {/* 5. CamScanner Button */}
                 <button
-                    onClick={() => setIsUploadModalOpen(true)}
-                    className="flex flex-col items-center py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-700"
+                    onClick={() => handleOpenUpload('camera')}
+                    className="flex flex-col items-center py-1 text-[10px] font-semibold text-slate-400 hover:text-amber-700 transition"
                 >
-                    <FileText className="w-5 h-5 mb-0.5" />
-                    <span>અપલોડ</span>
+                    <Camera className="w-5 h-5 mb-0.5 text-amber-600" />
+                    <span>CamScanner</span>
                 </button>
             </div>
 
             {/* Footer */}
-            <footer className="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500 hidden sm:block">
+            <footer className="border-t border-slate-200/90 py-4 text-center text-xs text-slate-500 hidden sm:block">
                 <p>DocVoice AI Assistant • 100% Free Gemini & Whisper APIs • Built for Jay Sir</p>
             </footer>
 
@@ -161,6 +218,7 @@ function App() {
 
             <DocumentUploadModal
                 isOpen={isUploadModalOpen}
+                initialMode={uploadModalMode}
                 onClose={() => setIsUploadModalOpen(false)}
                 onUploaded={() => {
                     fetchStats();
