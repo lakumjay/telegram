@@ -741,27 +741,29 @@ EOT;
             ], 500);
         }
 
-        // Mint short-lived Ephemeral Token constrained to Live API
-        $ephemeralToken = null;
-        try {
-            $expireTime = gmdate('Y-m-d\TH:i:s\Z', time() + 1800); // 30 minutes expiry
-            $authRes = Http::withHeaders([
-                'x-goog-api-key' => $masterKey,
-                'Content-Type' => 'application/json',
-            ])->timeout(10)->post('https://generativelanguage.googleapis.com/v1beta/auth_tokens', [
-                'uses' => 100,
-                'expireTime' => $expireTime,
-                'newSessionExpireTime' => $expireTime,
-            ]);
+        // Mint short-lived Ephemeral Token constrained to Live API (cached for 20 mins to ensure instant response)
+        $ephemeralToken = \Illuminate\Support\Facades\Cache::remember('gemini_live_ephemeral_token', 1200, function () use ($masterKey) {
+            try {
+                $expireTime = gmdate('Y-m-d\TH:i:s\Z', time() + 1800); // 30 minutes expiry
+                $authRes = Http::withHeaders([
+                    'x-goog-api-key' => $masterKey,
+                    'Content-Type' => 'application/json',
+                ])->timeout(10)->post('https://generativelanguage.googleapis.com/v1beta/auth_tokens', [
+                    'uses' => 100,
+                    'expireTime' => $expireTime,
+                    'newSessionExpireTime' => $expireTime,
+                ]);
 
-            if ($authRes->successful()) {
-                $ephemeralToken = $authRes->json('name');
-            } else {
-                Log::warning('Ephemeral token generation failed, falling back to direct key: ' . $authRes->body());
+                if ($authRes->successful()) {
+                    return $authRes->json('name');
+                } else {
+                    Log::warning('Ephemeral token generation failed, falling back to direct key: ' . $authRes->body());
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Ephemeral token request error: ' . $e->getMessage());
             }
-        } catch (\Throwable $e) {
-            Log::warning('Ephemeral token request error: ' . $e->getMessage());
-        }
+            return null;
+        });
 
         $liveModel = env('GEMINI_LIVE_MODEL', 'gemini-3.1-flash-live-preview');
         if (empty($liveModel) || str_contains($liveModel, 'gemini-3.8-live') || str_contains($liveModel, 'gemini-2.0-flash-exp')) {

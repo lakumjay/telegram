@@ -509,10 +509,22 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             globalMicStream = stream;
             micStreamRef.current = stream;
 
-            // Dedicated 16kHz AudioContext for mic capture
+            // Dedicated AudioContext for mic capture
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            const micCtx = new AudioCtx({ sampleRate: 16000 });
+            let micCtx;
+            try {
+                micCtx = new AudioCtx({ sampleRate: 16000 });
+            } catch(e) {
+                micCtx = new AudioCtx();
+            }
             micCtxRef.current = micCtx;
+
+            // Ensure AudioContext is active and running (Chrome/Safari/Android default to suspended)
+            if (micCtx.state === 'suspended') {
+                await micCtx.resume();
+            }
+
+            const inputSampleRate = micCtx.sampleRate || 16000;
 
             // Add audio worklet module
             await micCtx.audioWorklet.addModule('/pcm-capture-worklet.js');
@@ -544,15 +556,13 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
             workletNode.port.onmessage = (event) => {
                 if (!sessionRef.current || isMutedRef.current) return;
-                // Don't send mic audio if AI is currently speaking to prevent feedback echo
-                if (isAiSpeakingRef.current) return;
 
                 try {
                     const base64Audio = arrayBufferToBase64(event.data);
                     sessionRef.current.sendRealtimeInput({
                         audio: {
                             data: base64Audio,
-                            mimeType: 'audio/pcm;rate=16000'
+                            mimeType: `audio/pcm;rate=${inputSampleRate}`
                         }
                     });
                 } catch(err) {
@@ -564,6 +574,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         } catch (err) {
             console.error('[Mic Error]', err);
             setMicPermissionError('Please allow microphone permission to start voice call.');
+            throw err;
         }
     };
 
@@ -591,9 +602,12 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             };
             playerRef.current = player;
 
-            // 2. Fetch Ephemeral Token and Configuration from backend
-            const res = await axios.get('/api/voice/config');
-            const { auth_token, system_instruction, voice_name, live_model } = res.data;
+            // 2. Fetch Config & Start Mic IN PARALLEL for instant connection
+            const [, configRes] = await Promise.all([
+                startMic(),
+                axios.get('/api/voice/config')
+            ]);
+            const { auth_token, system_instruction, voice_name, live_model } = configRes.data;
 
             if (!auth_token) {
                 throw new Error('Authorized token not received from server.');
@@ -604,10 +618,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 targetModel = 'gemini-3.1-flash-live-preview';
             }
 
-            // 3. Start Microphone capture upfront
-            await startMic();
-
-            // 4. Connect to Gemini Live via official SDK
+            // 3. Connect to Gemini Live via official SDK
             const ai = new GoogleGenAI({
                 apiKey: auth_token,
                 httpOptions: { apiVersion: 'v1alpha' }
@@ -765,22 +776,16 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             setCallState('connected');
             setTranscriptHistory([{ sender: 'ai', text: 'Hello! I am Alexa AI. How can I assist you with your documents today?' }]);
 
-            // Keep connection alive on mobile networks (Heartbeat Ping every 4s)
-            if (heartbeatRef.current) clearInterval(heartbeatRef.current);
-            // 256 zero samples base64 encoded
-            const silentChunk = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
-            heartbeatRef.current = setInterval(() => {
-                if (sessionRef.current && !isAiSpeakingRef.current && !isMutedRef.current) {
-                    try {
-                        sessionRef.current.sendRealtimeInput({
-                            audio: {
-                                data: silentChunk,
-                                mimeType: 'audio/pcm;rate=16000'
-                            }
-                        });
-                    } catch(e) {}
-                }
-            }, 4000);
+            // Trigger Alexa greeting immediately so user receives instant spoken response
+            try {
+                session.sendClientContent({
+                    turns: [{
+                        role: 'user',
+                        parts: [{ text: 'નમસ્તે, કૉલ જોડાઈ ગયો છે. કૃપા કરીને તમારું પ્રથમ સ્વાગત દેશી ગુજરાતી અવાજમાં બોલો.' }]
+                    }],
+                    turnComplete: true
+                });
+            } catch(e) {}
         } catch (err) {
             console.error('Failed to start Live Session:', err);
             try {
