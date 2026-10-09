@@ -340,21 +340,28 @@ export default function DocumentExplorer({ onOpenUpload, onOpenCall }) {
                     </div>
                 )}
 
-                {/* Two Action Buttons: AI કૉલ પર માંગો (Green) & + નવો દસ્તાવેજ (Blue) */}
-                <div className="grid grid-cols-2 gap-3 pt-1">
+                {/* Action Buttons: AI કૉલ (Green), CamScanner (Amber/Emerald), and Upload (Blue) */}
+                <div className="grid grid-cols-3 gap-2 pt-1">
                     <button
                         onClick={onOpenCall}
-                        className="flex items-center justify-center space-x-2 py-3 bg-[#2f6f4e] hover:bg-[#255b40] text-white text-xs font-bold rounded-2xl shadow-sm transition active:scale-95 cursor-pointer"
+                        className="flex items-center justify-center space-x-1.5 py-3 bg-[#2e7d32] hover:bg-[#256629] text-white text-[11px] font-bold rounded-2xl shadow-sm transition active:scale-95 cursor-pointer"
                     >
-                        <Sparkles className="w-4 h-4" />
-                        <span>AI કૉલ પર માંગો</span>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>AI કૉલ</span>
                     </button>
 
                     <button
                         onClick={onOpenUpload}
-                        className="flex items-center justify-center space-x-2 py-3 bg-[#387687] hover:bg-[#2f6473] text-white text-xs font-bold rounded-2xl shadow-sm transition active:scale-95 cursor-pointer"
+                        className="flex items-center justify-center space-x-1.5 py-3 bg-[#e65100] hover:bg-[#bf4300] text-white text-[11px] font-bold rounded-2xl shadow-sm transition active:scale-95 cursor-pointer"
                     >
-                        <span>+ નવો દસ્તાવેજ</span>
+                        <span>📷 CamScanner</span>
+                    </button>
+
+                    <button
+                        onClick={onOpenUpload}
+                        className="flex items-center justify-center space-x-1.5 py-3 bg-[#0284c7] hover:bg-[#0369a1] text-white text-[11px] font-bold rounded-2xl shadow-sm transition active:scale-95 cursor-pointer"
+                    >
+                        <span>+ અપલોડ</span>
                     </button>
                 </div>
             </div>
@@ -609,35 +616,26 @@ export default function DocumentExplorer({ onOpenUpload, onOpenCall }) {
                                                 <span className="uppercase font-bold text-slate-600">PDF</span>
                                                 <span>{doc.file_size_formatted}</span>
                                             </div>
-                                            {/* Company & Folder Info */}
-                                            <div className="flex items-center space-x-2 mt-1.5 text-xs text-slate-500">
+                                            {/* Company Info */}
+                                            <div className="flex items-center space-x-1.5 mt-1 text-xs text-slate-500">
                                                 <Building2 className="w-3.5 h-3.5 text-slate-400" />
                                                 <span className="truncate">{doc.company?.name || 'જનરલ દસ્તાવેજ'}</span>
                                             </div>
-
-                                            {/* OCR Snippet */}
-                                            {doc.ocr_text && (
-                                                <div className="mt-2.5 p-2 bg-slate-50 rounded-xl border border-slate-200">
-                                                    <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed font-mono">
-                                                        {doc.ocr_text}
-                                                    </p>
-                                                </div>
-                                            )}
                                         </div>
 
                                         {/* File Actions (Move, Copy, Telegram Share, Download) */}
-                                        <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between gap-1">
-                                            <div className="flex items-center space-x-1">
+                                        <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1">
+                                            <div className="flex items-center space-x-1.5">
                                                 <button
                                                     onClick={() => {
                                                         setMoveCopyTarget({ doc, action: 'move' });
                                                         setTargetCompanyId(doc.company_id ? String(doc.company_id) : '');
                                                     }}
-                                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] rounded-lg transition flex items-center space-x-1"
-                                                    title="ખસેડો (Move/Cut)"
+                                                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold rounded-xl transition flex items-center space-x-1 border border-amber-200"
+                                                    title="ખસેડો (Move)"
                                                 >
-                                                    <Scissors className="w-3 h-3 text-amber-400" />
-                                                    <span className="hidden sm:inline">Move</span>
+                                                    <Scissors className="w-3 h-3 text-amber-600" />
+                                                    <span>Move</span>
                                                 </button>
 
                                                 <button
@@ -645,20 +643,20 @@ export default function DocumentExplorer({ onOpenUpload, onOpenCall }) {
                                                         setMoveCopyTarget({ doc, action: 'copy' });
                                                         setTargetCompanyId(doc.company_id ? String(doc.company_id) : '');
                                                     }}
-                                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] rounded-lg transition flex items-center space-x-1"
+                                                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 text-[11px] font-bold rounded-xl transition flex items-center space-x-1 border border-blue-200"
                                                     title="કૉપી કરો (Copy)"
                                                 >
-                                                    <Copy className="w-3 h-3 text-blue-400" />
-                                                    <span className="hidden sm:inline">Copy</span>
+                                                    <Copy className="w-3 h-3 text-blue-600" />
+                                                    <span>Copy</span>
                                                 </button>
 
                                                 <button
                                                     onClick={() => handleShareToTelegram(doc.id)}
                                                     disabled={sharingDocId === doc.id}
-                                                    className="px-2 py-1 bg-sky-950/60 hover:bg-sky-900 border border-sky-600/40 text-sky-300 text-[11px] rounded-lg transition flex items-center space-x-1"
+                                                    className="px-2.5 py-1 bg-[#0088cc]/10 hover:bg-[#0088cc]/20 border border-[#0088cc]/30 text-[#0088cc] text-[11px] font-bold rounded-xl transition flex items-center space-x-1"
                                                     title="ટેલિગ્રામમાં મોકલો"
                                                 >
-                                                    <Send className="w-3 h-3 text-sky-400" />
+                                                    <Send className="w-3 h-3 text-[#0088cc]" />
                                                     <span>{sharingDocId === doc.id ? '...' : 'Telegram'}</span>
                                                 </button>
                                             </div>
@@ -667,7 +665,7 @@ export default function DocumentExplorer({ onOpenUpload, onOpenCall }) {
                                                 href={`/api/documents/${doc.id}/download`}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-slate-800 rounded-lg transition"
+                                                className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition"
                                                 title="ડાઉનલોડ"
                                             >
                                                 <Download className="w-4 h-4" />

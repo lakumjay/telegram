@@ -89,6 +89,11 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             }
         } catch(e) {}
 
+        // Auto close and return to dashboard after brief 800ms disconnect feedback
+        setTimeout(() => {
+            if (onClose) onClose();
+        }, 800);
+
         try {
             sessionRef.current?.close();
         } catch (e) {}
