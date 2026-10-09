@@ -50,7 +50,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     const wakeLockRef = useRef(null);
     const heartbeatRef = useRef(null);
 
-    // Request Screen Wake Lock so phone doesn't sleep & drop call
+    // Request Screen Wake Lock & Handle Page Visibility / App Switch
     useEffect(() => {
         const acquireWakeLock = async () => {
             if ('wakeLock' in navigator) {
@@ -61,7 +61,53 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         };
         acquireWakeLock();
 
+        // When user switches away from Chrome or minimizes the app, kill the mic hardware tracks immediately
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                if (micStreamRef.current) {
+                    try {
+                        micStreamRef.current.getTracks().forEach(t => t.stop());
+                    } catch(e) {}
+                    micStreamRef.current = null;
+                }
+                if (globalMicStream) {
+                    try {
+                        globalMicStream.getTracks().forEach(t => t.stop());
+                    } catch(e) {}
+                    globalMicStream = null;
+                }
+            } else if (document.visibilityState === 'visible') {
+                // Resume audio contexts if suspended
+                if (micCtxRef.current && micCtxRef.current.state === 'suspended') {
+                    micCtxRef.current.resume().catch(() => {});
+                }
+                acquireWakeLock();
+            }
+        };
+
+        const handlePageHide = () => {
+            if (micStreamRef.current) {
+                try {
+                    micStreamRef.current.getTracks().forEach(t => t.stop());
+                } catch(e) {}
+                micStreamRef.current = null;
+            }
+            if (globalMicStream) {
+                try {
+                    globalMicStream.getTracks().forEach(t => t.stop());
+                } catch(e) {}
+                globalMicStream = null;
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('pagehide', handlePageHide);
+        window.addEventListener('beforeunload', handlePageHide);
+
         return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('pagehide', handlePageHide);
+            window.removeEventListener('beforeunload', handlePageHide);
             if (wakeLockRef.current) {
                 wakeLockRef.current.release().catch(() => {});
                 wakeLockRef.current = null;
@@ -144,9 +190,23 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         }
 
         if (micStreamRef.current) {
-            // Mute tracks rather than stopping them permanently so browser remembers permission
-            micStreamRef.current.getAudioTracks().forEach(t => { t.enabled = false; });
+            try {
+                micStreamRef.current.getTracks().forEach(t => {
+                    t.stop();
+                    t.enabled = false;
+                });
+            } catch(e) {}
             micStreamRef.current = null;
+        }
+
+        if (globalMicStream) {
+            try {
+                globalMicStream.getTracks().forEach(t => {
+                    t.stop();
+                    t.enabled = false;
+                });
+            } catch(e) {}
+            globalMicStream = null;
         }
 
         if (micCtxRef.current && micCtxRef.current.state !== 'closed') {
@@ -450,24 +510,15 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
     const startMic = async () => {
         try {
-            let stream = globalMicStream;
-            const isStreamActive = stream && stream.active && stream.getAudioTracks().some(t => t.readyState === 'live');
-            
-            if (!isStreamActive) {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        channelCount: 1,
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true,
-                    },
-                });
-                globalMicStream = stream;
-            } else {
-                // Ensure audio tracks are enabled
-                stream.getAudioTracks().forEach(t => { t.enabled = true; });
-            }
-
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                },
+            });
+            globalMicStream = stream;
             micStreamRef.current = stream;
 
             // Dedicated 16kHz AudioContext for mic capture
@@ -676,8 +727,17 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     onclose: (e) => {
                         console.log('[Gemini Live onclose]', e);
                         if (!closingRef.current) {
-                            setConnectionError('કનેક્શન ડિસ્કનેક્ટ થયું. ફરીથી જોડાવા માટે નીચે બટન દબાવો.');
-                            setCallState('ended');
+                            // If unexpected drop during active call, try quick seamless auto-reconnect
+                            console.log('[Gemini Live] Unexpected drop, attempting auto-reconnect...');
+                            setConnectionError('નેટવર્ક ફરીથી જોડાઈ રહ્યું છે...');
+                            setTimeout(() => {
+                                if (!closingRef.current && isOpen) {
+                                    startLiveSession().catch(() => {
+                                        setConnectionError('કનેક્શન ડિસ્કનેક્ટ થયું. ફરીથી જોડાવા માટે નીચે બટન દબાવો.');
+                                        setCallState('ended');
+                                    });
+                                }
+                            }, 1000);
                         }
                     }
                 }
