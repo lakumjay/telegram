@@ -9,6 +9,7 @@ import VoiceCallModal from './components/VoiceCallModal';
 import DocumentUploadModal from './components/DocumentUploadModal';
 import SettingsModal from './components/SettingsModal';
 import LoginScreen from './components/LoginScreen';
+import WelcomeTourModal from './components/WelcomeTourModal';
 import axios from 'axios';
 import { 
     PhoneCall, 
@@ -42,6 +43,9 @@ function App() {
         } catch(e) {
             return { username: 'Jay Sir (Admin)', role: 'admin' };
         }
+    });
+    const [isTourOpen, setIsTourOpen] = useState(() => {
+        return !localStorage.getItem('docvoice_tour_seen');
     });
 
     // Check if running inside Telegram Mini App
@@ -227,6 +231,16 @@ function App() {
             <SettingsModal
                 isOpen={isSettingsModalOpen}
                 onClose={() => setIsSettingsModalOpen(false)}
+            />
+
+            {/* First-time User Welcome & Menu Tour Modal */}
+            <WelcomeTourModal
+                isOpen={isTourOpen}
+                userName={currentUser?.username}
+                onClose={() => {
+                    localStorage.setItem('docvoice_tour_seen', 'true');
+                    setIsTourOpen(false);
+                }}
             />
 
         </div>

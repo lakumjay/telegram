@@ -85,27 +85,27 @@ export default function SecurityWhitelist() {
         <div className="space-y-6">
             
             {/* Top Security Banner */}
-            <div className="glass-panel p-6 rounded-3xl border border-emerald-500/30 bg-emerald-950/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="glass-panel p-5 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                        <ShieldCheck className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                        <ShieldCheck className="w-5 h-5" />
                     </div>
                     <div>
-                        <h3 className="text-base font-bold text-white flex items-center space-x-2">
-                            <span>Telegram Bot સિક્યુરિટી & એક્સેસ કંટ્રોલ</span>
+                        <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+                            <span>Telegram Bot & User Access Control</span>
                             <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] font-bold rounded-full">
                                 Whitelist Active
                             </span>
                         </h3>
                         <p className="text-xs text-slate-300 max-w-xl mt-0.5 leading-relaxed">
-                            આ લિસ્ટમાં જે Telegram User IDs નોંધાયેલા હશે માત્ર તે જ લોકો બોટમાં દસ્તાવેજ સર્ચ કે ડાઉનલોડ કરી શકશે. બીજા કોઈપણ અજાણ્યા વ્યક્તિને સીધો <b>Access Denied</b> મળશે.
+                            Only authorized user accounts can access their private documents. Unapproved users will see Access Denied until you approve them.
                         </p>
                     </div>
                 </div>
             </div>
 
             {message && (
-                <div className={`p-4 rounded-2xl border text-xs flex items-center justify-between animate-fadeIn ${
+                <div className={`p-3.5 rounded-xl border text-xs flex items-center justify-between animate-fadeIn ${
                     message.type === 'success' ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300' : 'bg-red-950/60 border-red-500/40 text-red-300'
                 }`}>
                     <div className="flex items-center space-x-2">
@@ -119,24 +119,24 @@ export default function SecurityWhitelist() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Whitelisted Users Table */}
-                <div className="lg:col-span-2 glass-panel p-6 rounded-3xl space-y-4">
+                <div className="lg:col-span-2 glass-panel p-5 rounded-2xl space-y-4">
                     <div className="flex items-center justify-between">
                         <h4 className="text-sm font-bold text-white flex items-center space-x-2">
                             <UserCheck className="w-4 h-4 text-blue-400" />
-                            <span>અધિકૃત યુઝર્સ (Whitelisted Users)</span>
+                            <span>Authorized Users & Access Control</span>
                         </h4>
-                        <span className="text-xs text-slate-400">કુલ {users.length} યુઝર્સ</span>
+                        <span className="text-xs text-slate-400">Total {users.length} users</span>
                     </div>
 
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs">
                             <thead className="border-b border-slate-800 text-slate-400 font-semibold">
                                 <tr>
-                                    <th className="pb-3 px-2">નામ</th>
+                                    <th className="pb-3 px-2">User / Name</th>
                                     <th className="pb-3 px-2">Telegram ID</th>
-                                    <th className="pb-3 px-2">રોલ</th>
-                                    <th className="pb-3 px-2">સ્ટેટસ</th>
-                                    <th className="pb-3 px-2 text-right">ક્રિયા</th>
+                                    <th className="pb-3 px-2">Role</th>
+                                    <th className="pb-3 px-2">Status</th>
+                                    <th className="pb-3 px-2 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800/60">
@@ -195,10 +195,10 @@ export default function SecurityWhitelist() {
                 </div>
 
                 {/* Add New Whitelist User Form */}
-                <div className="glass-panel p-6 rounded-3xl space-y-4">
+                <div className="glass-panel p-5 rounded-2xl space-y-4">
                     <h4 className="text-sm font-bold text-white flex items-center space-x-2">
                         <UserPlus className="w-4 h-4 text-emerald-400" />
-                        <span>નવો યુઝર Whitelist કરો</span>
+                        <span>Add & Authorize User</span>
                     </h4>
 
                     <form onSubmit={handleAddUser} className="space-y-3">
@@ -210,24 +210,24 @@ export default function SecurityWhitelist() {
                                 type="number"
                                 value={telegramId}
                                 onChange={(e) => setTelegramId(e.target.value)}
-                                placeholder="દા.ત. 999888777"
+                                placeholder="e.g. 999888777"
                                 required
                                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                             />
                             <span className="text-[10px] text-slate-500 block mt-0.5">
-                                (Telegram માં @userinfobot પરથી ID મળી શકે છે)
+                                (Can be found from @userinfobot on Telegram)
                             </span>
                         </div>
 
                         <div>
                             <label className="block text-xs font-medium text-slate-300 mb-1">
-                                નામ (Name)
+                                Full Name
                             </label>
                             <input
                                 type="text"
                                 value={firstName}
                                 onChange={(e) => setFirstName(e.target.value)}
-                                placeholder="દા.ત. Jay Patel"
+                                placeholder="e.g. Jay Patel"
                                 required
                                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                             />
@@ -235,7 +235,7 @@ export default function SecurityWhitelist() {
 
                         <div>
                             <label className="block text-xs font-medium text-slate-300 mb-1">
-                                સિક્યુરિટી PIN
+                                Security PIN
                             </label>
                             <input
                                 type="text"
@@ -248,15 +248,15 @@ export default function SecurityWhitelist() {
 
                         <div>
                             <label className="block text-xs font-medium text-slate-300 mb-1">
-                                રોલ (Role)
+                                Role
                             </label>
                             <select
                                 value={role}
                                 onChange={(e) => setRole(e.target.value)}
                                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                             >
-                                <option value="user">User (દસ્તાવેજ સર્ચ & ડાઉનલોડ)</option>
-                                <option value="admin">Admin (સંપૂર્ણ કંટ્રોલ)</option>
+                                <option value="user">User (Search & Download Only)</option>
+                                <option value="admin">Admin (Full Control)</option>
                             </select>
                         </div>
 
@@ -265,7 +265,7 @@ export default function SecurityWhitelist() {
                             className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition cursor-pointer flex items-center justify-center space-x-1.5"
                         >
                             <UserPlus className="w-4 h-4" />
-                            <span>Whitelist માં ઉમેરો</span>
+                            <span>Authorize & Add User</span>
                         </button>
                     </form>
                 </div>

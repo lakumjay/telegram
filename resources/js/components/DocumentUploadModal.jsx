@@ -21,18 +21,12 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
     const videoRef = useRef(null);
     const streamRef = useRef(null);
 
-    // Auto-trigger camera if initialMode is camera
+    // Camera is ONLY opened when user explicitly clicks CamScanner button
     useEffect(() => {
-        if (isOpen) {
-            if (initialMode === 'camera') {
-                startCamera();
-            } else {
-                setUploadMode('file');
-            }
-        } else {
+        if (!isOpen) {
             stopCamera();
         }
-    }, [isOpen, initialMode]);
+    }, [isOpen]);
 
     // Handle file selection
     const handleFileChange = (e) => {
@@ -357,7 +351,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
                                 type="text"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
-                                placeholder="e.g. Rajeshwari Solar GST, Sunrise Lease Deed, ₹300 Stamp"
+                                placeholder="Enter document title"
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
                             />
                         </div>
