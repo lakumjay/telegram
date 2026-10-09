@@ -151,57 +151,55 @@ function App() {
 
             </main>
 
-            {/* Mobile Web App Floating Call Dial & Bottom Bar (With Home, My Files, Central Call, Chat, Scanner) */}
-            <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-3 py-1.5 sm:hidden flex items-center justify-around shadow-lg">
+            {/* Mobile Bottom Navigation Bar (Home, My Files, Upload/Dial, CamScanner) */}
+            <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-4 py-2 sm:hidden flex items-center justify-around shadow-lg">
                 {/* 1. Home Tab */}
                 <button
                     onClick={() => setActiveTab('home')}
-                    className={`flex flex-col items-center py-1 text-[10px] font-bold transition ${
-                        activeTab === 'home' ? 'text-[#2e7d32]' : 'text-slate-400'
+                    className={`flex flex-col items-center py-1 text-[11px] font-semibold transition ${
+                        activeTab === 'home' ? 'text-emerald-700 font-bold' : 'text-slate-400'
                     }`}
                 >
                     <Bot className="w-5 h-5 mb-0.5" />
-                    <span>હોમ</span>
+                    <span>Home</span>
                 </button>
 
                 {/* 2. My Files Tab */}
                 <button
                     onClick={() => handleNavigateToFiles({})}
-                    className={`flex flex-col items-center py-1 text-[10px] font-bold transition ${
-                        activeTab === 'files' ? 'text-[#2e7d32]' : 'text-slate-400'
+                    className={`flex flex-col items-center py-1 text-[11px] font-semibold transition ${
+                        activeTab === 'files' ? 'text-emerald-700 font-bold' : 'text-slate-400'
                     }`}
                 >
                     <Layers className="w-5 h-5 mb-0.5" />
-                    <span>દસ્તાવેજો</span>
+                    <span>My Files</span>
                 </button>
 
-                {/* 3. Central Floating AI Call Button in emerald green */}
+                {/* 3. Central AI Call Dial */}
                 <button
                     onClick={() => setIsCallModalOpen(true)}
-                    className="relative -top-5 w-14 h-14 rounded-full bg-[#2e7d32] text-white shadow-xl shadow-emerald-700/40 border-4 border-[#f1f5f9] flex items-center justify-center cursor-pointer active:scale-95 transition"
-                    title="AI કૉલ શરૂ કરો"
+                    className="relative -top-4 w-12 h-12 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-700/30 border-4 border-[#f1f5f9] flex items-center justify-center cursor-pointer active:scale-95 transition"
+                    title="Start AI Call"
                 >
-                    <PhoneCall className="w-6 h-6 animate-pulse text-white" />
+                    <PhoneCall className="w-5 h-5 text-white" />
                 </button>
 
-                {/* 4. Voice Chat Tab */}
-                <button
-                    onClick={() => setActiveTab('simulator')}
-                    className={`flex flex-col items-center py-1 text-[10px] font-semibold transition ${
-                        activeTab === 'simulator' ? 'text-[#2e7d32]' : 'text-slate-400'
-                    }`}
-                >
-                    <MessageSquare className="w-5 h-5 mb-0.5" />
-                    <span>વૉઇસ ચેટ</span>
-                </button>
-
-                {/* 5. CamScanner Button */}
+                {/* 4. CamScanner Button */}
                 <button
                     onClick={() => handleOpenUpload('camera')}
-                    className="flex flex-col items-center py-1 text-[10px] font-semibold text-slate-400 hover:text-amber-700 transition"
+                    className="flex flex-col items-center py-1 text-[11px] font-semibold text-slate-400 hover:text-emerald-700 transition"
                 >
-                    <Camera className="w-5 h-5 mb-0.5 text-amber-600" />
-                    <span>CamScanner</span>
+                    <Camera className="w-5 h-5 mb-0.5" />
+                    <span>Scan</span>
+                </button>
+
+                {/* 5. Upload Button */}
+                <button
+                    onClick={() => handleOpenUpload('file')}
+                    className="flex flex-col items-center py-1 text-[11px] font-semibold text-slate-400 hover:text-emerald-700 transition"
+                >
+                    <UploadCloud className="w-5 h-5 mb-0.5" />
+                    <span>Upload</span>
                 </button>
             </div>
 

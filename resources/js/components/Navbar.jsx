@@ -1,111 +1,94 @@
 import React from 'react';
 import { 
     Bot, 
-    PhoneCall, 
     UploadCloud, 
-    ShieldCheck, 
-    Sliders, 
     Layers, 
-    Search,
-    MessageSquare,
-    FolderArchive,
-    FileText,
-    LogOut
+    Camera,
+    LogOut,
+    Home
 } from 'lucide-react';
 
 export default function Navbar({ 
     activeTab, 
     setActiveTab, 
-    onOpenCall, 
     onOpenUpload, 
-    onOpenSettings,
-    onLogout,
-    stats 
+    onLogout 
 }) {
     return (
-        <header className="sticky top-0 z-40 bg-white border-b border-slate-200/90 shadow-xs">
+        <header className="sticky top-0 z-40 bg-white border-b border-slate-200/90 shadow-2xs">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-16">
+                <div className="flex items-center justify-between h-14">
                     {/* Brand */}
-                    <div className="flex items-center space-x-2.5 cursor-pointer" onClick={() => setActiveTab('home')}>
-                        <div className="w-10 h-10 rounded-2xl bg-blue-600 p-2 shadow-md shadow-blue-500/20 flex items-center justify-center text-white">
-                            <Bot className="w-6 h-6 text-white" />
+                    <div 
+                        className="flex items-center space-x-2.5 cursor-pointer" 
+                        onClick={() => setActiveTab('home')}
+                    >
+                        <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xs">
+                            <Bot className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <div className="flex items-center space-x-1.5">
-                                <span className="font-black text-lg text-slate-900 tracking-tight">
-                                    DocVoice AI
-                                </span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 font-medium">
-                                Smart Telegram Document Assistant
+                            <span className="font-extrabold text-base text-slate-900 tracking-tight leading-none">
+                                DocVoice AI
+                            </span>
+                            <p className="text-[10px] text-slate-400 font-medium leading-none mt-0.5">
+                                Smart Telegram Documents
                             </p>
                         </div>
                     </div>
 
-                    {/* Desktop Navigation Links */}
-                    <nav className="hidden md:flex items-center space-x-1 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                    {/* Desktop Navigation Links (Clean English) */}
+                    <nav className="hidden md:flex items-center space-x-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/70">
                         <button
                             onClick={() => setActiveTab('home')}
-                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1.5 ${
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center space-x-1.5 ${
                                 activeTab === 'home' 
-                                    ? 'bg-white text-slate-900 shadow-xs' 
+                                    ? 'bg-white text-slate-900 shadow-2xs' 
                                     : 'text-slate-500 hover:text-slate-900'
                             }`}
                         >
-                            <span>🏠 હોમ</span>
+                            <Home className="w-3.5 h-3.5" />
+                            <span>Home</span>
                         </button>
 
                         <button
                             onClick={() => setActiveTab('files')}
-                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1.5 ${
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center space-x-1.5 ${
                                 activeTab === 'files' 
-                                    ? 'bg-white text-emerald-800 shadow-xs' 
+                                    ? 'bg-white text-slate-900 shadow-2xs' 
                                     : 'text-slate-500 hover:text-slate-900'
                             }`}
                         >
-                            <Layers className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>📁 My Files</span>
-                        </button>
-
-                        <button
-                            onClick={() => setActiveTab('simulator')}
-                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1.5 ${
-                                activeTab === 'simulator' 
-                                    ? 'bg-white text-blue-600 shadow-xs' 
-                                    : 'text-slate-500 hover:text-slate-900'
-                            }`}
-                        >
-                            <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
-                            <span>💬 વૉઇસ ચેટ</span>
+                            <Layers className="w-3.5 h-3.5 text-blue-600" />
+                            <span>My Files</span>
                         </button>
                     </nav>
 
-                    {/* Right action: Upload & Logout */}
+                    {/* Right action: Scan, Upload & Logout */}
                     <div className="flex items-center space-x-2">
                         {/* CamScanner Button */}
                         <button
                             onClick={() => onOpenUpload('camera')}
-                            className="hidden sm:flex items-center space-x-1.5 px-3 py-2 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200 transition cursor-pointer"
-                            title="CamScanner"
+                            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold border border-amber-200 transition cursor-pointer"
+                            title="Scan with Camera"
                         >
-                            <span>📷 CamScanner</span>
+                            <Camera className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Scan</span>
                         </button>
 
                         {/* Upload Button */}
                         <button
                             onClick={() => onOpenUpload('file')}
-                            className="flex items-center space-x-1.5 px-3.5 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-200 transition cursor-pointer"
+                            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-2xs transition cursor-pointer"
                         >
-                            <UploadCloud className="w-4 h-4 text-blue-600" />
-                            <span>અપલોડ</span>
+                            <UploadCloud className="w-3.5 h-3.5" />
+                            <span>Upload</span>
                         </button>
 
                         {/* Logout Button */}
                         {onLogout && (
                             <button
                                 onClick={onLogout}
-                                className="flex items-center space-x-1 p-2 sm:px-3 sm:py-2 rounded-2xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 transition cursor-pointer text-xs font-bold"
+                                className="flex items-center space-x-1 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 transition cursor-pointer text-xs font-medium"
                                 title="Logout"
                             >
                                 <LogOut className="w-3.5 h-3.5" />

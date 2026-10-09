@@ -172,15 +172,15 @@ export default function DocumentExplorer({
 
     // Delete document
     const handleDeleteDoc = async (id) => {
-        if (!confirm('શું તમે આ દસ્તાવેજ ડિલીટ કરવા માંગો છો?')) return;
+        if (!confirm('Are you sure you want to delete this document?')) return;
         try {
             await axios.delete(`/api/documents/${id}`);
             fetchDocuments();
             setSelectedDocIds(prev => prev.filter(i => i !== id));
-            showToast('દસ્તાવેજ સફળતાપૂર્વક ડિલીટ થયો!');
+            showToast('Document deleted successfully!');
         } catch (err) {
             console.error('Error deleting document:', err);
-            showToast('ડિલીટ કરવામાં ભૂલ આવી.', true);
+            showToast('Failed to delete document.', true);
         }
     };
 
@@ -197,13 +197,13 @@ export default function DocumentExplorer({
         try {
             const res = await axios.post(`/api/documents/${docId}/share-telegram`);
             if (res.data.success) {
-                showToast(res.data.message || 'દસ્તાવેજ ટેલિગ્રામમાં મોકલાઈ ગયો છે!');
+                showToast(res.data.message || 'Document sent to Telegram!');
             } else {
-                showToast(res.data.message || 'ટેલિગ્રામમાં મોકલવામાં સમસ્યા આવી.', true);
+                showToast(res.data.message || 'Failed to send to Telegram.', true);
             }
         } catch (err) {
             console.error('Share to Telegram failed:', err);
-            showToast('ટેલિગ્રામ શેર કરવામાં ભૂલ આવી.', true);
+            showToast('Failed to send to Telegram.', true);
         } finally {
             setSharingDocId(null);
         }
@@ -220,16 +220,16 @@ export default function DocumentExplorer({
                 company_id: targetCompanyId
             });
             if (res.data.success) {
-                showToast(res.data.message);
+                showToast(res.data.message || 'Operation completed successfully.');
                 setMoveCopyTarget(null);
                 setTargetCompanyId('');
                 fetchDocuments();
             } else {
-                showToast(res.data.message || 'ઓપરેશન નિષ્ફળ ગયું.', true);
+                showToast(res.data.message || 'Operation failed.', true);
             }
         } catch (err) {
             console.error('Move/Copy failed:', err);
-            showToast('ફાઇલ ખસેડવામાં કે કૉપી કરવામાં ભૂલ આવી.', true);
+            showToast('Failed to move or copy file.', true);
         } finally {
             setIsExecutingMoveCopy(false);
         }
@@ -243,58 +243,73 @@ export default function DocumentExplorer({
     ];
 
     return (
-        <div className="space-y-4 max-w-xl mx-auto sm:max-w-7xl">
+        <div className="space-y-3.5 max-w-4xl mx-auto">
             
-            {/* My Files Top Bar */}
-            <div className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center space-x-3">
-                    <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold text-lg">
-                        📁
+            {/* Header: My Files & Company Tabs */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-3 sm:p-4 shadow-2xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-slate-100">
+                    <div className="flex items-center space-x-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
+                            📁
+                        </div>
+                        <div>
+                            <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-tight">
+                                My Files
+                            </h2>
+                            <p className="text-[11px] text-slate-400">
+                                {selectedCompanyId 
+                                    ? `Company: ${displayCompanies.find(c => String(c.id) === String(selectedCompanyId))?.name || 'Selected'} • ${documents.length} files` 
+                                    : `All Companies • ${documents.length} files`
+                                }
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                            My Files (દસ્તાવેજો મેનેજર)
-                        </h2>
-                        <p className="text-xs text-slate-500">
-                            {selectedCompanyId 
-                                ? `કંપની: ${displayCompanies.find(c => String(c.id) === String(selectedCompanyId))?.name || 'પસંદ કરેલ'} • ${documents.length} દસ્તાવેજો` 
-                                : `તમામ કંપનીઓ • કુલ ${documents.length} દસ્તાવેજો`
-                            }
-                        </p>
+
+                    {/* Company Filter Tabs (Compact) */}
+                    <div className="flex items-center space-x-1 overflow-x-auto py-0.5">
+                        <button
+                            onClick={() => setSelectedCompanyId('')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                                !selectedCompanyId 
+                                    ? 'bg-slate-900 text-white shadow-2xs' 
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                        >
+                            All
+                        </button>
+                        {displayCompanies.map((c) => {
+                            const isSel = String(selectedCompanyId) === String(c.id);
+                            return (
+                                <button
+                                    key={c.id}
+                                    onClick={() => setSelectedCompanyId(isSel ? '' : String(c.id))}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
+                                        isSel
+                                            ? 'bg-slate-900 text-white shadow-2xs'
+                                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    {c.name}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
-                <div className="flex items-center space-x-2">
-                    <button
-                        onClick={() => onOpenUpload('camera')}
-                        className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-2xl border border-amber-200 transition cursor-pointer"
-                    >
-                        <span>📷 CamScanner</span>
-                    </button>
-                    <button
-                        onClick={() => onOpenUpload('file')}
-                        className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-2xl shadow-xs transition cursor-pointer"
-                    >
-                        <span>+ નવો અપલોડ</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Search Bar & Action Buttons (Matching user's reference photo) */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-4 sm:p-5 shadow-sm space-y-3">
-                <div className="relative">
-                    <Search className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                {/* Sleek Compact Search Bar (NO duplicate buttons) */}
+                <div className="relative flex items-center">
+                    <Search className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="દસ્તાવેજ શોધો... (દા.ત. 300 stamp test vyakti, Rajeshwari PA)"
-                        className="w-full bg-[#f8fafc] border border-slate-200 focus:border-emerald-500 rounded-2xl pl-11 pr-10 py-3 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none transition shadow-inner"
+                        placeholder="Search files by title, company, or keyword..."
+                        className="w-full bg-slate-50/70 border border-slate-200/90 focus:border-blue-500 focus:bg-white rounded-lg pl-9 pr-8 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none transition"
                     />
                     {searchQuery && (
                         <button
                             onClick={() => setSearchQuery('')}
-                            className="absolute right-3.5 top-3.5 text-xs text-slate-400 hover:text-slate-600"
+                            className="absolute right-2.5 text-xs text-slate-400 hover:text-slate-600"
                         >
                             ✕
                         </button>
@@ -303,9 +318,9 @@ export default function DocumentExplorer({
 
                 {/* Suggestions */}
                 {suggestions.length > 0 && searchQuery && (
-                    <div className="bg-white border border-slate-200 rounded-2xl shadow-lg p-2 space-y-1">
-                        <p className="text-[10px] font-semibold text-slate-400 px-2 py-1">
-                            💡 Suggestions:
+                    <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-2 space-y-1">
+                        <p className="text-[10px] font-semibold text-slate-400 px-2 py-0.5 uppercase tracking-wider">
+                            Suggestions:
                         </p>
                         {suggestions.map((sug, idx) => (
                             <button
@@ -314,7 +329,7 @@ export default function DocumentExplorer({
                                     setSearchQuery(sug.query);
                                     setSuggestions([]);
                                 }}
-                                className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-slate-50 text-xs text-emerald-700 flex items-center justify-between transition cursor-pointer"
+                                className="w-full text-left px-3 py-1 rounded-lg hover:bg-slate-50 text-xs text-blue-600 flex items-center justify-between transition cursor-pointer"
                             >
                                 <span>{sug.title}</span>
                                 <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
@@ -322,87 +337,23 @@ export default function DocumentExplorer({
                         ))}
                     </div>
                 )}
-
-                {/* Action Buttons: AI કૉલ (Green), CamScanner (Amber/Emerald), and Upload (Blue) */}
-                <div className="grid grid-cols-3 gap-2 pt-1">
-                    <button
-                        onClick={onOpenCall}
-                        className="flex items-center justify-center space-x-1.5 py-3 bg-[#2e7d32] hover:bg-[#256629] text-white text-[11px] font-bold rounded-2xl shadow-sm transition active:scale-95 cursor-pointer"
-                    >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>AI કૉલ</span>
-                    </button>
-
-                    <button
-                        onClick={onOpenUpload}
-                        className="flex items-center justify-center space-x-1.5 py-3 bg-[#e65100] hover:bg-[#bf4300] text-white text-[11px] font-bold rounded-2xl shadow-sm transition active:scale-95 cursor-pointer"
-                    >
-                        <span>📷 CamScanner</span>
-                    </button>
-
-                    <button
-                        onClick={onOpenUpload}
-                        className="flex items-center justify-center space-x-1.5 py-3 bg-[#0284c7] hover:bg-[#0369a1] text-white text-[11px] font-bold rounded-2xl shadow-sm transition active:scale-95 cursor-pointer"
-                    >
-                        <span>+ અપલોડ</span>
-                    </button>
-                </div>
             </div>
 
-            {/* Company Selection Header & Tabs */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-3 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center space-x-2">
-                    <Building2 className="w-4 h-4 text-slate-600" />
-                    <span className="text-xs font-bold text-slate-800">
-                        કંપની સિલેક્ટ કરો ({displayCompanies.length})
-                    </span>
-                </div>
-                
-                <div className="flex flex-wrap items-center gap-1.5">
-                    <button
-                        onClick={() => setSelectedCompanyId('')}
-                        className={`px-3 py-1 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                            !selectedCompanyId 
-                                ? 'bg-[#2f6f4e] text-white shadow-sm' 
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                    >
-                        All
-                    </button>
-                    {displayCompanies.map((c) => {
-                        const isSel = String(selectedCompanyId) === String(c.id);
-                        return (
-                            <button
-                                key={c.id}
-                                onClick={() => setSelectedCompanyId(isSel ? '' : String(c.id))}
-                                className={`px-3 py-1 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                                    isSel
-                                        ? 'bg-[#2f6f4e] text-white shadow-sm'
-                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                }`}
-                            >
-                                {c.name}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Disambiguation Banner (e.g. When searching GEDA) */}
+            {/* Disambiguation Banner */}
             {disambiguation && (
-                <div className="p-4 bg-amber-950/40 border border-amber-600/40 rounded-2xl animate-fadeIn space-y-2">
-                    <div className="flex items-center space-x-2 text-amber-300 font-semibold text-xs">
-                        <HelpCircle className="w-4 h-4" />
-                        <span>કન્ફર્મેશન: તમે '{disambiguation.doc_type?.toUpperCase()}' માંગ્યું છે, આ દસ્તાવેજ નીચેની કંપનીઓમાં છે:</span>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-xs">
+                    <div className="flex items-center space-x-2 text-amber-900 font-semibold">
+                        <HelpCircle className="w-4 h-4 text-amber-600" />
+                        <span>Confirmation: You searched for '{disambiguation.doc_type?.toUpperCase()}'. Select company:</span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                         {disambiguation.companies.map((c) => (
                             <button
                                 key={c.id}
                                 onClick={() => setSearchQuery(c.name + ' ' + disambiguation.doc_type)}
-                                className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center space-x-1"
+                                className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-medium transition cursor-pointer flex items-center space-x-1"
                             >
-                                <Building2 className="w-3.5 h-3.5" />
+                                <Building2 className="w-3 h-3 text-amber-700" />
                                 <span>{c.name}</span>
                             </button>
                         ))}
@@ -412,31 +363,31 @@ export default function DocumentExplorer({
 
             {/* Batch Action Toolbar */}
             {selectedDocIds.length > 0 && (
-                <div className="sticky top-20 z-20 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xl flex items-center justify-between animate-fadeIn">
+                <div className="sticky top-20 z-20 bg-white p-3 rounded-xl border border-slate-200 shadow-md flex items-center justify-between animate-fadeIn">
                     <div className="flex items-center space-x-2 text-xs font-bold text-slate-800">
                         <CheckSquare className="w-4 h-4 text-emerald-600" />
-                        <span>{selectedDocIds.length} દસ્તાવેજ પસંદ કરેલ</span>
+                        <span>{selectedDocIds.length} selected</span>
                     </div>
 
                     <div className="flex items-center space-x-2">
                         {/* Multiple Delete Button */}
                         <button
                             onClick={handleBatchDelete}
-                            className="flex items-center space-x-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-200 transition cursor-pointer"
-                            title="સિલેક્ટ કરેલા બધા દસ્તાવેજ ડિલીટ કરો"
+                            className="flex items-center space-x-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold rounded-lg border border-red-200 transition cursor-pointer"
+                            title="Delete selected documents"
                         >
                             <Trash2 className="w-3.5 h-3.5" />
-                            <span>ડિલીટ ({selectedDocIds.length})</span>
+                            <span>Delete ({selectedDocIds.length})</span>
                         </button>
 
                         {/* Master ZIP Button */}
                         <button
                             onClick={() => handleCreateZip('single_master_zip')}
                             disabled={isCreatingZip}
-                            className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-[#2e7d32] hover:bg-[#256629] text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                            className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-2xs transition cursor-pointer"
                         >
                             <Archive className="w-3.5 h-3.5" />
-                            <span>{isCreatingZip ? 'ZIP...' : 'Master ZIP'}</span>
+                            <span>{isCreatingZip ? 'Exporting...' : 'Export ZIP'}</span>
                         </button>
                     </div>
                 </div>
@@ -444,15 +395,15 @@ export default function DocumentExplorer({
 
             {/* Generated ZIP Modal Notification */}
             {zipSuccessData && (
-                <div className="p-4 bg-emerald-950/60 border border-emerald-500/50 rounded-2xl flex items-center justify-between animate-fadeIn">
+                <div className="p-3.5 bg-emerald-950/80 border border-emerald-500/50 rounded-xl flex items-center justify-between animate-fadeIn">
                     <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                            <Archive className="w-5 h-5" />
+                        <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                            <Archive className="w-4 h-4" />
                         </div>
                         <div>
-                            <p className="text-xs font-bold text-white">ZIP Bundle તૈયાર થઈ ગયું છે!</p>
+                            <p className="text-xs font-bold text-white">ZIP Archive Ready!</p>
                             <p className="text-[11px] text-emerald-300">
-                                {zipSuccessData.documents_count} ફાઇલો • {zipSuccessData.file_size_formatted}
+                                {zipSuccessData.documents_count} files • {zipSuccessData.file_size_formatted}
                             </p>
                         </div>
                     </div>
@@ -461,14 +412,14 @@ export default function DocumentExplorer({
                             href={zipSuccessData.download_url}
                             target="_blank"
                             rel="noreferrer"
-                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center space-x-1.5"
+                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-xs transition flex items-center space-x-1.5"
                         >
-                            <Download className="w-4 h-4" />
-                            <span>ડાઉનલોડ કરો</span>
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Download ZIP</span>
                         </a>
                         <button
                             onClick={() => setZipSuccessData(null)}
-                            className="p-2 text-slate-400 hover:text-white"
+                            className="p-1.5 text-slate-400 hover:text-white"
                         >
                             ✕
                         </button>
@@ -490,45 +441,45 @@ export default function DocumentExplorer({
 
             {/* Documents Grid / Table Toolbar */}
             <div>
-                <div className="flex items-center justify-between pb-3 px-1">
+                <div className="flex items-center justify-between pb-2.5 px-1">
                     <div className="flex items-center space-x-3">
                         <button
                             onClick={toggleSelectAll}
-                            className="text-xs text-slate-400 hover:text-slate-200 flex items-center space-x-1.5 cursor-pointer"
+                            className="text-xs text-slate-500 hover:text-slate-800 flex items-center space-x-1.5 cursor-pointer font-medium"
                         >
                             {selectedDocIds.length === documents.length && documents.length > 0 ? (
-                                <CheckSquare className="w-4 h-4 text-blue-500" />
+                                <CheckSquare className="w-4 h-4 text-blue-600" />
                             ) : (
-                                <Square className="w-4 h-4 text-slate-600" />
+                                <Square className="w-4 h-4 text-slate-400" />
                             )}
-                            <span>બધા સિલેક્ટ કરો ({documents.length})</span>
+                            <span>Select All ({documents.length})</span>
                         </button>
                     </div>
 
                     <div className="flex items-center space-x-3">
-                        <p className="hidden sm:block text-xs text-slate-500">
-                            {isLoading ? 'લોડ થઈ રહ્યું છે...' : `કુલ ${documents.length} દસ્તાવેજ`}
+                        <p className="hidden sm:block text-xs text-slate-400 font-medium">
+                            {isLoading ? 'Loading...' : `Total ${documents.length} files`}
                         </p>
 
                         {/* View Switcher: Grid vs List */}
-                        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5">
+                        <div className="flex items-center bg-slate-100 border border-slate-200 rounded-lg p-0.5">
                             <button
                                 onClick={() => setViewMode('grid')}
-                                className={`p-1.5 rounded-lg text-xs transition cursor-pointer ${
-                                    viewMode === 'grid' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                                className={`p-1 rounded-md text-xs transition cursor-pointer ${
+                                    viewMode === 'grid' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
                                 }`}
                                 title="Grid View"
                             >
-                                <LayoutGrid className="w-4 h-4" />
+                                <LayoutGrid className="w-3.5 h-3.5" />
                             </button>
                             <button
                                 onClick={() => setViewMode('list')}
-                                className={`p-1.5 rounded-lg text-xs transition cursor-pointer ${
-                                    viewMode === 'list' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                                className={`p-1 rounded-md text-xs transition cursor-pointer ${
+                                    viewMode === 'list' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-800'
                                 }`}
                                 title="List View"
                             >
-                                <List className="w-4 h-4" />
+                                <List className="w-3.5 h-3.5" />
                             </button>
                         </div>
                     </div>
@@ -538,89 +489,90 @@ export default function DocumentExplorer({
                 {documents.length > 0 ? (
                     viewMode === 'grid' ? (
                         /* GRID VIEW */
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {documents.map((doc) => {
                                 const isSelected = selectedDocIds.includes(doc.id);
                                 return (
                                     <div
                                         key={doc.id}
-                                        className={`bg-white p-4 rounded-3xl border transition-all duration-200 hover:shadow-md flex flex-col justify-between ${
-                                            isSelected ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/30' : 'border-slate-200/80 shadow-sm'
+                                        className={`bg-white p-3.5 rounded-2xl border transition-all duration-150 hover:shadow-xs flex flex-col justify-between ${
+                                            isSelected ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20' : 'border-slate-200/80 shadow-2xs'
                                         }`}
                                     >
                                         <div>
                                             {/* Card Header */}
                                             <div className="flex items-start justify-between">
-                                                <div className="flex items-center space-x-2">
+                                                <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
                                                     <button
                                                         onClick={() => toggleSelectDoc(doc.id)}
                                                         className="cursor-pointer"
                                                     >
                                                         {isSelected ? (
-                                                            <CheckSquare className="w-4 h-4 text-emerald-600" />
+                                                            <CheckSquare className="w-4 h-4 text-blue-600" />
                                                         ) : (
                                                             <Square className="w-4 h-4 text-slate-400 hover:text-slate-600" />
                                                         )}
                                                     </button>
-                                                    <span className="px-2.5 py-0.5 bg-blue-500 text-white text-[10px] font-bold rounded-lg shadow-xs">
+                                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-md">
                                                         {doc.doc_type?.toUpperCase()}
                                                     </span>
                                                     {doc.stamp_value ? (
-                                                        <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-lg border border-amber-200">
-                                                            ₹{doc.stamp_value} સ્ટેમ્પ
+                                                        <span className="px-2 py-0.5 bg-amber-50 text-amber-800 text-[10px] font-bold rounded-md border border-amber-200">
+                                                            ₹{doc.stamp_value} Stamp
                                                         </span>
                                                     ) : null}
                                                 </div>
 
-                                                <div className="flex items-center space-x-1">
+                                                <div className="flex items-center space-x-0.5">
                                                     <button
                                                         onClick={() => setPreviewDoc(doc)}
-                                                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition"
-                                                        title="OCR જુઓ"
+                                                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition"
+                                                        title="Preview OCR"
                                                     >
-                                                        <Eye className="w-4 h-4" />
+                                                        <Eye className="w-3.5 h-3.5" />
                                                     </button>
                                                     <button
                                                         onClick={() => handleDeleteDoc(doc.id)}
-                                                        className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                                                        title="ડિલીટ"
+                                                        className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                                        title="Delete"
                                                     >
-                                                        <Trash2 className="w-4 h-4" />
+                                                        <Trash2 className="w-3.5 h-3.5" />
                                                     </button>
                                                 </div>
                                             </div>
 
-                                            {/* Document Title matching photo */}
-                                            <h4 className="text-sm font-bold text-slate-900 mt-3 line-clamp-1">
+                                            {/* Document Title */}
+                                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 mt-2 line-clamp-1">
                                                 {doc.title}
                                             </h4>
 
-                                            {/* Date & file type matching photo */}
-                                            <div className="flex items-center space-x-2 mt-1.5 text-[11px] text-slate-500">
-                                                <span>📅 {doc.created_at ? new Date(doc.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '12 Oct 2025'}</span>
-                                                <span>|</span>
-                                                <span className="uppercase font-bold text-slate-600">PDF</span>
+                                            {/* Date & file type */}
+                                            <div className="flex items-center space-x-2 mt-1 text-[11px] text-slate-400">
+                                                <span>{doc.created_at ? new Date(doc.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recent'}</span>
+                                                <span>•</span>
+                                                <span className="uppercase font-semibold text-slate-600">PDF</span>
+                                                <span>•</span>
                                                 <span>{doc.file_size_formatted}</span>
                                             </div>
                                             {/* Company Info */}
-                                            <div className="flex items-center space-x-1.5 mt-1 text-xs text-slate-500">
+                                            <div className="flex items-center space-x-1.5 mt-1 text-xs text-slate-600">
                                                 <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                                                <span className="truncate">{doc.company?.name || 'જનરલ દસ્તાવેજ'}</span>
+                                                <span className="truncate font-medium">{doc.company?.name || 'General'}</span>
                                             </div>
                                         </div>
 
                                         {/* File Actions (Move, Copy, Telegram Share, Download) */}
-                                        <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1">
-                                            <div className="flex items-center space-x-1.5">
+                                        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between gap-1 text-xs">
+                                            <div className="flex items-center space-x-1">
                                                 <button
                                                     onClick={() => {
                                                         setMoveCopyTarget({ doc, action: 'move' });
                                                         setTargetCompanyId(doc.company_id ? String(doc.company_id) : '');
                                                     }}
-                                                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold rounded-xl transition flex items-center space-x-1 border border-amber-200"
-                                                    title="ખસેડો (Move)"
+                                                    className="px-2 py-0.5 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold rounded-lg transition flex items-center space-x-1 border border-slate-200"
+                                                    title="Move"
                                                 >
-                                                    <Scissors className="w-3 h-3 text-amber-600" />
+                                                    <Scissors className="w-3 h-3 text-slate-500" />
                                                     <span>Move</span>
                                                 </button>
 
@@ -629,20 +581,20 @@ export default function DocumentExplorer({
                                                         setMoveCopyTarget({ doc, action: 'copy' });
                                                         setTargetCompanyId(doc.company_id ? String(doc.company_id) : '');
                                                     }}
-                                                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 text-[11px] font-bold rounded-xl transition flex items-center space-x-1 border border-blue-200"
-                                                    title="કૉપી કરો (Copy)"
+                                                    className="px-2 py-0.5 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold rounded-lg transition flex items-center space-x-1 border border-slate-200"
+                                                    title="Copy"
                                                 >
-                                                    <Copy className="w-3 h-3 text-blue-600" />
+                                                    <Copy className="w-3 h-3 text-slate-500" />
                                                     <span>Copy</span>
                                                 </button>
 
                                                 <button
                                                     onClick={() => handleShareToTelegram(doc.id)}
                                                     disabled={sharingDocId === doc.id}
-                                                    className="px-2.5 py-1 bg-[#0088cc]/10 hover:bg-[#0088cc]/20 border border-[#0088cc]/30 text-[#0088cc] text-[11px] font-bold rounded-xl transition flex items-center space-x-1"
-                                                    title="ટેલિગ્રામમાં મોકલો"
+                                                    className="px-2 py-0.5 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-[11px] font-semibold rounded-lg transition flex items-center space-x-1"
+                                                    title="Send to Telegram"
                                                 >
-                                                    <Send className="w-3 h-3 text-[#0088cc]" />
+                                                    <Send className="w-3 h-3 text-sky-600" />
                                                     <span>{sharingDocId === doc.id ? '...' : 'Telegram'}</span>
                                                 </button>
                                             </div>
@@ -651,10 +603,10 @@ export default function DocumentExplorer({
                                                 href={`/api/documents/${doc.id}/download`}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition"
-                                                title="ડાઉનલોડ"
+                                                className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                                title="Download"
                                             >
-                                                <Download className="w-4 h-4" />
+                                                <Download className="w-3.5 h-3.5" />
                                             </a>
                                         </div>
                                     </div>
@@ -662,30 +614,30 @@ export default function DocumentExplorer({
                             })}
                         </div>
                     ) : (
-                        /* LIST VIEW (Mobile File Manager Style) */
-                        <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 divide-y divide-slate-100 shadow-xs">
+                        /* LIST VIEW */
+                        <div className="bg-white rounded-xl overflow-hidden border border-slate-200 divide-y divide-slate-100 shadow-2xs">
                             {documents.map((doc) => {
                                 const isSelected = selectedDocIds.includes(doc.id);
                                 return (
                                     <div
                                         key={doc.id}
-                                        className={`p-3 sm:p-3.5 flex items-center justify-between hover:bg-slate-50 transition ${
-                                            isSelected ? 'bg-emerald-50/50' : ''
+                                        className={`p-3 flex items-center justify-between hover:bg-slate-50 transition ${
+                                            isSelected ? 'bg-blue-50/30' : ''
                                         }`}
                                     >
-                                        <div className="flex items-center space-x-3 flex-1 min-w-0 pr-2">
+                                        <div className="flex items-center space-x-2.5 flex-1 min-w-0 pr-2">
                                             <button
                                                 onClick={() => toggleSelectDoc(doc.id)}
                                                 className="cursor-pointer"
                                             >
                                                 {isSelected ? (
-                                                    <CheckSquare className="w-4 h-4 text-emerald-600" />
+                                                    <CheckSquare className="w-4 h-4 text-blue-600" />
                                                 ) : (
                                                     <Square className="w-4 h-4 text-slate-400 hover:text-slate-600" />
                                                 )}
                                             </button>
 
-                                            <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
+                                            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
                                                 <FileText className="w-4 h-4" />
                                             </div>
 
@@ -694,18 +646,18 @@ export default function DocumentExplorer({
                                                     <h4 className="text-xs font-bold text-slate-900 truncate">
                                                         {doc.title}
                                                     </h4>
-                                                    <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[9px] font-bold rounded border border-blue-200 flex-shrink-0">
+                                                    <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-bold rounded flex-shrink-0">
                                                         {doc.doc_type?.toUpperCase()}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center space-x-2 mt-0.5 text-[11px] text-slate-500 truncate">
-                                                    <span>{doc.company?.name || 'જનરલ દસ્તાવેજ'}</span>
+                                                <div className="flex items-center space-x-2 mt-0.5 text-[11px] text-slate-400 truncate">
+                                                    <span>{doc.company?.name || 'General'}</span>
                                                     <span>•</span>
                                                     <span>{doc.file_size_formatted}</span>
                                                     {doc.stamp_value ? (
                                                         <>
                                                             <span>•</span>
-                                                            <span className="text-amber-700 font-bold">₹{doc.stamp_value} સ્ટેમ્પ</span>
+                                                            <span className="text-amber-700 font-semibold">₹{doc.stamp_value} Stamp</span>
                                                         </>
                                                     ) : null}
                                                 </div>
@@ -719,7 +671,7 @@ export default function DocumentExplorer({
                                                     setMoveCopyTarget({ doc, action: 'move' });
                                                     setTargetCompanyId(doc.company_id ? String(doc.company_id) : '');
                                                 }}
-                                                className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition"
+                                                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
                                                 title="Move"
                                             >
                                                 <Scissors className="w-3.5 h-3.5" />
@@ -730,7 +682,7 @@ export default function DocumentExplorer({
                                                     setMoveCopyTarget({ doc, action: 'copy' });
                                                     setTargetCompanyId(doc.company_id ? String(doc.company_id) : '');
                                                 }}
-                                                className="p-1.5 text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition"
+                                                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
                                                 title="Copy"
                                             >
                                                 <Copy className="w-3.5 h-3.5" />
@@ -739,16 +691,16 @@ export default function DocumentExplorer({
                                             <button
                                                 onClick={() => handleShareToTelegram(doc.id)}
                                                 disabled={sharingDocId === doc.id}
-                                                className="p-1.5 text-sky-600 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition"
-                                                title="ટેલિગ્રામમાં મોકલો"
+                                                className="p-1 text-sky-600 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition"
+                                                title="Send to Telegram"
                                             >
                                                 <Send className="w-3.5 h-3.5" />
                                             </button>
 
                                             <button
                                                 onClick={() => setPreviewDoc(doc)}
-                                                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition"
-                                                title="OCR જુઓ"
+                                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition"
+                                                title="Preview OCR"
                                             >
                                                 <Eye className="w-3.5 h-3.5" />
                                             </button>
@@ -757,16 +709,16 @@ export default function DocumentExplorer({
                                                 href={`/api/documents/${doc.id}/download`}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                                                title="ડાઉનલોડ"
+                                                className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                                title="Download"
                                             >
                                                 <Download className="w-3.5 h-3.5" />
                                             </a>
 
                                             <button
                                                 onClick={() => handleDeleteDoc(doc.id)}
-                                                className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                                                title="ડિલીટ"
+                                                className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                                title="Delete"
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
@@ -778,34 +730,34 @@ export default function DocumentExplorer({
                     )
                 ) : (
                     /* Empty State */
-                    <div className="p-12 text-center glass-panel rounded-3xl space-y-3">
-                        <FileText className="w-12 h-12 text-slate-600 mx-auto" />
-                        <h3 className="text-base font-bold text-slate-300">કોઈ દસ્તાવેજ મળ્યો નથી</h3>
-                        <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                            તમારા સર્ચ કે ફિલ્ટર સાથે મેળ ખાતો કોઈ દસ્તાવેજ નથી. નવો દસ્તાવેજ અપલોડ કરો અથવા AI કૉલ દ્વારા માંગો.
+                    <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl space-y-2.5">
+                        <FileText className="w-10 h-10 text-slate-300 mx-auto" />
+                        <h3 className="text-sm font-bold text-slate-800">No documents found</h3>
+                        <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                            No documents matched your search query or company filter.
                         </p>
                         <button
                             onClick={onOpenUpload}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition inline-block"
+                            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition inline-block cursor-pointer"
                         >
-                            + નવો દસ્તાવેજ અપલોડ કરો
+                            + Upload Document
                         </button>
                     </div>
                 )}
             </div>
 
-            {/* Move / Copy Modal Dialog */}
+            {/* Move / Copy Modal Dialog (Light Theme & English) */}
             {moveCopyTarget && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-                    <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-3xl p-6 space-y-4 shadow-2xl">
-                        <div className="flex items-start justify-between">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-2xs animate-fadeIn">
+                    <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-5 space-y-3.5 shadow-2xl">
+                        <div className="flex items-start justify-between border-b border-slate-100 pb-2.5">
                             <div className="flex items-center space-x-2">
-                                <div className="p-2 bg-blue-500/10 rounded-xl text-blue-400 border border-blue-500/20">
-                                    {moveCopyTarget.action === 'move' ? <Scissors className="w-5 h-5 text-amber-400" /> : <Copy className="w-5 h-5 text-blue-400" />}
+                                <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600">
+                                    {moveCopyTarget.action === 'move' ? <Scissors className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-bold text-white">
-                                        {moveCopyTarget.action === 'move' ? 'દસ્તાવેજ ખસેડો (Move File)' : 'દસ્તાવેજ કૉપી કરો (Copy File)'}
+                                    <h3 className="text-sm font-bold text-slate-900">
+                                        {moveCopyTarget.action === 'move' ? 'Move Document' : 'Copy Document'}
                                     </h3>
                                     <p className="text-[11px] text-slate-400 truncate max-w-xs">
                                         {moveCopyTarget.doc.title}
@@ -814,29 +766,29 @@ export default function DocumentExplorer({
                             </div>
                             <button
                                 onClick={() => setMoveCopyTarget(null)}
-                                className="p-1.5 text-slate-400 hover:text-white"
+                                className="p-1 text-slate-400 hover:text-slate-700"
                             >
                                 ✕
                             </button>
                         </div>
 
-                        <div className="space-y-3 pt-2">
-                            <label className="text-xs font-semibold text-slate-300">
-                                લક્ષ્ય કંપની (Target Company) પસંદ કરો:
+                        <div className="space-y-2 pt-1">
+                            <label className="text-xs font-bold text-slate-700">
+                                Select Target Company:
                             </label>
-                            <div className="space-y-2">
+                            <div className="space-y-1.5">
                                 {companies.map((c) => (
                                     <label
                                         key={c.id}
-                                        className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition ${
+                                        className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition text-xs ${
                                             String(targetCompanyId) === String(c.id)
-                                                ? 'bg-blue-950/40 border-blue-500 text-white'
-                                                : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                                                ? 'bg-blue-50 border-blue-500 text-blue-900 font-semibold'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                                         }`}
                                     >
                                         <div className="flex items-center space-x-2">
-                                            <Building2 className="w-4 h-4 text-blue-400" />
-                                            <span className="text-xs font-medium">{c.name}</span>
+                                            <Building2 className="w-4 h-4 text-slate-400" />
+                                            <span>{c.name}</span>
                                         </div>
                                         <input
                                             type="radio"
@@ -844,74 +796,74 @@ export default function DocumentExplorer({
                                             value={c.id}
                                             checked={String(targetCompanyId) === String(c.id)}
                                             onChange={() => setTargetCompanyId(String(c.id))}
-                                            className="accent-blue-500"
+                                            className="accent-blue-600"
                                         />
                                     </label>
                                 ))}
                             </div>
                         </div>
 
-                        <div className="flex justify-end space-x-2 pt-3 border-t border-slate-800">
+                        <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
                             <button
                                 onClick={() => setMoveCopyTarget(null)}
-                                className="px-4 py-2 bg-slate-800 text-slate-300 text-xs font-medium rounded-xl hover:bg-slate-700 transition"
+                                className="px-3.5 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition"
                             >
-                                રદ કરો
+                                Cancel
                             </button>
                             <button
                                 onClick={handleMoveCopySubmit}
                                 disabled={!targetCompanyId || isExecutingMoveCopy}
-                                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg transition"
+                                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-xs transition"
                             >
-                                {isExecutingMoveCopy ? 'પ્રક્રિયા ચાલુ છે...' : (moveCopyTarget.action === 'move' ? 'અહીં ખસેડો' : 'અહીં કૉપી કરો')}
+                                {isExecutingMoveCopy ? 'Processing...' : (moveCopyTarget.action === 'move' ? 'Move Here' : 'Copy Here')}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Document Detail & OCR Preview Modal */}
+            {/* Document Detail & OCR Preview Modal (Light Theme & English) */}
             {previewDoc && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-                    <div className="w-full max-w-xl bg-slate-900 border border-slate-700 rounded-3xl p-6 space-y-4 shadow-2xl">
-                        <div className="flex items-start justify-between">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-2xs animate-fadeIn">
+                    <div className="w-full max-w-xl bg-white border border-slate-200 rounded-2xl p-5 space-y-3.5 shadow-2xl">
+                        <div className="flex items-start justify-between border-b border-slate-100 pb-2.5">
                             <div>
-                                <h3 className="text-base font-bold text-white">{previewDoc.title}</h3>
-                                <p className="text-xs text-slate-400">
-                                    કંપની: {previewDoc.company?.name || 'N/A'} • પ્રકાર: {previewDoc.doc_type?.toUpperCase()}
+                                <h3 className="text-sm font-bold text-slate-900">{previewDoc.title}</h3>
+                                <p className="text-[11px] text-slate-500">
+                                    Company: {previewDoc.company?.name || 'General'} • Type: {previewDoc.doc_type?.toUpperCase()}
                                 </p>
                             </div>
                             <button
                                 onClick={() => setPreviewDoc(null)}
-                                className="p-1.5 text-slate-400 hover:text-white"
+                                className="p-1 text-slate-400 hover:text-slate-700"
                             >
                                 ✕
                             </button>
                         </div>
 
                         <div>
-                            <p className="text-xs font-semibold text-slate-300 mb-1.5">
-                                🔍 દસ્તાવેજની અંદરનું લખાણ (Deep OCR Extracted Text):
+                            <p className="text-xs font-bold text-slate-700 mb-1">
+                                Extracted OCR Content:
                             </p>
-                            <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 max-h-60 overflow-y-auto font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
-                                {previewDoc.ocr_text || 'કોઈ લખાણ મળ્યું નથી.'}
+                            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 max-h-60 overflow-y-auto font-mono text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+                                {previewDoc.ocr_text || 'No extracted text available.'}
                             </div>
                         </div>
 
-                        <div className="flex justify-end space-x-2 pt-2">
+                        <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
                             <a
                                 href={`/api/documents/${previewDoc.id}/download`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition"
+                                className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition"
                             >
-                                ફાઇલ ડાઉનલોડ કરો
+                                Download File
                             </a>
                             <button
                                 onClick={() => setPreviewDoc(null)}
-                                className="px-4 py-2 bg-slate-800 text-slate-300 text-xs font-medium rounded-xl hover:bg-slate-700 transition"
+                                className="px-3.5 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition"
                             >
-                                બંધ કરો
+                                Close
                             </button>
                         </div>
                     </div>

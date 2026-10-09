@@ -1,243 +1,152 @@
 import React, { useState } from 'react';
 import { 
     Search, 
-    Sparkles, 
     FileText, 
     Layers, 
     Building2, 
-    ChevronRight, 
-    Folder, 
-    ArrowRight,
-    Camera,
-    UploadCloud,
-    PhoneCall,
-    ShieldCheck,
-    CheckCircle2,
-    Bot
+    ShieldCheck, 
+    ChevronRight,
+    ArrowUpRight
 } from 'lucide-react';
 
 export default function DashboardHome({ 
     stats, 
     companies, 
-    onOpenCall, 
-    onOpenUpload, 
     onNavigateToFiles 
 }) {
     const [searchQuery, setSearchQuery] = useState('');
 
     const handleSearchSubmit = (e) => {
         e.preventDefault();
-        onNavigateToFiles({ search: searchQuery });
+        if (searchQuery.trim()) {
+            onNavigateToFiles({ search: searchQuery.trim() });
+        }
     };
 
     const totalDocs = stats?.total_documents ?? 0;
     const stampCount = stats?.stamp_papers_count ?? 0;
 
     return (
-        <div className="space-y-4 max-w-5xl mx-auto">
-            {/* 1. Telegram Active Status Bar */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl px-4 py-3 flex items-center justify-between shadow-xs text-xs">
-                <div className="flex items-center space-x-2.5">
-                    <span className="relative flex h-3 w-3">
+        <div className="space-y-3.5 max-w-4xl mx-auto">
+            {/* 1. Status Bar */}
+            <div className="bg-white border border-slate-200/80 rounded-xl px-3.5 py-2 flex items-center justify-between shadow-2xs text-xs">
+                <div className="flex items-center space-x-2">
+                    <span className="relative flex h-2.5 w-2.5">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                     </span>
-                    <div className="flex items-center space-x-1.5">
-                        <span className="font-bold text-slate-800">Telegram Bot</span>
-                        <span className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                            Active
-                        </span>
-                    </div>
+                    <span className="font-semibold text-slate-800">Telegram Bot</span>
+                    <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md text-[10px] border border-emerald-200">
+                        Active
+                    </span>
                 </div>
 
-                <div className="flex items-center space-x-3 text-slate-500 font-medium">
-                    <div className="hidden sm:flex items-center space-x-1 text-slate-700">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                        <span>સુરક્ષિત ક્લાઉડ સિંક</span>
-                    </div>
-                    <div className="h-4 w-px bg-slate-200 hidden sm:block"></div>
-                    <span className="text-[11px] text-slate-400">Gemini Live & Whisper AI</span>
+                <div className="flex items-center space-x-2 text-slate-500 text-[11px]">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="hidden sm:inline">Encrypted Cloud Storage</span>
+                    <span className="text-slate-300">•</span>
+                    <span className="font-medium text-slate-600">Deep OCR Enabled</span>
                 </div>
             </div>
 
-            {/* 2. Top Search & Quick Actions Bar */}
-            <div className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3.5">
-                <form onSubmit={handleSearchSubmit} className="relative">
-                    <Search className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+            {/* 2. Compact, Sleek Search Bar (Clean search icon, no bulky buttons) */}
+            <div className="bg-white border border-slate-200/80 rounded-xl p-2.5 shadow-2xs">
+                <form onSubmit={handleSearchSubmit} className="relative flex items-center">
+                    <Search className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="દસ્તાવેજ શોધો... (દા.ત. 300 stamp, Rajeshwari, Sunrise)"
-                        className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-2xl pl-11 pr-24 py-3 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none transition shadow-inner"
+                        placeholder="Search documents by name, company, or keyword..."
+                        className="w-full bg-slate-50/70 border border-slate-200/90 focus:border-blue-500 focus:bg-white rounded-lg pl-9 pr-20 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none transition"
                     />
                     <button
                         type="submit"
-                        className="absolute right-2 top-2 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                        className="absolute right-1 px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-md transition cursor-pointer"
                     >
-                        શોધો
+                        Search
                     </button>
                 </form>
-
-                {/* 3 Quick Action Buttons: AI Call (Green), CamScanner (Amber), Upload (Blue) */}
-                <div className="grid grid-cols-3 gap-2.5 pt-0.5">
-                    <button
-                        onClick={onOpenCall}
-                        className="flex items-center justify-center space-x-1.5 py-3 bg-[#2e7d32] hover:bg-[#256629] text-white text-xs font-bold rounded-2xl shadow-sm transition active:scale-95 cursor-pointer"
-                    >
-                        <PhoneCall className="w-4 h-4" />
-                        <span>AI કૉલ</span>
-                    </button>
-
-                    <button
-                        onClick={() => onOpenUpload('camera')}
-                        className="flex items-center justify-center space-x-1.5 py-3 bg-[#e65100] hover:bg-[#bf4300] text-white text-xs font-bold rounded-2xl shadow-sm transition active:scale-95 cursor-pointer"
-                    >
-                        <Camera className="w-4 h-4" />
-                        <span>📷 CamScanner</span>
-                    </button>
-
-                    <button
-                        onClick={() => onOpenUpload('file')}
-                        className="flex items-center justify-center space-x-1.5 py-3 bg-[#0284c7] hover:bg-[#0369a1] text-white text-xs font-bold rounded-2xl shadow-sm transition active:scale-95 cursor-pointer"
-                    >
-                        <UploadCloud className="w-4 h-4" />
-                        <span>+ અપલોડ</span>
-                    </button>
-                </div>
             </div>
 
-            {/* 3. ONLY 2 STATS CARDS (User specified: "total dastavej and , stemp itna show hoga") */}
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                {/* Card 1: કુલ દસ્તાવેજો */}
+            {/* 3. Small, Compact 2 Stats Cards (in English) */}
+            <div className="grid grid-cols-2 gap-3">
+                {/* Total Documents Card */}
                 <div 
                     onClick={() => onNavigateToFiles({})}
-                    className="p-4 sm:p-5 rounded-3xl bg-[#edf5ff] border border-blue-100 flex items-center justify-between cursor-pointer hover:shadow-md transition active:scale-98"
+                    className="p-3.5 rounded-xl bg-white border border-slate-200/80 hover:border-blue-300 shadow-2xs flex items-center justify-between cursor-pointer transition group"
                 >
-                    <div className="space-y-1">
-                        <p className="text-xs font-bold text-slate-700">કુલ દસ્તાવેજો</p>
-                        <p className="text-2xl sm:text-3xl font-black text-slate-900">{totalDocs}</p>
-                        <p className="text-[10px] text-blue-600 font-semibold flex items-center space-x-0.5">
-                            <span>જુઓ</span>
-                            <ChevronRight className="w-3 h-3 inline" />
+                    <div className="space-y-0.5">
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                            Total Documents
+                        </p>
+                        <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                            {totalDocs}
+                        </p>
+                        <p className="text-[10px] text-blue-600 font-medium group-hover:underline flex items-center space-x-0.5 pt-0.5">
+                            <span>View All</span>
+                            <ArrowUpRight className="w-2.5 h-2.5 inline" />
                         </p>
                     </div>
-                    <div className="w-12 h-12 rounded-2xl bg-blue-500/20 text-blue-600 flex items-center justify-center">
-                        <Layers className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center">
+                        <Layers className="w-5 h-5" />
                     </div>
                 </div>
 
-                {/* Card 2: સ્ટેમ્પ પેપર */}
+                {/* Stamp Papers Card */}
                 <div 
                     onClick={() => onNavigateToFiles({ docType: 'stamp_paper' })}
-                    className="p-4 sm:p-5 rounded-3xl bg-[#fff8ed] border border-amber-100 flex items-center justify-between cursor-pointer hover:shadow-md transition active:scale-98"
+                    className="p-3.5 rounded-xl bg-white border border-slate-200/80 hover:border-amber-300 shadow-2xs flex items-center justify-between cursor-pointer transition group"
                 >
-                    <div className="space-y-1">
-                        <p className="text-xs font-bold text-slate-700">સ્ટેમ્પ પેપર (Stamps)</p>
-                        <p className="text-2xl sm:text-3xl font-black text-slate-900">{stampCount}</p>
-                        <p className="text-[10px] text-amber-700 font-semibold flex items-center space-x-0.5">
-                            <span>જુઓ</span>
-                            <ChevronRight className="w-3 h-3 inline" />
+                    <div className="space-y-0.5">
+                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                            Stamp Papers
+                        </p>
+                        <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                            {stampCount}
+                        </p>
+                        <p className="text-[10px] text-amber-700 font-medium group-hover:underline flex items-center space-x-0.5 pt-0.5">
+                            <span>Filter Stamps</span>
+                            <ArrowUpRight className="w-2.5 h-2.5 inline" />
                         </p>
                     </div>
-                    <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 flex items-center justify-center">
-                        <FileText className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center">
+                        <FileText className="w-5 h-5" />
                     </div>
                 </div>
             </div>
 
-            {/* 4. Dedicated "My Files" Launcher Section (Documents only inside My Files) */}
-            <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs space-y-4">
-                <div className="flex items-start justify-between">
-                    <div>
-                        <div className="flex items-center space-x-2">
-                            <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200">
-                                <Folder className="w-5 h-5" />
-                            </div>
-                            <h3 className="text-base font-bold text-slate-900">
-                                My Files (દસ્તાવેજો મેનેજર)
-                            </h3>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">
-                            બધા દસ્તાવેજો, કંપની ફોલ્ડર્સ, PDF ફાઈલો જોવા, મુવ, કૉપી અને ડિલીટ કરવા માટે નીચે ક્લિક કરો.
-                        </p>
+            {/* 4. Sleek Quick Companies Filter Chips (Clean & Compact) */}
+            {companies && companies.length > 0 && (
+                <div className="bg-white border border-slate-200/80 rounded-xl p-3 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center space-x-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Company Folders</span>
+                        </span>
+                        <button
+                            onClick={() => onNavigateToFiles({})}
+                            className="text-[11px] text-blue-600 font-medium hover:underline flex items-center space-x-0.5"
+                        >
+                            <span>Open My Files</span>
+                            <ChevronRight className="w-3 h-3" />
+                        </button>
                     </div>
 
-                    <button
-                        onClick={() => onNavigateToFiles({})}
-                        className="hidden sm:flex items-center space-x-1 px-4 py-2 bg-[#2e7d32] hover:bg-[#256629] text-white text-xs font-bold rounded-2xl shadow-sm transition cursor-pointer"
-                    >
-                        <span>ઓપન My Files</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                </div>
-
-                {/* Company Folders Quick Navigation */}
-                <div>
-                    <p className="text-xs font-bold text-slate-700 mb-2 flex items-center space-x-1.5">
-                        <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                        <span>કંપની ફોલ્ડર્સ પસંદ કરો:</span>
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        {companies && companies.length > 0 ? (
-                            companies.map((c) => (
-                                <button
-                                    key={c.id}
-                                    onClick={() => onNavigateToFiles({ companyId: String(c.id) })}
-                                    className="p-3.5 rounded-2xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-300 text-left transition flex items-center justify-between cursor-pointer group"
-                                >
-                                    <div className="flex items-center space-x-2.5">
-                                        <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-700 flex items-center justify-center group-hover:text-emerald-700">
-                                            <Folder className="w-4 h-4" />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-bold text-slate-800 group-hover:text-emerald-900">
-                                                {c.name}
-                                            </p>
-                                            <p className="text-[10px] text-slate-400">ફોલ્ડર ખોલો</p>
-                                        </div>
-                                    </div>
-                                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition" />
-                                </button>
-                            ))
-                        ) : (
-                            <div className="col-span-3 text-xs text-slate-400 text-center py-2">
-                                કંપનીઓ લોડ થઈ રહી છે...
-                            </div>
-                        )}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
+                        {companies.map((c) => (
+                            <button
+                                key={c.id}
+                                onClick={() => onNavigateToFiles({ companyId: String(c.id) })}
+                                className="px-3 py-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-left transition flex items-center justify-between cursor-pointer text-xs"
+                            >
+                                <span className="font-semibold text-slate-800 truncate">{c.name}</span>
+                                <ChevronRight className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                            </button>
+                        ))}
                     </div>
                 </div>
-
-                {/* Mobile Open My Files Button */}
-                <button
-                    onClick={() => onNavigateToFiles({})}
-                    className="w-full sm:hidden py-3 bg-[#2e7d32] hover:bg-[#256629] text-white text-xs font-bold rounded-2xl shadow-sm transition flex items-center justify-center space-x-1.5 cursor-pointer active:scale-98"
-                >
-                    <Folder className="w-4 h-4" />
-                    <span>📁 ઓપન My Files (બધા દસ્તાવેજો જુઓ)</span>
-                    <ArrowRight className="w-4 h-4" />
-                </button>
-            </div>
-
-            {/* 5. Features Summary Card */}
-            <div className="bg-slate-50 border border-slate-200/80 rounded-3xl p-4 text-xs text-slate-600 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center flex-shrink-0">
-                        <Bot className="w-5 h-5" />
-                    </div>
-                    <div>
-                        <p className="font-bold text-slate-800">DocVoice AI Assistant</p>
-                        <p className="text-[11px] text-slate-500">ટેલિગ્રામ પર વૉઇસ બોલીને કે કૉલ કરીને કોઈ પણ દસ્તાવેજ તાત્કાલિક મેળવો.</p>
-                    </div>
-                </div>
-                <button
-                    onClick={onOpenCall}
-                    className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 font-bold rounded-xl transition text-xs flex items-center space-x-1.5 flex-shrink-0"
-                >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>કૉલ ટેસ્ટ કરો</span>
-                </button>
-            </div>
+            )}
         </div>
     );
 }
