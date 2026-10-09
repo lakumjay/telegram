@@ -48,47 +48,41 @@ export default function LoginScreen({ onLoginSuccess }) {
             // Register user in system for admin approval
             await axios.post('/api/telegram/users', {
                 first_name: fullName.trim(),
-                telegram_id: Date.now().toString().slice(-9), // temporary placeholder until telegram sync
+                telegram_id: Date.now().toString().slice(-9),
                 role: 'user',
                 access_pin: '123456',
-                is_authorized: false, // Pending admin approval
+                is_authorized: false,
             });
             setRegisterSuccess(true);
         } catch (err) {
             console.error('Registration error:', err);
-            setRegisterSuccess(true); // Fallback success demonstration
+            setRegisterSuccess(true);
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-[#080d1a] text-white flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-7 shadow-2xl backdrop-blur-xl relative overflow-hidden">
+        <div className="min-h-screen bg-[#f1f5f9] text-slate-900 flex items-center justify-center p-4">
+            <div className="w-full max-w-md bg-white border border-slate-200/90 rounded-3xl p-7 shadow-xl shadow-slate-200/50 relative overflow-hidden">
                 
-                {/* Glow Background */}
-                <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"></div>
-
                 {/* Logo & Header */}
-                <div className="text-center space-y-2 mb-6 relative z-10">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 p-0.5 mx-auto shadow-xl shadow-blue-500/20 flex items-center justify-center">
-                        <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-                            <Bot className="w-7 h-7 text-cyan-400" />
-                        </div>
+                <div className="text-center space-y-2 mb-6">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-600 p-0.5 mx-auto shadow-md shadow-blue-500/20 flex items-center justify-center">
+                        <Bot className="w-7 h-7 text-white" />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+                        <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
                             DocVoice AI Portal
                         </h2>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                            Secure Private Document Management & AI Assistant
+                        <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                            Smart Telegram Document Management & AI Voice
                         </p>
                     </div>
                 </div>
 
                 {/* Tabs: Sign In vs Request Access */}
-                <div className="flex items-center bg-slate-950 p-1 rounded-2xl border border-slate-800 mb-5 relative z-10">
+                <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200/80 mb-5">
                     <button
                         type="button"
                         onClick={() => {
@@ -97,7 +91,7 @@ export default function LoginScreen({ onLoginSuccess }) {
                             setRegisterSuccess(false);
                         }}
                         className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
-                            authMode === 'login' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                            authMode === 'login' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80' : 'text-slate-500 hover:text-slate-900'
                         }`}
                     >
                         Sign In
@@ -110,7 +104,7 @@ export default function LoginScreen({ onLoginSuccess }) {
                             setRegisterSuccess(false);
                         }}
                         className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center space-x-1 ${
-                            authMode === 'register' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                            authMode === 'register' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80' : 'text-slate-500 hover:text-slate-900'
                         }`}
                     >
                         <UserPlus className="w-3.5 h-3.5" />
@@ -120,56 +114,56 @@ export default function LoginScreen({ onLoginSuccess }) {
 
                 {/* Error Banner */}
                 {error && (
-                    <div className="mb-4 p-3 bg-red-950/60 border border-red-500/50 rounded-2xl text-xs text-red-200 flex items-center space-x-2 animate-fadeIn">
-                        <Lock className="w-4 h-4 text-red-400 flex-shrink-0" />
+                    <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center space-x-2 animate-fadeIn">
+                        <Lock className="w-4 h-4 text-rose-500 flex-shrink-0" />
                         <span>{error}</span>
                     </div>
                 )}
 
                 {/* Form: LOGIN */}
                 {authMode === 'login' && (
-                    <form onSubmit={handleLogin} className="space-y-4 relative z-10">
+                    <form onSubmit={handleLogin} className="space-y-4">
                         <div>
-                            <label className="block text-xs font-semibold text-slate-300 mb-1">
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
                                 Username
                             </label>
                             <div className="relative">
-                                <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                                 <input
                                     type="text"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    placeholder="e.g. admin or jay"
+                                    placeholder="admin or jay"
                                     required
-                                    className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition"
                                 />
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-semibold text-slate-300 mb-1">
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
                                 Password
                             </label>
                             <div className="relative">
-                                <Key className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                                <Key className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                                 <input
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="Enter password"
                                     required
-                                    className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition"
                                 />
                             </div>
-                            <p className="text-[10px] text-slate-500 mt-1 text-right">Default PIN: 123456</p>
+                            <p className="text-[10px] text-slate-400 mt-1 text-right">Default PIN: 123456</p>
                         </div>
 
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-500/25 transition flex items-center justify-center space-x-1.5 cursor-pointer active:scale-[0.98] disabled:opacity-50"
+                            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer active:scale-[0.98] disabled:opacity-50"
                         >
-                            <span>{isLoading ? 'Verifying...' : 'Sign In'}</span>
+                            <span>{isLoading ? 'Signing In...' : 'Sign In'}</span>
                             <ArrowRight className="w-4 h-4" />
                         </button>
                     </form>
@@ -177,12 +171,12 @@ export default function LoginScreen({ onLoginSuccess }) {
 
                 {/* Form: REGISTER / REQUEST ACCESS */}
                 {authMode === 'register' && (
-                    <div className="relative z-10">
+                    <div>
                         {registerSuccess ? (
-                            <div className="p-5 bg-emerald-950/50 border border-emerald-500/40 rounded-2xl text-center space-y-3">
-                                <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
-                                <h4 className="text-sm font-bold text-white">Access Request Submitted!</h4>
-                                <p className="text-xs text-slate-300 leading-relaxed">
+                            <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-3">
+                                <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
+                                <h4 className="text-sm font-bold text-slate-900">Access Request Submitted!</h4>
+                                <p className="text-xs text-slate-600 leading-relaxed">
                                     Your request has been forwarded to the Admin for approval. You will receive login access once approved.
                                 </p>
                                 <button
@@ -191,7 +185,7 @@ export default function LoginScreen({ onLoginSuccess }) {
                                         setAuthMode('login');
                                         setRegisterSuccess(false);
                                     }}
-                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition"
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition cursor-pointer"
                                 >
                                     Back to Sign In
                                 </button>
@@ -199,34 +193,34 @@ export default function LoginScreen({ onLoginSuccess }) {
                         ) : (
                             <form onSubmit={handleRegister} className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">
                                         Your Full Name
                                     </label>
                                     <div className="relative">
-                                        <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                                        <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                                         <input
                                             type="text"
                                             value={fullName}
                                             onChange={(e) => setFullName(e.target.value)}
                                             placeholder="Enter your name"
                                             required
-                                            className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition"
                                         />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">
                                         Telegram Username / Mobile
                                     </label>
                                     <div className="relative">
-                                        <Bot className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                                        <Bot className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                                         <input
                                             type="text"
                                             value={telegramHandle}
                                             onChange={(e) => setTelegramHandle(e.target.value)}
                                             placeholder="@your_telegram or mobile"
-                                            className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition"
                                         />
                                     </div>
                                 </div>
@@ -234,7 +228,7 @@ export default function LoginScreen({ onLoginSuccess }) {
                                 <button
                                     type="submit"
                                     disabled={isLoading}
-                                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
                                 >
                                     <span>{isLoading ? 'Submitting...' : 'Submit Request for Approval'}</span>
                                 </button>
@@ -244,8 +238,8 @@ export default function LoginScreen({ onLoginSuccess }) {
                 )}
 
                 {/* Footer Security Badge */}
-                <div className="mt-6 pt-3 border-t border-slate-800/80 flex items-center justify-center space-x-2 text-[11px] text-slate-500">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <div className="mt-6 pt-3 border-t border-slate-100 flex items-center justify-center space-x-2 text-[11px] text-slate-400 font-medium">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                     <span>256-Bit Encrypted User Isolation</span>
                 </div>
 

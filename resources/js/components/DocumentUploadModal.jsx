@@ -16,16 +16,38 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
     const [error, setError] = useState(null);
     const [successDoc, setSuccessDoc] = useState(null);
     
-    // Live Camera Scanner States
-    const [isCameraActive, setIsCameraActive] = useState(false);
+    const nativeCameraInputRef = useRef(null);
     const videoRef = useRef(null);
     const streamRef = useRef(null);
+    const [isCameraActive, setIsCameraActive] = useState(false);
+
+    // Stop camera completely whenever modal closes or switches to file mode
+    const stopCamera = () => {
+        if (streamRef.current) {
+            try {
+                streamRef.current.getTracks().forEach(track => {
+                    track.stop();
+                    track.enabled = false;
+                });
+            } catch(e) {}
+            streamRef.current = null;
+        }
+        if (videoRef.current) {
+            try {
+                videoRef.current.srcObject = null;
+            } catch(e) {}
+        }
+        setIsCameraActive(false);
+    };
 
     // Camera is ONLY opened when user explicitly clicks CamScanner button
     useEffect(() => {
         if (!isOpen) {
             stopCamera();
         }
+        return () => {
+            stopCamera();
+        };
     }, [isOpen]);
 
     // Handle file selection
@@ -44,6 +66,8 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
             } else {
                 setFilePreview(null);
             }
+            stopCamera();
+            setUploadMode('file');
         }
     };
 
@@ -62,44 +86,48 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
         setError(null);
         setUploadMode('camera');
         setIsCameraActive(true);
-        try {
-            // Priority to real environment/back camera on mobile devices
-            const constraints = {
-                video: {
-                    facingMode: { ideal: 'environment' },
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 }
-                },
-                audio: false
-            };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            streamRef.current = stream;
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-            }
-        } catch(err) {
-            console.error('Camera open error:', err);
-            // Fallback for browsers with strict environment constraints
-            try {
-                const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                streamRef.current = fallbackStream;
-                if (videoRef.current) {
-                    videoRef.current.srcObject = fallbackStream;
-                }
-            } catch(e2) {
-                setError('Failed to open camera. Please allow camera permissions.');
-                setIsCameraActive(false);
-                setUploadMode('file');
-            }
-        }
-    };
 
-    const stopCamera = () => {
-        if (streamRef.current) {
-            streamRef.current.getTracks().forEach(t => t.stop());
-            streamRef.current = null;
+        // First attempt standard getUserMedia with mobile back camera priority
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            try {
+                const constraints = {
+                    video: {
+                        facingMode: { ideal: 'environment' }
+                    },
+                    audio: false
+                };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                streamRef.current = stream;
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                    await videoRef.current.play().catch(() => {});
+                }
+                return;
+            } catch (err) {
+                console.warn('Back camera getUserMedia failed, trying fallback:', err);
+                try {
+                    const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    streamRef.current = fallbackStream;
+                    if (videoRef.current) {
+                        videoRef.current.srcObject = fallbackStream;
+                        await videoRef.current.play().catch(() => {});
+                    }
+                    return;
+                } catch (e2) {
+                    console.warn('getUserMedia completely rejected, invoking native camera capture:', e2);
+                }
+            }
         }
-        setIsCameraActive(false);
+
+        // If in-browser WebRTC camera is blocked/unsupported (e.g. iOS Safari permission or HTTP),
+        // trigger native device camera directly
+        if (nativeCameraInputRef.current) {
+            nativeCameraInputRef.current.click();
+        } else {
+            setError('Please allow camera permission or choose file to upload.');
+            setIsCameraActive(false);
+            setUploadMode('file');
+        }
     };
 
     const captureDocument = () => {
@@ -190,7 +218,15 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
                             <p className="text-[11px] text-slate-500">Upload PDF or image with auto OCR indexing</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg">✕</button>
+                    <button 
+                        onClick={() => {
+                            stopCamera();
+                            onClose();
+                        }} 
+                        className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+                    >
+                        ✕
+                    </button>
                 </div>
 
                 {error && (
@@ -245,16 +281,27 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
                                 <span>File / PDF</span>
                             </button>
 
+                            {/* Camera Icon Only Tab Button */}
                             <button
                                 type="button"
                                 onClick={startCamera}
-                                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center justify-center space-x-1.5 ${
+                                className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center justify-center space-x-1 ${
                                     uploadMode === 'camera' ? 'bg-emerald-700 text-white shadow-sm font-bold' : 'text-slate-500 hover:text-slate-900'
                                 }`}
+                                title="Camera Scanner"
                             >
-                                <Camera className="w-3.5 h-3.5" />
-                                <span>CamScanner (Camera)</span>
+                                <Camera className="w-4 h-4" />
                             </button>
+
+                            {/* Native Camera input fallback for iPhone/Android */}
+                            <input
+                                ref={nativeCameraInputRef}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={handleFileChange}
+                                className="hidden"
+                            />
                         </div>
 
                         {/* Live Camera Scanner View */}
@@ -397,7 +444,10 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
                         <div className="flex justify-end space-x-2 pt-1">
                             <button
                                 type="button"
-                                onClick={onClose}
+                                onClick={() => {
+                                    stopCamera();
+                                    onClose();
+                                }}
                                 className="px-3.5 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition cursor-pointer"
                             >
                                 Cancel
