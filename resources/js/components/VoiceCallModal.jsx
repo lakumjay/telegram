@@ -506,25 +506,16 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     autoGainControl: true,
                 },
             });
-            globalMicStream = stream;
             micStreamRef.current = stream;
 
-            // Dedicated AudioContext for mic capture
+            // Dedicated 16kHz AudioContext for mic capture
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            let micCtx;
-            try {
-                micCtx = new AudioCtx({ sampleRate: 16000 });
-            } catch(e) {
-                micCtx = new AudioCtx();
-            }
+            const micCtx = new AudioCtx({ sampleRate: 16000 });
             micCtxRef.current = micCtx;
 
-            // Ensure AudioContext is active and running (Chrome/Safari/Android default to suspended)
             if (micCtx.state === 'suspended') {
                 await micCtx.resume();
             }
-
-            const inputSampleRate = micCtx.sampleRate || 16000;
 
             // Add audio worklet module
             await micCtx.audioWorklet.addModule('/pcm-capture-worklet.js');
@@ -556,24 +547,22 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
             workletNode.port.onmessage = (event) => {
                 if (!sessionRef.current || isMutedRef.current) return;
+                // Don't send mic audio if AI is currently speaking to prevent feedback echo
+                if (isAiSpeakingRef.current) return;
 
-                try {
-                    const base64Audio = arrayBufferToBase64(event.data);
-                    sessionRef.current.sendRealtimeInput({
-                        audio: {
-                            data: base64Audio,
-                            mimeType: `audio/pcm;rate=${inputSampleRate}`
-                        }
-                    });
-                } catch(err) {
-                    // Ignore transient socket send issues while reconnecting
-                }
+                const base64Audio = arrayBufferToBase64(event.data);
+                sessionRef.current.sendRealtimeInput({
+                    audio: {
+                        data: base64Audio,
+                        mimeType: 'audio/pcm;rate=16000'
+                    }
+                });
             };
 
             source.connect(workletNode);
         } catch (err) {
             console.error('[Mic Error]', err);
-            setMicPermissionError('Please allow microphone permission to start voice call.');
+            setMicPermissionError('Please allow microphone permission to continue the call.');
             throw err;
         }
     };
@@ -602,12 +591,9 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             };
             playerRef.current = player;
 
-            // 2. Fetch Config & Start Mic IN PARALLEL for instant connection
-            const [, configRes] = await Promise.all([
-                startMic(),
-                axios.get('/api/voice/config')
-            ]);
-            const { auth_token, system_instruction, voice_name, live_model } = configRes.data;
+            // 2. Fetch Ephemeral Token and Configuration from backend
+            const res = await axios.get('/api/voice/config');
+            const { auth_token, system_instruction, voice_name, live_model } = res.data;
 
             if (!auth_token) {
                 throw new Error('Authorized token not received from server.');
@@ -740,24 +726,12 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     },
                     onclose: (e) => {
                         console.log('[Gemini Live onclose]', e);
-                        if (!closingRef.current && hasConnectedRef.current) {
-                            // If unexpected drop during active call, try quick seamless auto-reconnect
-                            console.log('[Gemini Live] Unexpected drop, attempting auto-reconnect...');
-                            setConnectionError('Reconnecting network...');
-                            setTimeout(() => {
-                                if (!closingRef.current && isOpen) {
-                                    startLiveSession().catch(() => {
-                                        setConnectionError('Call disconnected. Tap Reconnect to resume.');
-                                        setCallState('ended');
-                                    });
-                                }
-                            }, 1000);
-                        } else if (!closingRef.current) {
+                        if (!closingRef.current) {
                             try {
                                 if (toneGenRef.current) toneGenRef.current.stopRingTone();
                             } catch(err) {}
+                            setConnectionError('Call disconnected. Tap Reconnect to try again.');
                             setCallState('ended');
-                            setConnectionError(e?.reason || 'Could not connect to voice server. Please try again.');
                         }
                     }
                 }
@@ -765,6 +739,9 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
             sessionRef.current = session;
             hasConnectedRef.current = true;
+
+            // 4. Start Microphone capture AFTER session is ready
+            await startMic();
 
             // Stop Ring tone as call is now connected
             try {
@@ -775,17 +752,6 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
             setCallState('connected');
             setTranscriptHistory([{ sender: 'ai', text: 'Hello! I am Alexa AI. How can I assist you with your documents today?' }]);
-
-            // Trigger Alexa greeting immediately so user receives instant spoken response
-            try {
-                session.sendClientContent({
-                    turns: [{
-                        role: 'user',
-                        parts: [{ text: 'નમસ્તે, કૉલ જોડાઈ ગયો છે. કૃપા કરીને તમારું પ્રથમ સ્વાગત દેશી ગુજરાતી અવાજમાં બોલો.' }]
-                    }],
-                    turnComplete: true
-                });
-            } catch(e) {}
         } catch (err) {
             console.error('Failed to start Live Session:', err);
             try {
