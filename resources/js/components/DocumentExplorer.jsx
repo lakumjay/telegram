@@ -24,7 +24,9 @@ import {
     Share2,
     MessageSquare,
     ShieldCheck,
-    Layers
+    Layers,
+    Edit3,
+    FolderPlus
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -50,6 +52,77 @@ export default function DocumentExplorer({
     const [isCreatingZip, setIsCreatingZip] = useState(false);
     const [zipSuccessData, setZipSuccessData] = useState(null);
     const [actionSheetDoc, setActionSheetDoc] = useState(null); // Mobile long-press action sheet
+    const [renameDoc, setRenameDoc] = useState(null); // Document being renamed
+    const [renameTitle, setRenameTitle] = useState('');
+    const [isRenaming, setIsRenaming] = useState(false);
+    const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('');
+    const [newFolderCompanyId, setNewFolderCompanyId] = useState('');
+    const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+
+    // Save renamed document
+    const handleSaveRename = async () => {
+        if (!renameDoc || !renameTitle.trim()) return;
+        setIsRenaming(true);
+        try {
+            const res = await axios.post(`/api/documents/${renameDoc.id}/rename`, {
+                title: renameTitle.trim()
+            });
+            if (res.data.success) {
+                showToast(res.data.message || 'File renamed successfully!');
+                setRenameDoc(null);
+                setRenameTitle('');
+                fetchDocuments();
+            }
+        } catch (err) {
+            console.error('Rename error:', err);
+            showToast('Failed to rename file.', true);
+        } finally {
+            setIsRenaming(false);
+        }
+    };
+
+    // Create new folder
+    const handleCreateFolder = async () => {
+        if (!newFolderName.trim()) return;
+        setIsCreatingFolder(true);
+        try {
+            const res = await axios.post('/api/folders', {
+                name: newFolderName.trim(),
+                company_id: newFolderCompanyId || selectedCompanyId || (companies[0]?.id || null)
+            });
+            if (res.data.success) {
+                showToast('Folder created successfully!');
+                setShowNewFolderModal(false);
+                setNewFolderName('');
+                fetchCompanies();
+            }
+        } catch (err) {
+            console.error('Folder creation error:', err);
+            showToast(err.response?.data?.message || 'Failed to create folder.', true);
+        } finally {
+            setIsCreatingFolder(false);
+        }
+    };
+
+    // Delete folder
+    const handleDeleteFolder = async (folderId) => {
+        if (!confirm('Are you sure you want to delete this folder? Files inside will be unlinked.')) return;
+        try {
+            const res = await axios.delete(`/api/folders/${folderId}`);
+            if (res.data.success) {
+                showToast('Folder deleted successfully!');
+                if (selectedFolderId === String(folderId)) {
+                    setSelectedFolderId('');
+                }
+                fetchCompanies();
+                fetchDocuments();
+            }
+        } catch (err) {
+            console.error('Delete folder error:', err);
+            showToast('Failed to delete folder.', true);
+        }
+    };
 
     // Long press timer ref for mobile touch
     const longPressTimerRef = React.useRef(null);
@@ -285,10 +358,10 @@ export default function DocumentExplorer({
                         </div>
                     </div>
 
-                    {/* Company Filter Tabs (Compact) */}
-                    <div className="flex items-center space-x-1 overflow-x-auto py-0.5">
+                    {/* Company Filter Tabs & Folder Actions */}
+                    <div className="flex items-center space-x-1.5 overflow-x-auto py-0.5">
                         <button
-                            onClick={() => setSelectedCompanyId('')}
+                            onClick={() => { setSelectedCompanyId(''); setSelectedFolderId(''); }}
                             className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
                                 !selectedCompanyId 
                                     ? 'bg-slate-900 text-white shadow-2xs' 
@@ -302,7 +375,10 @@ export default function DocumentExplorer({
                             return (
                                 <button
                                     key={c.id}
-                                    onClick={() => setSelectedCompanyId(isSel ? '' : String(c.id))}
+                                    onClick={() => {
+                                        setSelectedCompanyId(isSel ? '' : String(c.id));
+                                        setSelectedFolderId('');
+                                    }}
                                     className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
                                         isSel
                                             ? 'bg-slate-900 text-white shadow-2xs'
@@ -313,50 +389,145 @@ export default function DocumentExplorer({
                                 </button>
                             );
                         })}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setNewFolderCompanyId(selectedCompanyId || (companies[0]?.id || ''));
+                                setShowNewFolderModal(true);
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer flex items-center space-x-1 whitespace-nowrap ml-1"
+                            title="Create New Folder"
+                        >
+                            <FolderPlus className="w-3.5 h-3.5" />
+                            <span>+ Folder</span>
+                        </button>
                     </div>
                 </div>
 
-                {/* Sleek Compact Search Bar (NO duplicate buttons) */}
+                {/* Folders Bar (if selected company has folders or any folders exist) */}
+                {(() => {
+                    const currentCompany = companies.find(c => String(c.id) === String(selectedCompanyId));
+                    const foldersList = currentCompany?.folders || [];
+                    if (foldersList.length === 0) return null;
+                    return (
+                        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 pt-0.5">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                                <Folder className="w-3 h-3 text-amber-500" />
+                                <span>Folders:</span>
+                            </span>
+                            <button
+                                onClick={() => setSelectedFolderId('')}
+                                className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                                    !selectedFolderId ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
+                            >
+                                All In Company
+                            </button>
+                            {foldersList.map(f => {
+                                const isFActive = String(selectedFolderId) === String(f.id);
+                                return (
+                                    <div key={f.id} className="inline-flex items-center space-x-0.5">
+                                        <button
+                                            onClick={() => setSelectedFolderId(isFActive ? '' : String(f.id))}
+                                            className={`px-2 py-0.5 rounded-l-md text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                                                isFActive ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                            }`}
+                                        >
+                                            📁 {f.name}
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteFolder(f.id)}
+                                            className="px-1 py-0.5 rounded-r-md text-[10px] bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 border-l border-slate-200"
+                                            title="Delete Folder"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    );
+                })()}
+
+                {/* Clean Search Bar without placeholder text */}
                 <div className="relative flex items-center">
                     <Search className="absolute left-3 w-4 h-4 text-slate-400 pointer-events-none" />
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search files by title, company, or keyword..."
-                        className="w-full bg-slate-50/70 border border-slate-200/90 focus:border-blue-500 focus:bg-white rounded-lg pl-9 pr-8 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none transition"
+                        placeholder=""
+                        className="w-full bg-slate-50/70 border border-slate-200/90 focus:border-blue-500 focus:bg-white rounded-lg pl-9 pr-8 py-2 text-xs sm:text-sm text-slate-800 focus:outline-none transition"
                     />
                     {searchQuery && (
                         <button
                             onClick={() => setSearchQuery('')}
-                            className="absolute right-2.5 text-xs text-slate-400 hover:text-slate-600"
+                            className="absolute right-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
                         >
                             ✕
                         </button>
                     )}
                 </div>
 
-                {/* Suggestions */}
-                {suggestions.length > 0 && searchQuery && (
-                    <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-2 space-y-1">
-                        <p className="text-[10px] font-semibold text-slate-400 px-2 py-0.5 uppercase tracking-wider">
-                            Suggestions:
-                        </p>
-                        {suggestions.map((sug, idx) => (
-                            <button
-                                key={idx}
-                                onClick={() => {
-                                    setSearchQuery(sug.query);
-                                    setSuggestions([]);
-                                }}
-                                className="w-full text-left px-3 py-1 rounded-lg hover:bg-slate-50 text-xs text-blue-600 flex items-center justify-between transition cursor-pointer"
-                            >
-                                <span>{sug.title}</span>
-                                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                            </button>
-                        ))}
-                    </div>
-                )}
+                {/* Instant Suggestions Box */}
+                {(() => {
+                    // Generate instant local suggestions from documents + server suggestions
+                    const q = (searchQuery || '').trim().toLowerCase();
+                    if (!q) return null;
+                    
+                    const localSuggestions = [];
+                    const seen = new Set();
+                    
+                    // Match document titles and doc types
+                    documents.forEach(doc => {
+                        const t = doc.title || '';
+                        const dt = doc.doc_type || '';
+                        const cName = doc.company?.name || '';
+                        if (t.toLowerCase().includes(q) && !seen.has(t)) {
+                            seen.add(t);
+                            localSuggestions.push({ title: `${t} (${cName})`, query: t });
+                        } else if (dt.toLowerCase().includes(q) && !seen.has(dt)) {
+                            seen.add(dt);
+                            localSuggestions.push({ title: `${dt.toUpperCase()} (${cName})`, query: dt });
+                        }
+                    });
+
+                    // Add common quick suggestions if query matches 'g', 'gst', 'p', 'pan', 'l', 'lease', etc.
+                    if ('gst'.includes(q) && !seen.has('gst')) {
+                        displayCompanies.forEach(c => {
+                            localSuggestions.push({ title: `GST (${c.name})`, query: `${c.name} GST` });
+                        });
+                    }
+                    if ('pan'.includes(q) && !seen.has('pan')) {
+                        displayCompanies.forEach(c => {
+                            localSuggestions.push({ title: `PAN Card (${c.name})`, query: `${c.name} PAN` });
+                        });
+                    }
+
+                    const allSug = [...suggestions, ...localSuggestions].slice(0, 6);
+                    if (allSug.length === 0) return null;
+
+                    return (
+                        <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-2 space-y-1">
+                            <p className="text-[10px] font-semibold text-slate-400 px-2 py-0.5 uppercase tracking-wider">
+                                Suggestions:
+                            </p>
+                            {allSug.map((sug, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => {
+                                        setSearchQuery(sug.query);
+                                        setSuggestions([]);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-50 text-xs text-blue-600 flex items-center justify-between transition cursor-pointer"
+                                >
+                                    <span>{sug.title}</span>
+                                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                </button>
+                            ))}
+                        </div>
+                    );
+                })()}
             </div>
 
             {/* Disambiguation Banner */}
@@ -548,6 +719,16 @@ export default function DocumentExplorer({
 
                                                 <div className="flex items-center space-x-0.5">
                                                     <button
+                                                        onClick={() => {
+                                                            setRenameDoc(doc);
+                                                            setRenameTitle(doc.title || '');
+                                                        }}
+                                                        className="p-1 text-slate-400 hover:text-amber-600 hover:bg-slate-50 rounded-lg transition"
+                                                        title="Rename"
+                                                    >
+                                                        <Edit3 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
                                                         onClick={() => setPreviewDoc(doc)}
                                                         className="p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition"
                                                         title="Preview OCR"
@@ -721,6 +902,17 @@ export default function DocumentExplorer({
                                                 title="Send to Telegram"
                                             >
                                                 <Send className="w-3.5 h-3.5" />
+                                            </button>
+
+                                            <button
+                                                onClick={() => {
+                                                    setRenameDoc(doc);
+                                                    setRenameTitle(doc.title || '');
+                                                }}
+                                                className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                                title="Rename"
+                                            >
+                                                <Edit3 className="w-3.5 h-3.5" />
                                             </button>
 
                                             <button
@@ -919,7 +1111,24 @@ export default function DocumentExplorer({
 
                         {/* Action Buttons */}
                         <div className="grid grid-cols-1 gap-2 pt-1 text-xs font-semibold">
-                            {/* 1. Move to Company Folder */}
+                            {/* 1. Rename Document */}
+                            <button
+                                onClick={() => {
+                                    const doc = actionSheetDoc;
+                                    setActionSheetDoc(null);
+                                    setRenameDoc(doc);
+                                    setRenameTitle(doc.title || '');
+                                }}
+                                className="w-full p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 flex items-center justify-between cursor-pointer transition active:scale-[0.99]"
+                            >
+                                <span className="flex items-center space-x-2.5">
+                                    <Edit3 className="w-4 h-4 text-amber-600" />
+                                    <span>Rename File</span>
+                                </span>
+                                <ChevronRight className="w-4 h-4 text-slate-400" />
+                            </button>
+
+                            {/* 2. Move to Company Folder */}
                             <button
                                 onClick={() => {
                                     const doc = actionSheetDoc;
@@ -936,7 +1145,7 @@ export default function DocumentExplorer({
                                 <ChevronRight className="w-4 h-4 text-slate-400" />
                             </button>
 
-                            {/* 2. Copy Document */}
+                            {/* 3. Copy Document */}
                             <button
                                 onClick={() => {
                                     const doc = actionSheetDoc;
@@ -953,7 +1162,7 @@ export default function DocumentExplorer({
                                 <ChevronRight className="w-4 h-4 text-slate-400" />
                             </button>
 
-                            {/* 3. Send to Telegram */}
+                            {/* 4. Send to Telegram */}
                             <button
                                 onClick={() => {
                                     const id = actionSheetDoc.id;
@@ -969,7 +1178,7 @@ export default function DocumentExplorer({
                                 <ChevronRight className="w-4 h-4 text-sky-400" />
                             </button>
 
-                            {/* 4. Preview / OCR Text */}
+                            {/* 5. Preview / OCR Text */}
                             <button
                                 onClick={() => {
                                     const doc = actionSheetDoc;
@@ -985,7 +1194,7 @@ export default function DocumentExplorer({
                                 <ChevronRight className="w-4 h-4 text-slate-400" />
                             </button>
 
-                            {/* 5. Delete Document */}
+                            {/* 6. Delete Document */}
                             <button
                                 onClick={() => {
                                     const id = actionSheetDoc.id;
@@ -999,6 +1208,116 @@ export default function DocumentExplorer({
                                     <span>Delete Document</span>
                                 </span>
                                 <ChevronRight className="w-4 h-4 text-rose-400" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Rename Document Modal */}
+            {renameDoc && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-2xs animate-fadeIn">
+                    <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                            <h3 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                                <Edit3 className="w-4 h-4 text-amber-600" />
+                                <span>Rename File</span>
+                            </h3>
+                            <button
+                                onClick={() => setRenameDoc(null)}
+                                className="p-1 text-slate-400 hover:text-slate-700"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">
+                                File Title:
+                            </label>
+                            <input
+                                type="text"
+                                value={renameTitle}
+                                onChange={(e) => setRenameTitle(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex justify-end space-x-2 pt-1 border-t border-slate-100">
+                            <button
+                                onClick={() => setRenameDoc(null)}
+                                className="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveRename}
+                                disabled={!renameTitle.trim() || isRenaming}
+                                className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-xs transition"
+                            >
+                                {isRenaming ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Create New Folder Modal */}
+            {showNewFolderModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-2xs animate-fadeIn">
+                    <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                            <h3 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                                <FolderPlus className="w-4 h-4 text-emerald-600" />
+                                <span>Create New Folder</span>
+                            </h3>
+                            <button
+                                onClick={() => setShowNewFolderModal(false)}
+                                className="p-1 text-slate-400 hover:text-slate-700"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                                    Folder Name:
+                                </label>
+                                <input
+                                    type="text"
+                                    value={newFolderName}
+                                    onChange={(e) => setNewFolderName(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                                    autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                                    Select Company:
+                                </label>
+                                <select
+                                    value={newFolderCompanyId}
+                                    onChange={(e) => setNewFolderCompanyId(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                                >
+                                    {companies.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end space-x-2 pt-1 border-t border-slate-100">
+                            <button
+                                onClick={() => setShowNewFolderModal(false)}
+                                className="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCreateFolder}
+                                disabled={!newFolderName.trim() || isCreatingFolder}
+                                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-xs transition"
+                            >
+                                {isCreatingFolder ? 'Creating...' : 'Create Folder'}
                             </button>
                         </div>
                     </div>

@@ -606,7 +606,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 throw new Error('સર્વર તરફથી અધિકૃત ટોકન મળ્યો નથી.');
             }
 
-            const targetModel = live_model || 'models/gemini-3.8-live';
+            const targetModel = live_model || 'models/gemini-2.0-flash-exp';
 
             // 3. Connect to Gemini Live via official SDK
             const ai = new GoogleGenAI({

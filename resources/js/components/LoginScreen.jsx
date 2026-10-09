@@ -133,9 +133,9 @@ export default function LoginScreen({ onLoginSuccess }) {
                                     type="text"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    placeholder="admin or jay"
+                                    placeholder=""
                                     required
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
                                 />
                             </div>
                         </div>
@@ -150,9 +150,9 @@ export default function LoginScreen({ onLoginSuccess }) {
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Enter password"
+                                    placeholder=""
                                     required
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
                                 />
                             </div>
                             <p className="text-[10px] text-slate-400 mt-1 text-right">Default PIN: 123456</p>
@@ -202,9 +202,9 @@ export default function LoginScreen({ onLoginSuccess }) {
                                             type="text"
                                             value={fullName}
                                             onChange={(e) => setFullName(e.target.value)}
-                                            placeholder="Enter your name"
+                                            placeholder=""
                                             required
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition"
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
                                         />
                                     </div>
                                 </div>
@@ -219,8 +219,8 @@ export default function LoginScreen({ onLoginSuccess }) {
                                             type="text"
                                             value={telegramHandle}
                                             onChange={(e) => setTelegramHandle(e.target.value)}
-                                            placeholder="@your_telegram or mobile"
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition"
+                                            placeholder=""
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
                                         />
                                     </div>
                                 </div>

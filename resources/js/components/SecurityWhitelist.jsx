@@ -382,7 +382,7 @@ export default function SecurityWhitelist() {
                                 type="number"
                                 value={telegramId}
                                 onChange={(e) => setTelegramId(e.target.value)}
-                                placeholder="e.g. 999888777"
+                                placeholder=""
                                 required
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-mono"
                             />
@@ -399,7 +399,7 @@ export default function SecurityWhitelist() {
                                 type="text"
                                 value={firstName}
                                 onChange={(e) => setFirstName(e.target.value)}
-                                placeholder="દા.ત. રમેશભાઈ પટેલ"
+                                placeholder=""
                                 required
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
                             />
@@ -413,7 +413,7 @@ export default function SecurityWhitelist() {
                                 type="text"
                                 value={accessPin}
                                 onChange={(e) => setAccessPin(e.target.value)}
-                                placeholder="123456"
+                                placeholder=""
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-mono"
                             />
                         </div>

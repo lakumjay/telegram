@@ -82,4 +82,37 @@ class CompanyController extends Controller
             'folder' => $folder,
         ], 201);
     }
+
+    /**
+     * Delete a folder
+     */
+    public function destroyFolder(int $id): JsonResponse
+    {
+        $folder = Folder::findOrFail($id);
+        // Untie documents from this folder before deleting
+        \App\Models\Document::where('folder_id', $id)->update(['folder_id' => null]);
+        $folder->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Folder deleted successfully',
+        ]);
+    }
+
+    /**
+     * Delete a company
+     */
+    public function destroyCompany(int $id): JsonResponse
+    {
+        $company = Company::findOrFail($id);
+        // Untie documents
+        \App\Models\Document::where('company_id', $id)->update(['company_id' => null, 'folder_id' => null]);
+        Folder::where('company_id', $id)->delete();
+        $company->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Company deleted successfully',
+        ]);
+    }
 }

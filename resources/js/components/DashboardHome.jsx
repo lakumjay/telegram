@@ -57,8 +57,8 @@ export default function DashboardHome({
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search documents by name, company, or keyword..."
-                        className="w-full bg-slate-50/70 border border-slate-200/90 focus:border-blue-500 focus:bg-white rounded-lg pl-9 pr-20 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none transition"
+                        placeholder=""
+                        className="w-full bg-slate-50/70 border border-slate-200/90 focus:border-blue-500 focus:bg-white rounded-lg pl-9 pr-20 py-2 text-xs sm:text-sm text-slate-800 focus:outline-none transition"
                     />
                     <button
                         type="submit"

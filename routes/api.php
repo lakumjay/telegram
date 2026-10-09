@@ -16,6 +16,7 @@ Route::prefix('documents')->group(function () {
     Route::get('/stats', [DocumentController::class, 'stats']);
     Route::get('/{id}', [DocumentController::class, 'show']);
     Route::get('/{id}/download', [DocumentController::class, 'download']);
+    Route::post('/{id}/rename', [DocumentController::class, 'rename']);
     Route::post('/{id}/move-or-copy', [DocumentController::class, 'moveOrCopy']);
     Route::post('/{id}/share-telegram', [DocumentController::class, 'shareToTelegram']);
     Route::delete('/{id}', [DocumentController::class, 'destroy']);
@@ -25,8 +26,10 @@ Route::prefix('documents')->group(function () {
 Route::prefix('companies')->group(function () {
     Route::get('/', [CompanyController::class, 'index']);
     Route::post('/', [CompanyController::class, 'store']);
+    Route::delete('/{id}', [CompanyController::class, 'destroyCompany']);
 });
 Route::post('/folders', [CompanyController::class, 'storeFolder']);
+Route::delete('/folders/{id}', [CompanyController::class, 'destroyFolder']);
 
 // 3. AI Voice Agent API
 Route::prefix('voice')->group(function () {

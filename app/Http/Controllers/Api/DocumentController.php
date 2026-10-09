@@ -73,49 +73,95 @@ class DocumentController extends Controller
     }
 
     /**
-     * Upload Document & Run OCR
+     * Upload Document(s) & Run OCR
      */
     public function store(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => 'required|file|max:51200', // 50MB
+            'files' => 'nullable|array',
+            'files.*' => 'file|max:51200',
+            'file' => 'nullable|file|max:51200', // 50MB
             'company_id' => 'nullable|exists:companies,id',
             'folder_id' => 'nullable|exists:folders,id',
             'title' => 'nullable|string|max:255',
             'doc_type' => 'nullable|string|max:50',
         ]);
 
-        $file = $request->file('file');
-        $originalFilename = $file->getClientOriginalName();
-        $mimeType = $file->getClientMimeType();
-        $fileSize = $file->getSize();
+        $uploadedDocs = [];
+        $fileList = [];
 
-        $storagePath = $file->store('documents', 'local');
-        $absolutePath = storage_path('app/' . $storagePath);
+        if ($request->hasFile('files')) {
+            $fileList = $request->file('files');
+        } elseif ($request->hasFile('file')) {
+            $fileList = [$request->file('file')];
+        }
 
-        $title = $request->input('title') ?: pathinfo($originalFilename, PATHINFO_FILENAME);
+        if (empty($fileList)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No files uploaded',
+            ], 422);
+        }
+
+        $singleTitle = $request->input('title');
         $docType = $request->input('doc_type', 'other');
 
-        $document = Document::create([
-            'company_id' => $request->company_id,
-            'folder_id' => $request->folder_id,
-            'title' => $title,
-            'doc_type' => $docType,
-            'original_filename' => $originalFilename,
-            'file_path' => $storagePath,
-            'file_size' => $fileSize,
-            'mime_type' => $mimeType,
-            'ocr_status' => 'processing',
-        ]);
+        foreach ($fileList as $index => $file) {
+            $originalFilename = $file->getClientOriginalName();
+            $mimeType = $file->getClientMimeType();
+            $fileSize = $file->getSize();
 
-        // Run OCR and metadata extraction
-        $this->ocrService->processDocument($document, $absolutePath);
+            $storagePath = $file->store('documents', 'local');
+            $absolutePath = storage_path('app/' . $storagePath);
+
+            $title = (count($fileList) === 1 && !empty($singleTitle)) 
+                ? $singleTitle 
+                : pathinfo($originalFilename, PATHINFO_FILENAME);
+
+            $document = Document::create([
+                'company_id' => $request->company_id,
+                'folder_id' => $request->folder_id,
+                'title' => $title,
+                'doc_type' => $docType,
+                'original_filename' => $originalFilename,
+                'file_path' => $storagePath,
+                'file_size' => $fileSize,
+                'mime_type' => $mimeType,
+                'ocr_status' => 'processing',
+            ]);
+
+            // Run OCR and metadata extraction
+            $this->ocrService->processDocument($document, $absolutePath);
+
+            $uploadedDocs[] = $document->fresh(['company', 'folder']);
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Document uploaded and indexed successfully!',
-            'document' => $document->fresh(['company', 'folder']),
+            'message' => count($uploadedDocs) . ' documents uploaded and indexed successfully!',
+            'document' => $uploadedDocs[0] ?? null,
+            'documents' => $uploadedDocs,
         ], 201);
+    }
+
+    /**
+     * Rename / Update Document Title
+     */
+    public function rename(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+        ]);
+
+        $doc = Document::findOrFail($id);
+        $doc->title = trim($request->input('title'));
+        $doc->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Document title updated successfully',
+            'document' => $doc->fresh(['company', 'folder']),
+        ]);
     }
 
     /**

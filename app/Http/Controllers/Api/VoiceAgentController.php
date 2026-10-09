@@ -770,7 +770,7 @@ EOT;
             'is_ephemeral' => !empty($ephemeralToken),
             'system_instruction' => $systemInstruction,
             'voice_name' => 'Aoede', 
-            'live_model' => env('GEMINI_LIVE_MODEL', 'models/gemini-3.8-live'),
+            'live_model' => env('GEMINI_LIVE_MODEL', 'models/gemini-2.0-flash-exp'),
         ]);
     }
 }
