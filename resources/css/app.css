@@ -3,23 +3,20 @@
 @layer base {
     body {
         font-family: 'Inter', 'Hind Vadodara', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        background-color: #0b0f19;
-        color: #f3f4f6;
+        background-color: #f1f5f9;
+        color: #0f172a;
     }
 }
 
-/* Glassmorphism utility classes */
+/* Glassmorphism & clean card utility classes */
 .glass-panel {
-    background: rgba(17, 24, 39, 0.75);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
 }
 
 .glass-card {
-    background: rgba(31, 41, 55, 0.6);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
 }
 
 .glow-blue {

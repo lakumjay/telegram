@@ -10,7 +10,7 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     @vite(['resources/css/app.css', 'resources/js/app.jsx'])
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen antialiased selection:bg-blue-600 selection:text-white">
+<body class="bg-[#f1f5f9] text-slate-900 min-h-screen antialiased selection:bg-emerald-600 selection:text-white">
     <div id="root"></div>
 </body>
 </html>
