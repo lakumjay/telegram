@@ -153,7 +153,7 @@ export default function DocumentExplorer({
     // Batch delete multiple selected documents
     const handleBatchDelete = async () => {
         if (selectedDocIds.length === 0) return;
-        if (!confirm(`શું તમે આ ${selectedDocIds.length} દસ્તાવેજો ડિલીટ કરવા માંગો છો?`)) return;
+        if (!confirm(`Are you sure you want to delete these ${selectedDocIds.length} documents?`)) return;
         setIsLoading(true);
         try {
             for (const id of selectedDocIds) {
@@ -161,10 +161,10 @@ export default function DocumentExplorer({
             }
             setSelectedDocIds([]);
             fetchDocuments();
-            showToast(`સિલેક્ટ કરેલા ${selectedDocIds.length} દસ્તાવેજો સફળતાપૂર્વક ડિલીટ થયા!`);
+            showToast(`Selected ${selectedDocIds.length} documents deleted successfully!`);
         } catch (err) {
             console.error('Batch delete error:', err);
-            showToast('ડિલીટ કરવામાં ભૂલ આવી.', true);
+            showToast('Failed to delete documents.', true);
         } finally {
             setIsLoading(false);
         }

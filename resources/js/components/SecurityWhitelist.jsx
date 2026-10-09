@@ -57,7 +57,7 @@ export default function SecurityWhitelist() {
             });
 
             if (res.data.success) {
-                setMessage({ type: 'success', text: 'નવા યુઝરને સફળતાપૂર્વક પરમિશન આપવામાં આવી!' });
+                setMessage({ type: 'success', text: 'New user added and permission granted!' });
                 setTelegramId('');
                 setFirstName('');
                 fetchUsers();
@@ -72,7 +72,7 @@ export default function SecurityWhitelist() {
             await axios.post(`/api/telegram/users/${id}/toggle-auth`);
             setMessage({ 
                 type: 'success', 
-                text: currentStatus ? 'યુઝરની પરમિશન રદ (Pending) કરી દીધી.' : 'યુઝરને Approve કરી દીધો! હવે તે લોગિન કરી શકશે.' 
+                text: currentStatus ? 'User access changed to Pending.' : 'User approved! They can now access documents.' 
             });
             fetchUsers();
         } catch (err) {
@@ -81,7 +81,7 @@ export default function SecurityWhitelist() {
     };
 
     const handleDeleteUser = async (id) => {
-        if (!confirm('શું તમે આ યુઝરને દૂર કરવા માંગો છો?')) return;
+        if (!confirm('Are you sure you want to remove this user?')) return;
         try {
             await axios.delete(`/api/telegram/users/${id}`);
             fetchUsers();
@@ -111,7 +111,7 @@ export default function SecurityWhitelist() {
                     <div>
                         <div className="flex items-center space-x-2">
                             <h3 className="text-sm font-bold text-slate-900">
-                                Roles & Permission Management (યુઝર મંજૂરી)
+                                Roles & Permission Management
                             </h3>
                             {pendingUsers.length > 0 && (
                                 <span className="px-2 py-0.5 bg-rose-100 text-rose-800 text-[10px] font-extrabold rounded-full animate-pulse">
@@ -120,7 +120,7 @@ export default function SecurityWhitelist() {
                             )}
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-                            નવા યુઝર્સની રિક્વેસ્ટ Approve કરો અને 3 કંપનીઓના ડોક્યુમેન્ટ માટે એક્સેસ નક્કી કરો.
+                            Approve new user registration requests and manage multi-company document access.
                         </p>
                     </div>
                 </div>
@@ -133,14 +133,14 @@ export default function SecurityWhitelist() {
                         <div className="flex items-center space-x-2">
                             <Clock className="w-4 h-4 text-amber-600 animate-spin" />
                             <h4 className="font-bold text-amber-900 text-xs sm:text-sm">
-                                🔔 નવા Approval પેન્ડિંગ છે ({pendingUsers.length} યુઝર)
+                                🔔 Pending Approval Requests ({pendingUsers.length} Users)
                             </h4>
                         </div>
                         <button
                             onClick={() => setFilterTab('pending')}
-                            className="text-[11px] font-bold text-amber-700 hover:underline"
+                            className="text-[11px] font-bold text-amber-700 hover:underline cursor-pointer"
                         >
-                            બધા જુઓ
+                            View Pending
                         </button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -155,7 +155,7 @@ export default function SecurityWhitelist() {
                                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-lg shadow-xs transition flex items-center space-x-1 cursor-pointer"
                                 >
                                     <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>Approve કરો</span>
+                                    <span>Approve User</span>
                                 </button>
                             </div>
                         ))}
@@ -187,7 +187,7 @@ export default function SecurityWhitelist() {
                         <div className="flex items-center space-x-2">
                             <Users className="w-4 h-4 text-blue-600" />
                             <h4 className="text-sm font-bold text-slate-900">
-                                યુઝર્સ અને પરમિશન લિસ્ટ
+                                Users & Permissions List
                             </h4>
                             <span className="text-xs text-slate-500 font-medium">({displayedUsers.length})</span>
                         </div>
@@ -224,7 +224,7 @@ export default function SecurityWhitelist() {
                     {/* 1. Mobile Cards View (Visible on small screens) */}
                     <div className="block sm:hidden space-y-3">
                         {displayedUsers.length === 0 ? (
-                            <p className="text-center py-6 text-slate-400 text-xs">કોઈ યુઝર મળ્યા નથી.</p>
+                            <p className="text-center py-6 text-slate-400 text-xs">No users found.</p>
                         ) : (
                             displayedUsers.map((u) => (
                                 <div 
@@ -266,19 +266,19 @@ export default function SecurityWhitelist() {
                                             {u.is_authorized ? (
                                                 <>
                                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                                    <span>Approved (મંજૂર)</span>
+                                                    <span>Approved</span>
                                                 </>
                                             ) : (
                                                 <>
                                                     <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                                                    <span>Approve આપો</span>
+                                                    <span>Approve Access</span>
                                                 </>
                                             )}
                                         </button>
 
                                         <button
                                             onClick={() => handleDeleteUser(u.id)}
-                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                                             title="Delete"
                                         >
                                             <Trash2 className="w-4 h-4" />
@@ -305,7 +305,7 @@ export default function SecurityWhitelist() {
                                 {displayedUsers.length === 0 ? (
                                     <tr>
                                         <td colSpan="5" className="text-center py-8 text-slate-400 text-xs">
-                                            કોઈ યુઝર મળ્યા નથી.
+                                            No users found.
                                         </td>
                                     </tr>
                                 ) : (
@@ -352,7 +352,7 @@ export default function SecurityWhitelist() {
                                             <td className="py-3 px-3 text-right">
                                                 <button
                                                     onClick={() => handleDeleteUser(u.id)}
-                                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                                                     title="Delete"
                                                 >
                                                     <Trash2 className="w-3.5 h-3.5" />
@@ -370,7 +370,7 @@ export default function SecurityWhitelist() {
                 <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4 h-fit">
                     <h4 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
                         <UserPlus className="w-4 h-4 text-emerald-600" />
-                        <span>નવો યુઝર ઉમેરો અને Role આપો</span>
+                        <span>Add New User & Set Role</span>
                     </h4>
 
                     <form onSubmit={handleAddUser} className="space-y-3">
@@ -387,13 +387,13 @@ export default function SecurityWhitelist() {
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-mono"
                             />
                             <span className="text-[10px] text-slate-400 block mt-0.5">
-                                બોટમાં /id લખીને જાણી શકાય
+                                User can find ID by typing /id in bot
                             </span>
                         </div>
 
                         <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                પૂરૂં નામ (Full Name)
+                                Full Name
                             </label>
                             <input
                                 type="text"
@@ -407,7 +407,7 @@ export default function SecurityWhitelist() {
 
                         <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                સિક્યોરિટી પિન (PIN)
+                                Security PIN
                             </label>
                             <input
                                 type="text"
@@ -420,15 +420,15 @@ export default function SecurityWhitelist() {
 
                         <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                અધિકાર (Role)
+                                Role
                             </label>
                             <select
                                 value={role}
                                 onChange={(e) => setRole(e.target.value)}
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 font-medium"
                             >
-                                <option value="user">User / Manager (કંપની દસ્તાવેજ એક્સેસ)</option>
-                                <option value="admin">Admin (સંપૂર્ણ કંટ્રોલ & Approval)</option>
+                                <option value="user">User / Manager (Company Document Access)</option>
+                                <option value="admin">Admin (Full Control & Approval)</option>
                             </select>
                         </div>
 

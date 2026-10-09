@@ -28,7 +28,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     
     // Live User and AI speech transcriptions
     const [transcriptHistory, setTranscriptHistory] = useState([
-        { sender: 'ai', text: 'સર્વર સાથે જોડાઈ રહ્યું છે...' }
+        { sender: 'ai', text: 'Connecting to voice server...' }
     ]);
     const [currentAiText, setCurrentAiText] = useState('');
     const [lastToolEvent, setLastToolEvent] = useState(null);
@@ -61,9 +61,19 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         };
         acquireWakeLock();
 
-        // When user switches away from Chrome or minimizes the app, kill the mic hardware tracks immediately
+        // Handle Screen Wake Lock & Page visibility
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'hidden') {
+            if (document.visibilityState === 'visible') {
+                if (micCtxRef.current && micCtxRef.current.state === 'suspended') {
+                    micCtxRef.current.resume().catch(() => {});
+                }
+                acquireWakeLock();
+            }
+        };
+
+        const handlePageHide = () => {
+            // When truly closing tab / navigating away, cleanly close session
+            if (closingRef.current) {
                 if (micStreamRef.current) {
                     try {
                         micStreamRef.current.getTracks().forEach(t => t.stop());
@@ -76,27 +86,6 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     } catch(e) {}
                     globalMicStream = null;
                 }
-            } else if (document.visibilityState === 'visible') {
-                // Resume audio contexts if suspended
-                if (micCtxRef.current && micCtxRef.current.state === 'suspended') {
-                    micCtxRef.current.resume().catch(() => {});
-                }
-                acquireWakeLock();
-            }
-        };
-
-        const handlePageHide = () => {
-            if (micStreamRef.current) {
-                try {
-                    micStreamRef.current.getTracks().forEach(t => t.stop());
-                } catch(e) {}
-                micStreamRef.current = null;
-            }
-            if (globalMicStream) {
-                try {
-                    globalMicStream.getTracks().forEach(t => t.stop());
-                } catch(e) {}
-                globalMicStream = null;
             }
         };
 
@@ -251,7 +240,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             response: {
                                 output: {
                                     status: "success",
-                                    summary: payload.summary || "વિગત મળી નથી.",
+                                    summary: payload.summary || "No relevant details found.",
                                     results_count: payload.results_count || 0
                                 }
                             }
@@ -268,7 +257,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             response: {
                                 output: {
                                     status: "error",
-                                    summary: "દસ્તાવેજ વાંચવામાં ટેકનિકલ ક્ષતિ થઈ."
+                                    summary: "Failed to read document contents."
                                 }
                             }
                         }]
@@ -281,7 +270,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         if (call.name === 'analyze_document_risk') {
             const docName = call.args?.document_name || '';
             console.log(`[ToolCall] Gemini invoked analyze_document_risk: doc="${docName}"`);
-            setLastToolEvent(`⚖️ કાયદાકીય રિસ્ક અને પેનલ્ટી શરતો તપાસી રહી છું...`);
+            setLastToolEvent(`⚖️ Analyzing legal risks and clauses...`);
 
             try {
                 const res = await axios.post('/api/voice/analyze-risk', {
@@ -340,7 +329,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 });
                 const payload = res.data;
                 console.log('[Draft Document Result]', payload);
-                setLastToolEvent(`✅ નવો દસ્તાવેજ ટેલિગ્રામમાં મોકલી દીધો!`);
+                setLastToolEvent(`✅ Document drafted & delivered to Telegram!`);
 
                 if (sessionRef.current) {
                     sessionRef.current.sendToolResponse({
@@ -350,7 +339,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             response: {
                                 output: {
                                     status: "success",
-                                    message: payload.message || "દસ્તાવેજ સફળતાપૂર્વક તૈયાર કરીને ટેલિગ્રામમાં મોકલી દીધો છે."
+                                    message: payload.message || "Document generated and delivered to Telegram."
                                 }
                             }
                         }]
@@ -366,7 +355,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             response: {
                                 output: {
                                     status: "error",
-                                    message: "દસ્તાવેજ ડ્રાફ્ટ કરવામાં ટેકનિકલ ક્ષતિ થઈ."
+                                    message: "Failed to draft document."
                                 }
                             }
                         }]
@@ -379,7 +368,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         if (call.name === 'get_document') {
             const docType = call.args?.document_type;
             console.log(`[ToolCall] Gemini invoked get_document: ${docType}`);
-            setLastToolEvent(`📄 ${docType?.toUpperCase()} દસ્તાવેજ ટેલિગ્રામમાં મોકલાઈ રહ્યો છે...`);
+            setLastToolEvent(`📄 Delivering ${docType?.toUpperCase()} to Telegram...`);
 
             try {
                 const tgWebApp = window.Telegram?.WebApp;
@@ -393,7 +382,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
                 const resultPayload = toolRes.data;
                 console.log('[ToolCall Result]', resultPayload);
-                setLastToolEvent(`✅ ${resultPayload.document_title || docType?.toUpperCase()} મોકલી દેવાયો!`);
+                setLastToolEvent(`✅ ${resultPayload.document_title || docType?.toUpperCase()} sent to Telegram!`);
 
                 if (sessionRef.current) {
                     sessionRef.current.sendToolResponse({
@@ -471,7 +460,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             if (res.data?.success && res.data?.snippets?.length > 0) {
                                 const bestSnippet = res.data.snippets[0];
                                 console.log('[Proactive Background Knowledge Match]', bestSnippet);
-                                setLastToolEvent(`💡 દસ્તાવેજમાંથી મળેલ: ${bestSnippet.document_title}`);
+                                setLastToolEvent(`💡 Found in: ${bestSnippet.document_title}`);
                                 
                                 // Silently feed context into Gemini Live session
                                 sessionRef.current?.send({
@@ -559,19 +548,23 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 // Don't send mic audio if AI is currently speaking to prevent feedback echo
                 if (isAiSpeakingRef.current) return;
 
-                const base64Audio = arrayBufferToBase64(event.data);
-                sessionRef.current.sendRealtimeInput({
-                    audio: {
-                        data: base64Audio,
-                        mimeType: 'audio/pcm;rate=16000'
-                    }
-                });
+                try {
+                    const base64Audio = arrayBufferToBase64(event.data);
+                    sessionRef.current.sendRealtimeInput({
+                        audio: {
+                            data: base64Audio,
+                            mimeType: 'audio/pcm;rate=16000'
+                        }
+                    });
+                } catch(err) {
+                    // Ignore transient socket send issues while reconnecting
+                }
             };
 
             source.connect(workletNode);
         } catch (err) {
             console.error('[Mic Error]', err);
-            setMicPermissionError('કૃપા કરીને માઇક્રોફોનની પરમિશન Allow કરો.');
+            setMicPermissionError('Please allow microphone permission to start voice call.');
         }
     };
 
@@ -729,11 +722,11 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                         if (!closingRef.current) {
                             // If unexpected drop during active call, try quick seamless auto-reconnect
                             console.log('[Gemini Live] Unexpected drop, attempting auto-reconnect...');
-                            setConnectionError('નેટવર્ક ફરીથી જોડાઈ રહ્યું છે...');
+                            setConnectionError('Reconnecting network...');
                             setTimeout(() => {
                                 if (!closingRef.current && isOpen) {
                                     startLiveSession().catch(() => {
-                                        setConnectionError('કનેક્શન ડિસ્કનેક્ટ થયું. ફરીથી જોડાવા માટે નીચે બટન દબાવો.');
+                                        setConnectionError('Call disconnected. Tap Reconnect to resume.');
                                         setCallState('ended');
                                     });
                                 }
@@ -756,23 +749,24 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             } catch(e) {}
 
             setCallState('connected');
-            setTranscriptHistory([{ sender: 'ai', text: 'નમસ્તે જય સર! હું એલેક્સા બોલું છું, કહો આજે કયા ડોક્યુમેન્ટનું કામ છે?' }]);
+            setTranscriptHistory([{ sender: 'ai', text: 'Hello! I am Alexa AI. How can I assist you with your documents today?' }]);
 
-            // Keep connection alive on mobile networks (Heartbeat Ping every 15s)
+            // Keep connection alive on mobile networks (Heartbeat Ping every 4s)
             if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+            // 256 zero samples base64 encoded
+            const silentChunk = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
             heartbeatRef.current = setInterval(() => {
-                if (sessionRef.current && !isAiSpeakingRef.current) {
+                if (sessionRef.current && !isAiSpeakingRef.current && !isMutedRef.current) {
                     try {
-                        // Silent keep-alive to keep socket active
                         sessionRef.current.sendRealtimeInput({
                             audio: {
-                                data: 'AAAA', // minimal silent PCM chunk
+                                data: silentChunk,
                                 mimeType: 'audio/pcm;rate=16000'
                             }
                         });
                     } catch(e) {}
                 }
-            }, 15000);
+            }, 4000);
         } catch (err) {
             console.error('Failed to start Live Session:', err);
             try {
@@ -835,8 +829,8 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             <span className="text-[11px] leading-tight">{micPermissionError || connectionError}</span>
                         </div>
                         {connectionError && (
-                            <button onClick={reconnect} className="ml-2 px-2.5 py-1 bg-red-800 hover:bg-red-700 rounded-lg text-[10px] font-bold text-white transition">
-                                ફરી જોડાઓ
+                            <button onClick={reconnect} className="ml-2 px-2.5 py-1 bg-red-800 hover:bg-red-700 rounded-lg text-[10px] font-bold text-white transition cursor-pointer">
+                                Reconnect
                             </button>
                         )}
                     </div>
@@ -869,13 +863,13 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
                     {/* Caller Name */}
                     <h2 className="text-2xl font-semibold tracking-tight text-white mt-1">
-                        એલેક્સા (Alexa AI)
+                        Alexa AI Voice
                     </h2>
 
                     {/* Call Status / Timer */}
                     <p className="text-sm font-medium mt-1">
                         {callState === 'connecting' ? (
-                            <span className="text-amber-400 animate-pulse font-medium">ટ્રિન... ટ્રિન... (Calling Alexa)</span>
+                            <span className="text-amber-400 animate-pulse font-medium">Calling Alexa AI...</span>
                         ) : callState === 'connected' ? (
                             <span className="text-neutral-300 font-mono tracking-wider">{formatTime(callDuration)}</span>
                         ) : (
@@ -889,17 +883,17 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             {isAiSpeaking ? (
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-pink-500/20 text-pink-300 border border-pink-500/30">
                                     <Volume2 className="w-3 h-3 mr-1.5 animate-bounce" />
-                                    એલેક્સા બોલી રહી છે...
+                                    Alexa Speaking...
                                 </span>
                             ) : !isMuted && callState === 'connected' ? (
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
                                     <Mic className="w-3 h-3 mr-1.5 animate-pulse" />
-                                    સાંભળી રહી છે (Auto VAD Active)...
+                                    Listening (Live VAD)...
                                 </span>
                             ) : isMuted ? (
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-neutral-800 text-neutral-400">
                                     <MicOff className="w-3 h-3 mr-1.5" />
-                                    માઇક મ્યૂટ છે
+                                    Muted
                                 </span>
                             ) : null}
                         </div>
@@ -928,7 +922,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 <div className="mx-6 my-2 h-28 overflow-y-auto rounded-2xl bg-neutral-900/60 border border-neutral-800/80 p-3 text-xs leading-relaxed text-neutral-300 backdrop-blur-md shadow-inner flex flex-col justify-end">
                     {transcriptHistory.slice(-3).map((item, idx) => (
                         <div key={idx} className={`mb-1 ${item.sender === 'user' ? 'text-blue-300 font-medium' : 'text-neutral-200'}`}>
-                            <span className="text-[10px] text-neutral-500 block">{item.sender === 'user' ? '👤 તમે:' : '👩‍💼 એલેક્સા:'}</span>
+                            <span className="text-[10px] text-neutral-500 block">{item.sender === 'user' ? '👤 You:' : '👩‍💼 Alexa:'}</span>
                             <span>{item.text}</span>
                         </div>
                     ))}
@@ -952,12 +946,12 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                                     isMuted 
                                         ? 'bg-white text-black shadow-lg shadow-white/20' 
                                         : 'bg-neutral-800/90 text-white hover:bg-neutral-700/90'
-                                }`}
+                                    }`}
                             >
                                 {isMuted ? <MicOff className="w-7 h-7" /> : <Mic className="w-7 h-7" />}
                             </button>
                             <span className="text-[11px] font-medium text-neutral-300 mt-1.5">
-                                {isMuted ? 'unmute' : 'mute'}
+                                {isMuted ? 'Unmute' : 'Mute'}
                             </span>
                         </div>
 
@@ -966,7 +960,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             <div className="w-16 h-16 rounded-full bg-neutral-800/90 text-white flex items-center justify-center">
                                 <Volume2 className="w-7 h-7 text-emerald-400" />
                             </div>
-                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">speaker</span>
+                            <span className="text-[11px] font-medium text-neutral-300 mt-1.5">Speaker</span>
                         </div>
 
                         {/* 3. Status indicator */}
@@ -994,7 +988,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                                 onClick={onClose}
                                 className="px-8 py-3 rounded-full bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-semibold transition active:scale-95 cursor-pointer border border-neutral-700"
                             >
-                                સ્ક્રીન બંધ કરો
+                                Close Call
                             </button>
                         )}
                     </div>
