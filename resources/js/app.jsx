@@ -132,7 +132,7 @@ function App() {
     }
 
     return (
-        <div className="min-h-screen bg-[#f1f5f9] text-slate-900 flex flex-col selection:bg-emerald-600 selection:text-white">
+        <div className="min-h-screen w-full bg-[#f1f5f9] text-slate-900 flex flex-col selection:bg-emerald-600 selection:text-white overflow-y-auto">
             
             {/* Header Navbar */}
             <Navbar
@@ -145,8 +145,8 @@ function App() {
                 stats={stats}
             />
 
-            {/* Main Content Area with adequate pb-32 so mobile content is never clipped */}
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4 pb-32">
+            {/* Main Content Area with adequate pb-36 and scrolling support so all pages scroll smoothly */}
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4 pb-36 overflow-y-visible">
 
                 {/* 1. Home Dashboard View */}
                 {activeTab === 'home' && (

@@ -2,7 +2,7 @@
 <html lang="gu" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#2563eb">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -22,7 +22,7 @@
     </script>
     @vite(['resources/css/app.css', 'resources/js/app.jsx'])
 </head>
-<body class="bg-[#f1f5f9] text-slate-900 min-h-screen antialiased selection:bg-emerald-600 selection:text-white">
+<body class="bg-[#f1f5f9] text-slate-900 min-h-screen antialiased selection:bg-emerald-600 selection:text-white overflow-y-auto">
     <div id="root"></div>
 </body>
 </html>

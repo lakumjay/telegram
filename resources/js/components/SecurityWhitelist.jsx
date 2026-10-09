@@ -100,7 +100,7 @@ export default function SecurityWhitelist() {
         : users;
 
     return (
-        <div className="space-y-4 max-w-5xl mx-auto px-2 sm:px-0">
+        <div className="space-y-4 max-w-5xl mx-auto px-2 sm:px-0 pb-16 overflow-visible">
             
             {/* Top Security Banner */}
             <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
