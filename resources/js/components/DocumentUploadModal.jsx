@@ -69,19 +69,34 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
         setUploadMode('camera');
         setIsCameraActive(true);
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: 'environment' } },
+            // Priority to real environment/back camera on mobile devices
+            const constraints = {
+                video: {
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                },
                 audio: false
-            });
+            };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             streamRef.current = stream;
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
             }
         } catch(err) {
             console.error('Camera open error:', err);
-            setError('Failed to open camera. Please allow camera permissions.');
-            setIsCameraActive(false);
-            setUploadMode('file');
+            // Fallback for browsers with strict environment constraints
+            try {
+                const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                streamRef.current = fallbackStream;
+                if (videoRef.current) {
+                    videoRef.current.srcObject = fallbackStream;
+                }
+            } catch(e2) {
+                setError('Failed to open camera. Please allow camera permissions.');
+                setIsCameraActive(false);
+                setUploadMode('file');
+            }
         }
     };
 
@@ -107,10 +122,10 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
             const capturedFile = new File([blob], `Scanned_Doc_${Date.now()}.jpg`, { type: 'image/jpeg' });
             setFile(capturedFile);
             setFilePreview(canvas.toDataURL('image/jpeg'));
-            if (!title) setTitle(`Scanned Document ${new Date().toLocaleDateString()}`);
+            if (!title) setTitle(`Scanned Document ${new Date().toLocaleDateString('en-GB')}`);
             stopCamera();
             setUploadMode('file');
-        }, 'image/jpeg', 0.92);
+        }, 'image/jpeg', 0.95);
     };
 
     useEffect(() => {
@@ -275,27 +290,56 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
                             </div>
                         )}
 
-                        {/* Drag & Drop Area */}
+                        {/* Drag & Drop Area / Scanned Preview */}
                         {uploadMode === 'file' && (
                         <div className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-4 text-center cursor-pointer transition bg-slate-50 relative">
-                            <input
-                                type="file"
-                                onChange={handleFileChange}
-                                accept=".pdf,.jpg,.jpeg,.png,.webp"
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            />
                             {file ? (
-                                <div className="space-y-1.5">
+                                <div className="space-y-2">
                                     {filePreview ? (
-                                        <img src={filePreview} alt="Preview" className="w-14 h-14 object-cover mx-auto rounded-lg border border-slate-200 shadow-sm" />
+                                        <div className="relative inline-block">
+                                            <img src={filePreview} alt="Preview" className="max-h-40 object-contain mx-auto rounded-lg border border-slate-200 shadow-sm" />
+                                        </div>
                                     ) : (
-                                        <File className="w-8 h-8 text-emerald-700 mx-auto" />
+                                        <File className="w-10 h-10 text-emerald-700 mx-auto" />
                                     )}
                                     <p className="text-xs font-bold text-slate-900">{file.name}</p>
-                                    <p className="text-[11px] text-slate-500">{(file.size / 1024).toFixed(1)} KB • Click to change</p>
+                                    <p className="text-[11px] text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
+
+                                    {/* Retake / Discard Actions */}
+                                    <div className="flex items-center justify-center space-x-2 pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                startCamera();
+                                            }}
+                                            className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-semibold rounded-lg transition shadow-xs flex items-center space-x-1 cursor-pointer"
+                                        >
+                                            <RefreshCw className="w-3 h-3" />
+                                            <span>Retake / Scan Again</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setFile(null);
+                                                setFilePreview(null);
+                                                setTitle('');
+                                            }}
+                                            className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold rounded-lg transition flex items-center space-x-1 cursor-pointer"
+                                        >
+                                            <span>Delete / Remove</span>
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="space-y-1">
+                                    <input
+                                        type="file"
+                                        onChange={handleFileChange}
+                                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    />
                                     <UploadCloud className="w-8 h-8 text-slate-400 mx-auto" />
                                     <p className="text-xs font-bold text-slate-700">Choose File or PDF</p>
                                     <p className="text-[11px] text-slate-400">PDF, JPG, PNG (Max 50 MB)</p>

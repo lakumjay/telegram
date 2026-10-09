@@ -22,7 +22,8 @@ import {
     MessageSquare,
     Sliders,
     LogOut,
-    Camera
+    Camera,
+    UploadCloud
 } from 'lucide-react';
 
 function App() {

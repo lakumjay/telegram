@@ -49,6 +49,26 @@ export default function DocumentExplorer({
     const [previewDoc, setPreviewDoc] = useState(null);
     const [isCreatingZip, setIsCreatingZip] = useState(false);
     const [zipSuccessData, setZipSuccessData] = useState(null);
+    const [actionSheetDoc, setActionSheetDoc] = useState(null); // Mobile long-press action sheet
+
+    // Long press timer ref for mobile touch
+    const longPressTimerRef = React.useRef(null);
+
+    const handleTouchStart = (doc) => {
+        longPressTimerRef.current = setTimeout(() => {
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate(50);
+            }
+            setActionSheetDoc(doc);
+        }, 550);
+    };
+
+    const handleTouchEnd = () => {
+        if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+    };
 
     // Sync initial props if they change
     useEffect(() => {
@@ -495,7 +515,10 @@ export default function DocumentExplorer({
                                 return (
                                     <div
                                         key={doc.id}
-                                        className={`bg-white p-3.5 rounded-2xl border transition-all duration-150 hover:shadow-xs flex flex-col justify-between ${
+                                        onTouchStart={() => handleTouchStart(doc)}
+                                        onTouchEnd={handleTouchEnd}
+                                        onTouchCancel={handleTouchEnd}
+                                        className={`bg-white p-3.5 rounded-2xl border transition-all duration-150 hover:shadow-xs flex flex-col justify-between select-none ${
                                             isSelected ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20' : 'border-slate-200/80 shadow-2xs'
                                         }`}
                                     >
@@ -621,7 +644,10 @@ export default function DocumentExplorer({
                                 return (
                                     <div
                                         key={doc.id}
-                                        className={`p-3 flex items-center justify-between hover:bg-slate-50 transition ${
+                                        onTouchStart={() => handleTouchStart(doc)}
+                                        onTouchEnd={handleTouchEnd}
+                                        onTouchCancel={handleTouchEnd}
+                                        className={`p-3 flex items-center justify-between hover:bg-slate-50 transition select-none ${
                                             isSelected ? 'bg-blue-50/30' : ''
                                         }`}
                                     >
@@ -864,6 +890,115 @@ export default function DocumentExplorer({
                                 className="px-3.5 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition"
                             >
                                 Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Mobile Touch Long-Press Action Sheet */}
+            {actionSheetDoc && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-2xs animate-fadeIn">
+                    <div className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl p-5 space-y-3.5 shadow-2xl border-t sm:border border-slate-200 animate-slideUp">
+                        {/* Header */}
+                        <div className="flex items-start justify-between border-b border-slate-100 pb-2.5">
+                            <div className="pr-3 min-w-0">
+                                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Quick Actions</span>
+                                <h3 className="text-sm font-bold text-slate-900 truncate">{actionSheetDoc.title}</h3>
+                                <p className="text-[11px] text-slate-500">
+                                    {actionSheetDoc.company?.name || 'General'} • {actionSheetDoc.file_size_formatted}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setActionSheetDoc(null)}
+                                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg text-sm"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="grid grid-cols-1 gap-2 pt-1 text-xs font-semibold">
+                            {/* 1. Move to Company Folder */}
+                            <button
+                                onClick={() => {
+                                    const doc = actionSheetDoc;
+                                    setActionSheetDoc(null);
+                                    setMoveCopyTarget({ doc, action: 'move' });
+                                    setTargetCompanyId(doc.company_id ? String(doc.company_id) : '');
+                                }}
+                                className="w-full p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 flex items-center justify-between cursor-pointer transition active:scale-[0.99]"
+                            >
+                                <span className="flex items-center space-x-2.5">
+                                    <Scissors className="w-4 h-4 text-blue-600" />
+                                    <span>Move to Folder / Company</span>
+                                </span>
+                                <ChevronRight className="w-4 h-4 text-slate-400" />
+                            </button>
+
+                            {/* 2. Copy Document */}
+                            <button
+                                onClick={() => {
+                                    const doc = actionSheetDoc;
+                                    setActionSheetDoc(null);
+                                    setMoveCopyTarget({ doc, action: 'copy' });
+                                    setTargetCompanyId(doc.company_id ? String(doc.company_id) : '');
+                                }}
+                                className="w-full p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 flex items-center justify-between cursor-pointer transition active:scale-[0.99]"
+                            >
+                                <span className="flex items-center space-x-2.5">
+                                    <Copy className="w-4 h-4 text-emerald-600" />
+                                    <span>Copy to Another Folder</span>
+                                </span>
+                                <ChevronRight className="w-4 h-4 text-slate-400" />
+                            </button>
+
+                            {/* 3. Send to Telegram */}
+                            <button
+                                onClick={() => {
+                                    const id = actionSheetDoc.id;
+                                    setActionSheetDoc(null);
+                                    handleShareToTelegram(id);
+                                }}
+                                className="w-full p-3 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 flex items-center justify-between cursor-pointer transition active:scale-[0.99]"
+                            >
+                                <span className="flex items-center space-x-2.5">
+                                    <Send className="w-4 h-4 text-sky-600" />
+                                    <span>Send to Telegram Bot</span>
+                                </span>
+                                <ChevronRight className="w-4 h-4 text-sky-400" />
+                            </button>
+
+                            {/* 4. Preview / OCR Text */}
+                            <button
+                                onClick={() => {
+                                    const doc = actionSheetDoc;
+                                    setActionSheetDoc(null);
+                                    setPreviewDoc(doc);
+                                }}
+                                className="w-full p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 flex items-center justify-between cursor-pointer transition active:scale-[0.99]"
+                            >
+                                <span className="flex items-center space-x-2.5">
+                                    <Eye className="w-4 h-4 text-slate-600" />
+                                    <span>View OCR Content & Details</span>
+                                </span>
+                                <ChevronRight className="w-4 h-4 text-slate-400" />
+                            </button>
+
+                            {/* 5. Delete Document */}
+                            <button
+                                onClick={() => {
+                                    const id = actionSheetDoc.id;
+                                    setActionSheetDoc(null);
+                                    handleDeleteDoc(id);
+                                }}
+                                className="w-full p-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 flex items-center justify-between cursor-pointer transition active:scale-[0.99]"
+                            >
+                                <span className="flex items-center space-x-2.5">
+                                    <Trash2 className="w-4 h-4 text-rose-600" />
+                                    <span>Delete Document</span>
+                                </span>
+                                <ChevronRight className="w-4 h-4 text-rose-400" />
                             </button>
                         </div>
                     </div>
