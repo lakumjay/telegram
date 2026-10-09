@@ -48,12 +48,29 @@ function App() {
         return !localStorage.getItem('docvoice_tour_seen');
     });
 
-    // Check if running inside Telegram Mini App
-    const isTelegramMiniApp = window.location.pathname.includes('/miniapp') || Boolean(window.Telegram?.WebApp?.initData);
+    const [deferredPrompt, setDeferredPrompt] = useState(null);
+    const [canInstall, setCanInstall] = useState(false);
+
+    // Native Haptic Vibration Feedback Helper (10ms light tap)
+    const triggerHaptic = (duration = 12) => {
+        if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+            try {
+                window.navigator.vibrate(duration);
+            } catch(e) {}
+        }
+    };
 
     useEffect(() => {
         fetchStats();
         fetchCompanies();
+
+        // Listen for PWA Install prompt event
+        const handleBeforeInstall = (e) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+            setCanInstall(true);
+        };
+        window.addEventListener('beforeinstallprompt', handleBeforeInstall);
 
         // Initialize Telegram WebApp SDK if present
         if (window.Telegram?.WebApp) {
@@ -62,7 +79,22 @@ function App() {
                 window.Telegram.WebApp.expand();
             } catch(e) {}
         }
+
+        return () => {
+            window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+        };
     }, []);
+
+    const handleInstallPWA = async () => {
+        triggerHaptic(25);
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        if (choice.outcome === 'accepted') {
+            setCanInstall(false);
+        }
+        setDeferredPrompt(null);
+    };
 
     const fetchStats = async () => {
         try {
@@ -160,8 +192,11 @@ function App() {
             <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-4 py-2 sm:hidden flex items-center justify-around shadow-lg">
                 {/* 1. Home Tab */}
                 <button
-                    onClick={() => setActiveTab('home')}
-                    className={`flex flex-col items-center py-1 text-[11px] font-semibold transition ${
+                    onClick={() => {
+                        triggerHaptic(10);
+                        setActiveTab('home');
+                    }}
+                    className={`flex flex-col items-center py-1 text-[11px] font-semibold transition active:scale-90 ${
                         activeTab === 'home' ? 'text-emerald-700 font-bold' : 'text-slate-400'
                     }`}
                 >
@@ -171,8 +206,11 @@ function App() {
 
                 {/* 2. My Files Tab */}
                 <button
-                    onClick={() => handleNavigateToFiles({})}
-                    className={`flex flex-col items-center py-1 text-[11px] font-semibold transition ${
+                    onClick={() => {
+                        triggerHaptic(10);
+                        handleNavigateToFiles({});
+                    }}
+                    className={`flex flex-col items-center py-1 text-[11px] font-semibold transition active:scale-90 ${
                         activeTab === 'files' ? 'text-emerald-700 font-bold' : 'text-slate-400'
                     }`}
                 >
@@ -182,8 +220,11 @@ function App() {
 
                 {/* 3. Central AI Call Dial */}
                 <button
-                    onClick={() => setIsCallModalOpen(true)}
-                    className="relative -top-4 w-12 h-12 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-700/30 border-4 border-[#f1f5f9] flex items-center justify-center cursor-pointer active:scale-95 transition"
+                    onClick={() => {
+                        triggerHaptic(20);
+                        setIsCallModalOpen(true);
+                    }}
+                    className="relative -top-4 w-12 h-12 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-700/30 border-4 border-[#f1f5f9] flex items-center justify-center cursor-pointer active:scale-90 transition"
                     title="Start AI Call"
                 >
                     <PhoneCall className="w-5 h-5 text-white" />
@@ -191,8 +232,11 @@ function App() {
 
                 {/* 4. CamScanner Button */}
                 <button
-                    onClick={() => handleOpenUpload('camera')}
-                    className="flex flex-col items-center py-1 text-[11px] font-semibold text-slate-400 hover:text-emerald-700 transition"
+                    onClick={() => {
+                        triggerHaptic(12);
+                        handleOpenUpload('camera');
+                    }}
+                    className="flex flex-col items-center py-1 text-[11px] font-semibold text-slate-400 hover:text-emerald-700 transition active:scale-90"
                 >
                     <Camera className="w-5 h-5 mb-0.5" />
                     <span>Scan</span>
@@ -200,13 +244,45 @@ function App() {
 
                 {/* 5. Upload Button */}
                 <button
-                    onClick={() => handleOpenUpload('file')}
-                    className="flex flex-col items-center py-1 text-[11px] font-semibold text-slate-400 hover:text-emerald-700 transition"
+                    onClick={() => {
+                        triggerHaptic(12);
+                        handleOpenUpload('file');
+                    }}
+                    className="flex flex-col items-center py-1 text-[11px] font-semibold text-slate-400 hover:text-emerald-700 transition active:scale-90"
                 >
                     <UploadCloud className="w-5 h-5 mb-0.5" />
                     <span>Upload</span>
                 </button>
             </div>
+
+            {/* PWA Install App Toast Banner */}
+            {canInstall && (
+                <div className="fixed top-16 left-4 right-4 z-50 sm:hidden bg-blue-600 text-white p-3 rounded-2xl shadow-xl flex items-center justify-between animate-slideDown">
+                    <div className="flex items-center space-x-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                            <Bot className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold leading-tight">Install DocVoice AI</p>
+                            <p className="text-[10px] text-blue-100">Add to home screen like a native app</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center space-x-1.5">
+                        <button
+                            onClick={handleInstallPWA}
+                            className="px-3 py-1 bg-white text-blue-600 font-bold text-xs rounded-lg shadow-xs"
+                        >
+                            Install
+                        </button>
+                        <button
+                            onClick={() => setCanInstall(false)}
+                            className="p-1 text-white/70 hover:text-white text-xs"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Footer */}
             <footer className="border-t border-slate-200/90 py-4 text-center text-xs text-slate-500 hidden sm:block">
