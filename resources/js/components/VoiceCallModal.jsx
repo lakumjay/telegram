@@ -12,6 +12,9 @@ import axios from 'axios';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { PcmPlayer, ToneGenerator, arrayBufferToBase64, base64ToInt16 } from '../lib/audio';
 
+// Persistent audio stream cache across calls so user is asked permission only ONCE
+let globalMicStream = null;
+
 export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 999888777 }) {
     if (!isOpen) return null;
 
@@ -141,7 +144,8 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         }
 
         if (micStreamRef.current) {
-            micStreamRef.current.getTracks().forEach(t => t.stop());
+            // Mute tracks rather than stopping them permanently so browser remembers permission
+            micStreamRef.current.getAudioTracks().forEach(t => { t.enabled = false; });
             micStreamRef.current = null;
         }
 
@@ -446,14 +450,24 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
     const startMic = async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                },
-            });
+            let stream = globalMicStream;
+            const isStreamActive = stream && stream.active && stream.getAudioTracks().some(t => t.readyState === 'live');
+            
+            if (!isStreamActive) {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                    },
+                });
+                globalMicStream = stream;
+            } else {
+                // Ensure audio tracks are enabled
+                stream.getAudioTracks().forEach(t => { t.enabled = true; });
+            }
+
             micStreamRef.current = stream;
 
             // Dedicated 16kHz AudioContext for mic capture

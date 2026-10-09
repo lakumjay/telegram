@@ -238,6 +238,20 @@ function App() {
                     <UploadCloud className="w-5 h-5 mb-0.5" />
                     <span>Upload</span>
                 </button>
+
+                {/* 5. Roles & Access Tab */}
+                <button
+                    onClick={() => {
+                        triggerHaptic(10);
+                        setActiveTab('whitelist');
+                    }}
+                    className={`flex flex-col items-center py-1 text-[11px] font-semibold transition active:scale-90 ${
+                        activeTab === 'whitelist' ? 'text-emerald-700 font-bold' : 'text-slate-400'
+                    }`}
+                >
+                    <ShieldCheck className="w-5 h-5 mb-0.5" />
+                    <span>Roles</span>
+                </button>
             </div>
 
             {/* PWA Install App Toast Banner */}

@@ -4,7 +4,8 @@ import {
     UploadCloud, 
     Layers, 
     LogOut,
-    Home
+    Home,
+    ShieldCheck
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -59,6 +60,18 @@ export default function Navbar({
                         >
                             <Layers className="w-3.5 h-3.5 text-blue-600" />
                             <span>My Files</span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab('whitelist')}
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center space-x-1.5 ${
+                                activeTab === 'whitelist' 
+                                    ? 'bg-white text-emerald-700 shadow-2xs' 
+                                    : 'text-slate-500 hover:text-slate-900'
+                            }`}
+                        >
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Roles & Access</span>
                         </button>
                     </nav>
 
