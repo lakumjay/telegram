@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { UploadCloud, File, CheckCircle2, AlertCircle, Sparkles, Building2, Camera, RefreshCw, Scissors } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { UploadCloud, File, CheckCircle2, AlertCircle, Sparkles, Building2, ImageIcon } from 'lucide-react';
 import axios from 'axios';
 
-export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initialMode = 'file' }) {
+export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
     if (!isOpen) return null;
 
-    const [uploadMode, setUploadMode] = useState(initialMode); // 'file' or 'camera'
     const [file, setFile] = useState(null);
     const [filePreview, setFilePreview] = useState(null);
     const [title, setTitle] = useState('');
@@ -15,42 +14,15 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState(null);
     const [successDoc, setSuccessDoc] = useState(null);
-    
-    const nativeCameraInputRef = useRef(null);
-    const videoRef = useRef(null);
-    const streamRef = useRef(null);
-    const [isCameraActive, setIsCameraActive] = useState(false);
 
-    // Stop camera completely whenever modal closes or switches to file mode
-    const stopCamera = () => {
-        if (streamRef.current) {
-            try {
-                streamRef.current.getTracks().forEach(track => {
-                    track.stop();
-                    track.enabled = false;
-                });
-            } catch(e) {}
-            streamRef.current = null;
-        }
-        if (videoRef.current) {
-            try {
-                videoRef.current.srcObject = null;
-            } catch(e) {}
-        }
-        setIsCameraActive(false);
-    };
-
-    // Camera is ONLY opened when user explicitly clicks CamScanner button
+    // Reset when modal closes or opens
     useEffect(() => {
         if (!isOpen) {
-            stopCamera();
+            resetForm();
         }
-        return () => {
-            stopCamera();
-        };
     }, [isOpen]);
 
-    // Handle file selection
+    // Handle file selection (supports all file types: PDF, JPG, PNG, WEBP, DOC, etc.)
     const handleFileChange = (e) => {
         const selected = e.target.files?.[0];
         if (selected) {
@@ -66,8 +38,6 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
             } else {
                 setFilePreview(null);
             }
-            stopCamera();
-            setUploadMode('file');
         }
     };
 
@@ -82,84 +52,10 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
         }).catch(err => console.error(err));
     }, []);
 
-    const startCamera = async () => {
-        setError(null);
-        setUploadMode('camera');
-        setIsCameraActive(true);
-
-        // First attempt standard getUserMedia with mobile back camera priority
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            try {
-                const constraints = {
-                    video: {
-                        facingMode: { ideal: 'environment' }
-                    },
-                    audio: false
-                };
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                streamRef.current = stream;
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                    await videoRef.current.play().catch(() => {});
-                }
-                return;
-            } catch (err) {
-                console.warn('Back camera getUserMedia failed, trying fallback:', err);
-                try {
-                    const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                    streamRef.current = fallbackStream;
-                    if (videoRef.current) {
-                        videoRef.current.srcObject = fallbackStream;
-                        await videoRef.current.play().catch(() => {});
-                    }
-                    return;
-                } catch (e2) {
-                    console.warn('getUserMedia completely rejected, invoking native camera capture:', e2);
-                }
-            }
-        }
-
-        // If in-browser WebRTC camera is blocked/unsupported (e.g. iOS Safari permission or HTTP),
-        // trigger native device camera directly
-        if (nativeCameraInputRef.current) {
-            nativeCameraInputRef.current.click();
-        } else {
-            setError('Please allow camera permission or choose file to upload.');
-            setIsCameraActive(false);
-            setUploadMode('file');
-        }
-    };
-
-    const captureDocument = () => {
-        if (!videoRef.current) return;
-        const video = videoRef.current;
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth || 1280;
-        canvas.height = video.videoHeight || 720;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        canvas.toBlob((blob) => {
-            if (!blob) return;
-            const capturedFile = new File([blob], `Scanned_Doc_${Date.now()}.jpg`, { type: 'image/jpeg' });
-            setFile(capturedFile);
-            setFilePreview(canvas.toDataURL('image/jpeg'));
-            if (!title) setTitle(`Scanned Document ${new Date().toLocaleDateString('en-GB')}`);
-            stopCamera();
-            setUploadMode('file');
-        }, 'image/jpeg', 0.95);
-    };
-
-    useEffect(() => {
-        return () => {
-            stopCamera();
-        };
-    }, []);
-
     const handleUpload = async (e) => {
         e.preventDefault();
         if (!file) {
-            setError('Please select a file (PDF or Image)');
+            setError('Please select a file to upload (PDF, JPG, PNG, etc.)');
             return;
         }
 
@@ -195,6 +91,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
 
     const resetForm = () => {
         setFile(null);
+        setFilePreview(null);
         setTitle('');
         setSuccessDoc(null);
         setError(null);
@@ -212,17 +109,12 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
                             <UploadCloud className="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-bold text-slate-900">
-                                {uploadMode === 'camera' ? 'CamScanner Camera' : 'Upload Document'}
-                            </h3>
-                            <p className="text-[11px] text-slate-500">Upload PDF or image with auto OCR indexing</p>
+                            <h3 className="text-sm font-bold text-slate-900">Upload File</h3>
+                            <p className="text-[11px] text-slate-500">Upload any document, PDF or image file (All formats supported)</p>
                         </div>
                     </div>
                     <button 
-                        onClick={() => {
-                            stopCamera();
-                            onClose();
-                        }} 
+                        onClick={onClose} 
                         className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
                     >
                         ✕
@@ -240,7 +132,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
                     /* Success State */
                     <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-200 text-center space-y-3">
                         <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
-                        <h4 className="text-sm font-bold text-slate-900">Document Uploaded & Indexed Successfully</h4>
+                        <h4 className="text-sm font-bold text-slate-900">File Uploaded & Indexed Successfully</h4>
                         <div className="p-3 bg-white rounded-xl text-xs text-slate-700 text-left space-y-1 border border-emerald-100 shadow-xs">
                             <p><span className="text-slate-400">Title:</span> <strong className="text-slate-900">{successDoc.title}</strong></p>
                             <p><span className="text-slate-400">Type:</span> <span className="font-bold text-emerald-700">{successDoc.doc_type?.toUpperCase()}</span></p>
@@ -251,7 +143,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
                                 onClick={resetForm}
                                 className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition cursor-pointer"
                             >
-                                + Upload Another
+                                + Upload Another File
                             </button>
                             <button
                                 onClick={onClose}
@@ -265,100 +157,31 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
                     /* Upload Form */
                     <form onSubmit={handleUpload} className="space-y-4">
                         
-                        {/* Selector Tabs: File Upload vs Camera Scanner */}
-                        <div className="flex items-center space-x-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    stopCamera();
-                                    setUploadMode('file');
-                                }}
-                                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center justify-center space-x-1.5 ${
-                                    uploadMode === 'file' ? 'bg-white text-emerald-700 shadow-sm border border-slate-200 font-bold' : 'text-slate-500 hover:text-slate-900'
-                                }`}
-                            >
-                                <UploadCloud className="w-3.5 h-3.5" />
-                                <span>File / PDF</span>
-                            </button>
-
-                            {/* Camera Icon Only Tab Button */}
-                            <button
-                                type="button"
-                                onClick={startCamera}
-                                className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center justify-center space-x-1 ${
-                                    uploadMode === 'camera' ? 'bg-emerald-700 text-white shadow-sm font-bold' : 'text-slate-500 hover:text-slate-900'
-                                }`}
-                                title="Camera Scanner"
-                            >
-                                <Camera className="w-4 h-4" />
-                            </button>
-
-                            {/* Native Camera input fallback for iPhone/Android */}
-                            <input
-                                ref={nativeCameraInputRef}
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                onChange={handleFileChange}
-                                className="hidden"
-                            />
-                        </div>
-
-                        {/* Live Camera Scanner View */}
-                        {uploadMode === 'camera' && (
-                            <div className="relative rounded-xl overflow-hidden bg-black border-2 border-emerald-500 aspect-video flex flex-col items-center justify-center shadow-lg">
-                                <video
-                                    ref={videoRef}
-                                    autoPlay
-                                    playsInline
-                                    className="w-full h-full object-cover"
-                                />
-                                <div className="absolute inset-4 border-2 border-dashed border-emerald-400 rounded-xl pointer-events-none flex items-center justify-center">
-                                    <span className="text-[10px] text-emerald-300 font-bold bg-black/60 px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-sm">
-                                        Align document in frame
-                                    </span>
-                                </div>
-                                <div className="absolute bottom-3 flex items-center space-x-3 z-10">
-                                    <button
-                                        type="button"
-                                        onClick={captureDocument}
-                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-full shadow-lg transition active:scale-95 flex items-center space-x-1.5 cursor-pointer"
-                                    >
-                                        <Camera className="w-4 h-4" />
-                                        <span>Capture Photo</span>
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Drag & Drop Area / Scanned Preview */}
-                        {uploadMode === 'file' && (
-                        <div className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-4 text-center cursor-pointer transition bg-slate-50 relative">
+                        {/* Drag & Drop Area / File Preview */}
+                        <div className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-5 text-center cursor-pointer transition bg-slate-50 relative group">
                             {file ? (
                                 <div className="space-y-2">
                                     {filePreview ? (
                                         <div className="relative inline-block">
-                                            <img src={filePreview} alt="Preview" className="max-h-40 object-contain mx-auto rounded-lg border border-slate-200 shadow-sm" />
+                                            <img src={filePreview} alt="Preview" className="max-h-44 object-contain mx-auto rounded-lg border border-slate-200 shadow-sm" />
                                         </div>
                                     ) : (
-                                        <File className="w-10 h-10 text-emerald-700 mx-auto" />
+                                        <File className="w-12 h-12 text-emerald-700 mx-auto" />
                                     )}
                                     <p className="text-xs font-bold text-slate-900">{file.name}</p>
-                                    <p className="text-[11px] text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
+                                    <p className="text-[11px] text-slate-500">{(file.size / 1024).toFixed(1)} KB • {file.type || 'Document'}</p>
 
-                                    {/* Retake / Discard Actions */}
+                                    {/* Change / Discard Action */}
                                     <div className="flex items-center justify-center space-x-2 pt-1">
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                startCamera();
-                                            }}
-                                            className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-semibold rounded-lg transition shadow-xs flex items-center space-x-1 cursor-pointer"
-                                        >
-                                            <RefreshCw className="w-3 h-3" />
-                                            <span>Retake / Scan Again</span>
-                                        </button>
+                                        <label className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-semibold rounded-lg transition cursor-pointer">
+                                            <span>Change File</span>
+                                            <input
+                                                type="file"
+                                                onChange={handleFileChange}
+                                                accept="*/*"
+                                                className="hidden"
+                                            />
+                                        </label>
                                         <button
                                             type="button"
                                             onClick={(e) => {
@@ -367,32 +190,35 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
                                                 setFilePreview(null);
                                                 setTitle('');
                                             }}
-                                            className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold rounded-lg transition flex items-center space-x-1 cursor-pointer"
+                                            className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold rounded-lg transition cursor-pointer"
                                         >
-                                            <span>Delete / Remove</span>
+                                            <span>Remove</span>
                                         </button>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-1">
+                                <label className="block cursor-pointer py-4">
                                     <input
                                         type="file"
                                         onChange={handleFileChange}
-                                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                        accept="*/*"
                                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                     />
-                                    <UploadCloud className="w-8 h-8 text-slate-400 mx-auto" />
-                                    <p className="text-xs font-bold text-slate-700">Choose File or PDF</p>
-                                    <p className="text-[11px] text-slate-400">PDF, JPG, PNG (Max 50 MB)</p>
-                                </div>
+                                    <UploadCloud className="w-10 h-10 text-emerald-600 mx-auto mb-2 transition group-hover:scale-110" />
+                                    <p className="text-sm font-bold text-slate-800">Click to Select File or Drag & Drop</p>
+                                    <p className="text-xs text-slate-500 mt-1">PDF, Photos, JPG, PNG, WEBP & All Document Formats</p>
+                                    <div className="inline-flex items-center space-x-1.5 mt-2.5 px-3 py-1 bg-white border border-slate-200 rounded-full text-[10px] text-slate-600 font-medium shadow-2xs">
+                                        <ImageIcon className="w-3 h-3 text-emerald-600" />
+                                        <span>Max file size: 50 MB</span>
+                                    </div>
+                                </label>
                             )}
                         </div>
-                        )}
 
                         {/* Document Title */}
                         <div>
                             <label className="block text-xs font-bold text-slate-700 mb-1">
-                                Document Title
+                                File / Document Title
                             </label>
                             <input
                                 type="text"
@@ -437,17 +263,14 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
                         {/* OCR Info Note */}
                         <div className="p-2.5 bg-emerald-50/60 border border-emerald-100 rounded-xl flex items-center space-x-2 text-[11px] text-emerald-900">
                             <Sparkles className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" />
-                            <span>AI automatically detects document type (GST, PAN, Lease Deed, Stamp).</span>
+                            <span>AI automatically detects and indexes content (GST, PAN, Lease Deed, Stamp, etc.).</span>
                         </div>
 
                         {/* Submit Button */}
                         <div className="flex justify-end space-x-2 pt-1">
                             <button
                                 type="button"
-                                onClick={() => {
-                                    stopCamera();
-                                    onClose();
-                                }}
+                                onClick={onClose}
                                 className="px-3.5 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition cursor-pointer"
                             >
                                 Cancel
@@ -458,7 +281,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded, initi
                                 className="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
                             >
                                 <UploadCloud className="w-3.5 h-3.5" />
-                                <span>{isUploading ? `Uploading... (${uploadProgress}%)` : 'Upload & Index'}</span>
+                                <span>{isUploading ? `Uploading... (${uploadProgress}%)` : 'Upload & Save'}</span>
                             </button>
                         </div>
                     </form>

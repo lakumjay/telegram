@@ -23,7 +23,6 @@ import {
     MessageSquare,
     Sliders,
     LogOut,
-    Camera,
     UploadCloud
 } from 'lucide-react';
 
@@ -32,7 +31,6 @@ function App() {
     const [filesFilter, setFilesFilter] = useState({ companyId: '', docType: '', search: '' });
     const [isCallModalOpen, setIsCallModalOpen] = useState(false);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-    const [uploadModalMode, setUploadModalMode] = useState('file'); // 'file' or 'camera'
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [stats, setStats] = useState(null);
     const [companies, setCompanies] = useState([]);
@@ -119,8 +117,7 @@ function App() {
         setActiveTab('files');
     };
 
-    const handleOpenUpload = (mode = 'file') => {
-        setUploadModalMode(mode);
+    const handleOpenUpload = () => {
         setIsUploadModalOpen(true);
     };
 
@@ -188,7 +185,7 @@ function App() {
 
             </main>
 
-            {/* Mobile Bottom Navigation Bar (Home, My Files, Upload/Dial, CamScanner) */}
+            {/* Mobile Bottom Navigation Bar (Home, My Files, AI Call, Upload) */}
             <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-4 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden flex items-center justify-around shadow-lg">
                 {/* 1. Home Tab */}
                 <button
@@ -230,19 +227,7 @@ function App() {
                     <PhoneCall className="w-5 h-5 text-white" />
                 </button>
 
-                {/* 4. CamScanner Button */}
-                <button
-                    onClick={() => {
-                        triggerHaptic(12);
-                        handleOpenUpload('camera');
-                    }}
-                    className="flex flex-col items-center py-1 text-[11px] font-semibold text-slate-400 hover:text-emerald-700 transition active:scale-90"
-                >
-                    <Camera className="w-5 h-5 mb-0.5" />
-                    <span>Scan</span>
-                </button>
-
-                {/* 5. Upload Button */}
+                {/* 4. Upload File Button */}
                 <button
                     onClick={() => {
                         triggerHaptic(12);
@@ -298,7 +283,6 @@ function App() {
 
             <DocumentUploadModal
                 isOpen={isUploadModalOpen}
-                initialMode={uploadModalMode}
                 onClose={() => setIsUploadModalOpen(false)}
                 onUploaded={() => {
                     fetchStats();

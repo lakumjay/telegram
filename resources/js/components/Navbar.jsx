@@ -3,7 +3,6 @@ import {
     Bot, 
     UploadCloud, 
     Layers, 
-    Camera,
     LogOut,
     Home
 } from 'lucide-react';
@@ -63,25 +62,15 @@ export default function Navbar({
                         </button>
                     </nav>
 
-                    {/* Right action: Scan, Upload & Logout */}
+                    {/* Right action: Upload & Logout */}
                     <div className="flex items-center space-x-2">
-                        {/* CamScanner Button */}
-                        <button
-                            onClick={() => onOpenUpload('camera')}
-                            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold border border-amber-200 transition cursor-pointer"
-                            title="Scan with Camera"
-                        >
-                            <Camera className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Scan</span>
-                        </button>
-
                         {/* Upload Button */}
                         <button
                             onClick={() => onOpenUpload('file')}
-                            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-2xs transition cursor-pointer"
+                            className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
                         >
                             <UploadCloud className="w-3.5 h-3.5" />
-                            <span>Upload</span>
+                            <span>Upload File</span>
                         </button>
 
                         {/* Logout Button */}

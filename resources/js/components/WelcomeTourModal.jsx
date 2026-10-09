@@ -3,7 +3,7 @@ import {
     Sparkles, 
     Home, 
     Layers, 
-    Camera, 
+    UploadCloud, 
     PhoneCall, 
     Check, 
     ArrowRight,
@@ -35,10 +35,10 @@ export default function WelcomeTourModal({ isOpen, onClose, userName }) {
             color: "text-indigo-600 bg-indigo-50 border-indigo-200"
         },
         {
-            title: "CamScanner & Upload",
-            desc: "Upload PDFs or tap 'Scan' to snap photos using your mobile back camera. Our AI automatically extracts text and detects document types.",
-            icon: Camera,
-            color: "text-amber-600 bg-amber-50 border-amber-200"
+            title: "Upload Documents & Photos",
+            desc: "Upload PDFs, images, JPG, PNG or photo files directly from your phone or PC. Our AI automatically extracts text and detects document types.",
+            icon: UploadCloud,
+            color: "text-emerald-600 bg-emerald-50 border-emerald-200"
         },
         {
             title: "AI Voice & Telegram Sync",
