@@ -763,6 +763,12 @@ EOT;
             Log::warning('Ephemeral token request error: ' . $e->getMessage());
         }
 
+        $liveModel = env('GEMINI_LIVE_MODEL', 'gemini-3.1-flash-live-preview');
+        if (empty($liveModel) || str_contains($liveModel, 'gemini-3.8-live') || str_contains($liveModel, 'gemini-2.0-flash-exp')) {
+            $liveModel = 'gemini-3.1-flash-live-preview';
+        }
+        $liveModel = preg_replace('/^models\//', '', $liveModel);
+
         return response()->json([
             'success' => true,
             // Returns short-lived ephemeral token; master key is NEVER sent if token generation succeeds
@@ -770,7 +776,7 @@ EOT;
             'is_ephemeral' => !empty($ephemeralToken),
             'system_instruction' => $systemInstruction,
             'voice_name' => 'Aoede', 
-            'live_model' => env('GEMINI_LIVE_MODEL', 'models/gemini-2.0-flash-exp'),
+            'live_model' => $liveModel,
         ]);
     }
 }

@@ -49,6 +49,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     const transcriptEndRef = useRef(null);
     const wakeLockRef = useRef(null);
     const heartbeatRef = useRef(null);
+    const hasConnectedRef = useRef(false);
 
     // Request Screen Wake Lock & Handle Page Visibility / App Switch
     useEffect(() => {
@@ -222,7 +223,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             const queryText = call.args?.query;
             const docName = call.args?.document_name || '';
             console.log(`[ToolCall] Gemini invoked query_document_content: query="${queryText}", doc="${docName}"`);
-            setLastToolEvent(`🔍 દસ્તાવેજમાંથી વિગત શોધી રહી છું: "${queryText}"...`);
+            setLastToolEvent(`🔍 Searching document for: "${queryText}"...`);
 
             try {
                 const res = await axios.post('/api/voice/query-content', {
@@ -287,7 +288,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             response: {
                                 output: {
                                     status: "success",
-                                    risk_summary: payload.risk_summary || "કોઈ મોટું નુકસાનકારક રિસ્ક મળ્યું નથી.",
+                                    risk_summary: payload.risk_summary || "No significant legal or financial risk found.",
                                     critical_clauses: payload.critical_clauses || []
                                 }
                             }
@@ -304,7 +305,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             response: {
                                 output: {
                                     status: "error",
-                                    risk_summary: "રિસ્ક એનાલિસિસમાં ક્ષતિ આવી."
+                                    risk_summary: "Error during document risk analysis."
                                 }
                             }
                         }]
@@ -316,7 +317,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
         if (call.name === 'draft_document') {
             console.log(`[ToolCall] Gemini invoked draft_document:`, call.args);
-            setLastToolEvent(`✍️ નવો દસ્તાવેજ બનાવીને PDF ટેલિગ્રામમાં મોકલી રહી છું...`);
+            setLastToolEvent(`✍️ Generating document and delivering PDF to Telegram...`);
 
             try {
                 const tgWebApp = window.Telegram?.WebApp;
@@ -401,7 +402,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 }
             } catch (err) {
                 console.error('[ToolCall Error]', err);
-                setLastToolEvent(`❌ ભૂલ: ${err.response?.data?.message || err.message}`);
+                setLastToolEvent(`❌ Error: ${err.response?.data?.message || err.message}`);
                 if (sessionRef.current) {
                     sessionRef.current.sendToolResponse({
                         functionResponses: [{
@@ -463,14 +464,12 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                                 setLastToolEvent(`💡 Found in: ${bestSnippet.document_title}`);
                                 
                                 // Silently feed context into Gemini Live session
-                                sessionRef.current?.send({
-                                    clientContent: {
-                                        turns: [{
-                                            role: "user",
-                                            parts: [{ text: `[સિસ્ટમ માહિતી: દસ્તાવેજ "${bestSnippet.document_title}" માં આ વિગત લખેલી છે: "${bestSnippet.snippet}". આના આધારે દેશી અવાજમાં સવાલનો સાચો જવાબ આપો.]` }]
-                                        }],
-                                        turnComplete: false
-                                    }
+                                sessionRef.current?.sendClientContent({
+                                    turns: [{
+                                        role: "user",
+                                        parts: [{ text: `[System Info: Document "${bestSnippet.document_title}" contains: "${bestSnippet.snippet}". Use this fact to answer the user accurately.]` }]
+                                    }],
+                                    turnComplete: false
                                 });
                             }
                         })
@@ -570,6 +569,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
     const startLiveSession = async () => {
         closingRef.current = false;
+        hasConnectedRef.current = false;
         setConnectionError(null);
         setMicPermissionError(null);
         setCallState('connecting');
@@ -596,12 +596,18 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             const { auth_token, system_instruction, voice_name, live_model } = res.data;
 
             if (!auth_token) {
-                throw new Error('સર્વર તરફથી અધિકૃત ટોકન મળ્યો નથી.');
+                throw new Error('Authorized token not received from server.');
             }
 
-            const targetModel = live_model || 'models/gemini-2.0-flash-exp';
+            let targetModel = (live_model || 'gemini-3.1-flash-live-preview').replace(/^models\//, '');
+            if (!targetModel || targetModel.includes('gemini-3.8-live') || targetModel.includes('gemini-2.0-flash-exp')) {
+                targetModel = 'gemini-3.1-flash-live-preview';
+            }
 
-            // 3. Connect to Gemini Live via official SDK
+            // 3. Start Microphone capture upfront
+            await startMic();
+
+            // 4. Connect to Gemini Live via official SDK
             const ai = new GoogleGenAI({
                 apiKey: auth_token,
                 httpOptions: { apiVersion: 'v1alpha' }
@@ -711,15 +717,19 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 callbacks: {
                     onopen: () => {
                         console.log('[Gemini Live] WebSocket connection opened successfully.');
+                        try {
+                            if (toneGenRef.current) toneGenRef.current.stopRingTone();
+                        } catch(e) {}
+                        setCallState('connected');
                     },
                     onmessage: (msg) => handleLiveMessage(msg),
                     onerror: (e) => {
                         console.error('[Gemini Live Error]', e);
-                        setConnectionError(e?.message || 'કનેક્શનમાં ક્ષતિ આવી.');
+                        setConnectionError(e?.message || 'Connection error occurred.');
                     },
                     onclose: (e) => {
                         console.log('[Gemini Live onclose]', e);
-                        if (!closingRef.current) {
+                        if (!closingRef.current && hasConnectedRef.current) {
                             // If unexpected drop during active call, try quick seamless auto-reconnect
                             console.log('[Gemini Live] Unexpected drop, attempting auto-reconnect...');
                             setConnectionError('Reconnecting network...');
@@ -731,15 +741,19 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                                     });
                                 }
                             }, 1000);
+                        } else if (!closingRef.current) {
+                            try {
+                                if (toneGenRef.current) toneGenRef.current.stopRingTone();
+                            } catch(err) {}
+                            setCallState('ended');
+                            setConnectionError(e?.reason || 'Could not connect to voice server. Please try again.');
                         }
                     }
                 }
             });
 
             sessionRef.current = session;
-
-            // 4. Start Microphone capture
-            await startMic();
+            hasConnectedRef.current = true;
 
             // Stop Ring tone as call is now connected
             try {
@@ -774,7 +788,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     toneGenRef.current.stopRingTone();
                 }
             } catch(e) {}
-            setConnectionError(err.message || 'લાઇવ સેશન શરૂ કરવામાં ભૂલ.');
+            setConnectionError(err.message || 'Failed to start live session.');
             setCallState('ended');
         }
     };

@@ -340,9 +340,9 @@ class ErrorBoundary extends React.Component {
                     <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 text-2xl">
                         ⚠️
                     </div>
-                    <h2 className="text-xl font-bold">ડેશબોર્ડ લોડ કરવામાં સમસ્યા આવી</h2>
+                    <h2 className="text-xl font-bold">Error Loading Dashboard</h2>
                     <p className="text-xs text-slate-400 max-w-sm">
-                        {String(this.state.error?.message || 'કૃપા કરીને ફરી રિફ્રેશ કરો.')}
+                        {String(this.state.error?.message || 'Please refresh the page to try again.')}
                     </p>
                     <button
                         onClick={() => {
@@ -351,7 +351,7 @@ class ErrorBoundary extends React.Component {
                         }}
                         className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition"
                     >
-                        🔄 ફરી લોડ કરો (Reload)
+                        🔄 Reload Page
                     </button>
                 </div>
             );

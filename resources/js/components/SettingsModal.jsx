@@ -32,10 +32,10 @@ export default function SettingsModal({ isOpen, onClose }) {
         try {
             const res = await axios.post('/api/settings', settings);
             if (res.data.success) {
-                setMessage({ type: 'success', text: 'સેટિંગ્સ સફળતાપૂર્વક સાચવવામાં આવ્યા!' });
+                setMessage({ type: 'success', text: 'Settings saved successfully!' });
             }
         } catch (err) {
-            setMessage({ type: 'error', text: 'સેટિંગ્સ સાચવવામાં ભૂલ આવી.' });
+            setMessage({ type: 'error', text: 'Failed to save settings.' });
         } finally {
             setIsSaving(false);
         }
@@ -52,8 +52,8 @@ export default function SettingsModal({ isOpen, onClose }) {
                             <Sliders className="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 className="text-base font-bold text-white">સિસ્ટમ & API સેટિંગ્સ</h3>
-                            <p className="text-[11px] text-slate-400">Telegram Bot અને Free API કી કન્ફિગરેશન</p>
+                            <h3 className="text-base font-bold text-white">System & API Settings</h3>
+                            <p className="text-[11px] text-slate-400">Telegram Bot and Free API Key configuration</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="text-slate-400 hover:text-white">✕</button>
@@ -83,7 +83,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
                         />
                         <span className="text-[10px] text-slate-500 block mt-0.5">
-                            Telegram માં @BotFather પાસેથી બોટ બનાવીને મળેલો ટોકન
+                            Token received from @BotFather in Telegram
                         </span>
                     </div>
 
@@ -100,7 +100,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
                         />
                         <span className="text-[10px] text-slate-500 block mt-0.5">
-                            console.groq.com પરથી ફ્રી API Key (ઝડપી વૉઇસ સમજવા માટે)
+                            Free API Key from console.groq.com (for fast voice STT)
                         </span>
                     </div>
 
@@ -117,7 +117,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
                         />
                         <span className="text-[10px] text-slate-500 block mt-0.5">
-                            aistudio.google.com પરથી ફ્રી Gemini Flash API Key
+                            Free Gemini Flash API Key from aistudio.google.com
                         </span>
                     </div>
 
@@ -125,7 +125,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                     <div className="grid grid-cols-2 gap-3 pt-1">
                         <div>
                             <label className="block font-semibold text-slate-300 mb-1">
-                                🔐 માસ્ટર સિક્યુરિટી PIN
+                                🔐 Master Security PIN
                             </label>
                             <input
                                 type="text"
@@ -137,7 +137,7 @@ export default function SettingsModal({ isOpen, onClose }) {
 
                         <div>
                             <label className="block font-semibold text-slate-300 mb-1">
-                                🛡️ Whitelist સિક્યુરિટી
+                                🛡️ Whitelist Security
                             </label>
                             <div className="flex items-center h-9">
                                 <label className="flex items-center space-x-2 cursor-pointer">
@@ -147,7 +147,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                                         onChange={(e) => setSettings({ ...settings, whitelist_enabled: e.target.checked })}
                                         className="rounded bg-slate-950 border-slate-800 text-blue-600 focus:ring-0"
                                     />
-                                    <span className="text-slate-300">ઓનલી Whitelisted IDs Allow કરો</span>
+                                    <span className="text-slate-300">Allow only Whitelisted IDs</span>
                                 </label>
                             </div>
                         </div>
@@ -159,7 +159,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                             onClick={onClose}
                             className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl hover:bg-slate-700 transition"
                         >
-                            બંધ કરો
+                            Close
                         </button>
                         <button
                             type="submit"
@@ -167,7 +167,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                             className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center space-x-1.5 cursor-pointer"
                         >
                             <Save className="w-4 h-4" />
-                            <span>{isSaving ? 'સાચવે છે...' : 'સેટિંગ્સ સાચવો'}</span>
+                            <span>{isSaving ? 'Saving...' : 'Save Settings'}</span>
                         </button>
                     </div>
 

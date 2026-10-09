@@ -19,10 +19,10 @@ export default function TelegramBotSimulator({ onOpenCall }) {
         {
             id: 1,
             sender: 'bot',
-            text: "👋 *નમસ્તે!*\n\nહું તમારી *AI Document Assistant (ધ્વનિ)* છું.\n\n📁 તમે કોઈપણ ફાઇલનું નામ કે અંદરની વિગત લખો (દા.ત. `Rajeshwari PAN`, `300 stemp test vyakti`, `geda document`, `/zip Rajeshwari Solar`)\n\n👇 અથવા નીચેના બટન પર ક્લિક કરીને લાઇવ કૉલ શરૂ કરો:",
+            text: "👋 *Hello!*\n\nI am your *AI Document Assistant (Alexa)*.\n\n📁 Type any document name or details (e.g. `Rajeshwari PAN`, `300 stamp test`, `geda document`, `/zip Rajeshwari Solar`)\n\n👇 Or click the button below to start a live voice call:",
             buttons: [
                 [{ text: '📞 Voice Call AI Assistant (Live Call)', action: 'open_call' }],
-                [{ text: '📂 બધા દસ્તાવેજો જુઓ', query: 'all' }, { text: '📦 ZIP ફાઇલ બનાવો', query: '/zip all' }]
+                [{ text: '📂 View All Documents', query: 'all' }, { text: '📦 Create ZIP File', query: '/zip all' }]
             ],
             time: '10:00 AM'
         }
@@ -65,8 +65,8 @@ export default function TelegramBotSimulator({ onOpenCall }) {
             let replyButtons = [];
 
             if (text.trim() === '/call') {
-                replyText = "📲 *AI Voice Call Assistant:*\n\nનીચેના બટન પર ક્લિક કરો જેથી લાઇવ કૉલ શરૂ થશે. તમે ગુજરાતીમાં બોલીને કોઈપણ ફાઇલ માંગી શકશો.";
-                replyButtons = [[{ text: '📞 AI Voice Call શરૂ કરો', action: 'open_call' }]];
+                replyText = "📲 *AI Voice Call Assistant:*\n\nClick the button below to start live voice call. You can speak to search, query, and request any document.";
+                replyButtons = [[{ text: '📞 Start AI Voice Call', action: 'open_call' }]];
             } else if (text.trim().startsWith('/zip')) {
                 const zipQuery = text.trim().replace('/zip', '').trim() || 'all';
                 const zipDocs = searchRes.data.data;
@@ -75,26 +75,26 @@ export default function TelegramBotSimulator({ onOpenCall }) {
                         document_ids: zipDocs.map(d => d.id),
                         mode: 'single_master_zip'
                     });
-                    replyText = `📦 *ZIP Bundle તૈયાર છે!*\n\n📁 કુલ ફાઇલો: ${zipCreation.data.documents_count}\n📊 સાઇઝ: ${zipCreation.data.file_size_formatted}\n\nઆ ZIP ફાઇલ તમે સીધી કોઈને પણ ફોરવર્ડ કરી શકો છો.`;
-                    replyButtons = [[{ text: '⬇️ ZIP ફાઇલ ડાઉનલોડ કરો', url: zipCreation.data.download_url }]];
+                    replyText = `📦 *ZIP Bundle Ready!*\n\n📁 Total Files: ${zipCreation.data.documents_count}\n📊 Size: ${zipCreation.data.file_size_formatted}\n\nYou can download or forward this ZIP file.`;
+                    replyButtons = [[{ text: '⬇️ Download ZIP File', url: zipCreation.data.download_url }]];
                 } else {
-                    replyText = `❌ '${zipQuery}' માટે કોઈ ફાઇલ મળી નથી.`;
+                    replyText = `❌ No documents found for '${zipQuery}'.`;
                 }
             } else if (searchRes.data.disambiguation_required) {
                 const dis = searchRes.data.disambiguation_data;
-                replyText = `❓ *કન્ફર્મેશન જરૂરી છે:*\nતમે \`${dis.doc_type}\` માંગ્યું છે, પરંતુ આ દસ્તાવેજ નીચેની કંપનીઓમાં ઉપલબ્ધ છે. તમારે કઈ કંપનીનું જોઈએ છે?`;
+                replyText = `❓ *Confirmation Required:*\nYou requested \`${dis.doc_type}\`, but this document is available across multiple companies. Which company do you need?`;
                 replyButtons = dis.companies.map(c => [{ text: `🏢 ${c.name}`, query: c.query }]);
             } else if (searchRes.data.data.length > 0) {
                 const docs = searchRes.data.data;
-                replyText = `✅ *મને ${docs.length} દસ્તાવેજ મળ્યા છે:*\n\n` + 
-                    docs.map((d, i) => `📄 *${d.title}*\n🏢 કંપની: ${d.company?.name || 'જનરલ'}\n🏷️ પ્રકાર: ${d.doc_type?.toUpperCase()} ${d.stamp_value ? `(₹${d.stamp_value} સ્ટેમ્પ)` : ''}`).join('\n\n');
+                replyText = `✅ *Found ${docs.length} documents:*\n\n` + 
+                    docs.map((d, i) => `📄 *${d.title}*\n🏢 Company: ${d.company?.name || 'General'}\n🏷️ Type: ${d.doc_type?.toUpperCase()} ${d.stamp_value ? `(₹${d.stamp_value} Stamp)` : ''}`).join('\n\n');
                 
                 replyButtons = [
-                    [{ text: '📦 આ બધી ફાઇલોની ZIP બનાવો', query: `/zip ${text.trim()}` }],
-                    [{ text: '📞 AI Voice Call ઓપન કરો', action: 'open_call' }]
+                    [{ text: '📦 Create ZIP of all files', query: `/zip ${text.trim()}` }],
+                    [{ text: '📞 Open AI Voice Call', action: 'open_call' }]
                 ];
             } else {
-                replyText = `🔍 *'${text.trim()}'* માટે કોઈ દસ્તાવેજ મળ્યો નથી.\n\n💡 *શું તમે આમાંથી કંઈક શોધી રહ્યા છો?*`;
+                replyText = `🔍 No documents found for *'${text.trim()}'*.\n\n💡 *Did you mean one of these?*`;
                 replyButtons = (searchRes.data.suggestions || []).slice(0, 4).map(s => [{ text: s.title, query: s.query }]);
             }
 
@@ -116,7 +116,7 @@ export default function TelegramBotSimulator({ onOpenCall }) {
                 {
                     id: Date.now() + 1,
                     sender: 'bot',
-                    text: "❌ સર્વર એરર આવી.",
+                    text: "❌ Server error occurred.",
                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 }
             ]);
@@ -163,7 +163,7 @@ export default function TelegramBotSimulator({ onOpenCall }) {
                         <button
                             onClick={() => setMessages([messages[0]])}
                             className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition"
-                            title="ચેટ રીસેટ કરો"
+                            title="Reset Chat"
                         >
                             <RefreshCw className="w-4 h-4" />
                         </button>
@@ -216,7 +216,7 @@ export default function TelegramBotSimulator({ onOpenCall }) {
                         <div className="flex justify-start">
                             <div className="bg-slate-900 border border-slate-800 rounded-2xl rounded-tl-none p-3 text-xs text-slate-400 flex items-center space-x-2">
                                 <Sparkles className="w-4 h-4 text-blue-400 animate-spin" />
-                                <span>બોટ ટાઈપ કરી રહ્યો છે...</span>
+                                <span>Bot is typing...</span>
                             </div>
                         </div>
                     )}
@@ -235,7 +235,7 @@ export default function TelegramBotSimulator({ onOpenCall }) {
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            placeholder="મેસેજ લખો... (દા.ત. /call, Rajeshwari PAN, 300 stemp, /zip all)"
+                            placeholder="Type a message... (e.g. /call, Rajeshwari PAN, 300 stamp, /zip all)"
                             className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                         />
                         <button
@@ -256,17 +256,17 @@ export default function TelegramBotSimulator({ onOpenCall }) {
                 <div className="glass-panel p-5 rounded-3xl border border-emerald-500/30 bg-emerald-950/20 space-y-3">
                     <div className="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
                         <PhoneCall className="w-4 h-4" />
-                        <span>AI Voice Call Agent (ધ્વનિ)</span>
+                        <span>AI Voice Call Agent (Alexa)</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                        ટેલિગ્રામ બોટમાં `/call` કમાન્ડ મોકલતા જ React Mini App ખૂલે છે, જ્યાં તમે ગુજરાતીમાં ઝડપથી બોલીને કોઈપણ ફાઇલ માંગી શકો છો.
+                        Send `/call` command in Telegram or click below to launch the React Mini App for seamless voice interaction.
                     </p>
                     <button
                         onClick={onOpenCall}
                         className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition cursor-pointer flex items-center justify-center space-x-2"
                     >
                         <PhoneCall className="w-4 h-4" />
-                        <span>લાઇવ વૉઇસ કૉલ શરૂ કરો</span>
+                        <span>Start Live Voice Call</span>
                     </button>
                 </div>
 
@@ -274,7 +274,7 @@ export default function TelegramBotSimulator({ onOpenCall }) {
                 <div className="glass-panel p-5 rounded-3xl border border-slate-800 space-y-3">
                     <h4 className="text-xs font-bold text-white flex items-center space-x-1.5">
                         <Sparkles className="w-4 h-4 text-blue-400" />
-                        <span>ક્લિક કરીને ટેસ્ટ કરો:</span>
+                        <span>Quick Test Prompts:</span>
                     </h4>
 
                     <div className="space-y-2">
@@ -289,14 +289,14 @@ export default function TelegramBotSimulator({ onOpenCall }) {
                             onClick={() => handleSendMessage('300 stemp apo je me test vayti jode kariyo ae')}
                             className="w-full text-left p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-slate-200 transition"
                         >
-                            📜 <span className="font-semibold">300 stemp test vyakti</span> (Deep OCR)
+                            📜 <span className="font-semibold">300 stamp test person</span> (Deep OCR)
                         </button>
 
                         <button
                             onClick={() => handleSendMessage('geda document apo')}
                             className="w-full text-left p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-slate-200 transition"
                         >
-                            ⚡ <span className="font-semibold">geda document apo</span> (Disambiguation)
+                            ⚡ <span className="font-semibold">geda document</span> (Disambiguation)
                         </button>
 
                         <button
@@ -310,7 +310,7 @@ export default function TelegramBotSimulator({ onOpenCall }) {
 
                 {/* Simulated User Profile */}
                 <div className="glass-panel p-4 rounded-2xl border border-slate-800 text-xs space-y-2">
-                    <span className="text-[11px] font-semibold text-slate-400 block">👤 ટેસ્ટિંગ યૂઝર પ્રોફાઇલ:</span>
+                    <span className="text-[11px] font-semibold text-slate-400 block">👤 Testing User Profile:</span>
                     <div className="flex items-center justify-between text-slate-300">
                         <span>Telegram ID:</span>
                         <input
