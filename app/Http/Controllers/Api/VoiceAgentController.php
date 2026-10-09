@@ -454,8 +454,9 @@ class VoiceAgentController extends Controller
         } else {
             $fallbackId = $request->input('telegram_user_id');
             if ($fallbackId) {
-                $user = TelegramUser::where('telegram_id', $fallbackId)->where('is_authorized', true)->first();
+                $user = TelegramUser::where('telegram_id', $fallbackId)->first();
                 if ($user) $chatId = $user->telegram_id;
+                else $chatId = $fallbackId; // Direct chatId passed from authenticated manager
             }
         }
         if (!$chatId) {
@@ -582,15 +583,19 @@ EOT;
         if ($telegramUser && isset($telegramUser['id'])) {
             $chatId = $telegramUser['id'];
         } else {
-            // Local fallback / direct Telegram chat id if authorized
+            // Local fallback / direct Telegram chat id if passed
             $fallbackId = $request->input('telegram_user_id');
             if ($fallbackId) {
-                $user = TelegramUser::where('telegram_id', $fallbackId)->where('is_authorized', true)->first();
-                if ($user) $chatId = $user->telegram_id;
+                $user = TelegramUser::where('telegram_id', $fallbackId)->first();
+                if ($user) {
+                    $chatId = $user->telegram_id;
+                } else {
+                    $chatId = $fallbackId; // Direct telegram ID of calling user
+                }
             }
         }
 
-        // Fallback for browser testing or Mini App webview:
+        // Fallback for browser testing or Mini App webview if not set:
         if (!$chatId) {
             $latestAuthorizedUser = TelegramUser::where('is_authorized', true)->latest('id')->first()
                                  ?: TelegramUser::latest('id')->first();

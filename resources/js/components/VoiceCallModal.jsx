@@ -44,6 +44,27 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     const isAiSpeakingRef = useRef(false);
     const closingRef = useRef(false);
     const transcriptEndRef = useRef(null);
+    const wakeLockRef = useRef(null);
+    const heartbeatRef = useRef(null);
+
+    // Request Screen Wake Lock so phone doesn't sleep & drop call
+    useEffect(() => {
+        const acquireWakeLock = async () => {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLockRef.current = await navigator.wakeLock.request('screen');
+                } catch(e) {}
+            }
+        };
+        acquireWakeLock();
+
+        return () => {
+            if (wakeLockRef.current) {
+                wakeLockRef.current.release().catch(() => {});
+                wakeLockRef.current = null;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         isMutedRef.current = isMuted;
@@ -93,6 +114,16 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         setTimeout(() => {
             if (onClose) onClose();
         }, 800);
+
+        if (heartbeatRef.current) {
+            clearInterval(heartbeatRef.current);
+            heartbeatRef.current = null;
+        }
+
+        if (wakeLockRef.current) {
+            wakeLockRef.current.release().catch(() => {});
+            wakeLockRef.current = null;
+        }
 
         try {
             sessionRef.current?.close();
@@ -652,6 +683,22 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
             setCallState('connected');
             setTranscriptHistory([{ sender: 'ai', text: 'નમસ્તે જય સર! હું એલેક્સા બોલું છું, કહો આજે કયા ડોક્યુમેન્ટનું કામ છે?' }]);
+
+            // Keep connection alive on mobile networks (Heartbeat Ping every 15s)
+            if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+            heartbeatRef.current = setInterval(() => {
+                if (sessionRef.current && !isAiSpeakingRef.current) {
+                    try {
+                        // Silent keep-alive to keep socket active
+                        sessionRef.current.sendRealtimeInput({
+                            audio: {
+                                data: 'AAAA', // minimal silent PCM chunk
+                                mimeType: 'audio/pcm;rate=16000'
+                            }
+                        });
+                    } catch(e) {}
+                }
+            }, 15000);
         } catch (err) {
             console.error('Failed to start Live Session:', err);
             try {
