@@ -202,46 +202,40 @@ export default function DocumentExplorer({ onOpenUpload, onOpenCall }) {
                     </div>
                 </div>
 
-                {/* Filter Pills */}
-                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800/80">
+                {/* Prominent Company Tabs (Rajeshwari Solar, Sunrise Green, Nilkanth) */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/80">
                     <span className="text-xs text-slate-400 flex items-center mr-1">
-                        <Filter className="w-3 h-3 mr-1 text-slate-500" /> ફિલ્ટર:
+                        <Building2 className="w-3.5 h-3.5 mr-1 text-blue-400" /> કંપની સેક્શન:
                     </span>
 
-                    {/* Company Dropdown */}
-                    <select
-                        value={selectedCompanyId}
-                        onChange={(e) => setSelectedCompanyId(e.target.value)}
-                        className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                    <button
+                        onClick={() => setSelectedCompanyId('')}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
+                            !selectedCompanyId
+                                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-bold'
+                                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                        }`}
                     >
-                        <option value="">બધી કંપનીઓ (All Companies)</option>
-                        {companies.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                    </select>
+                        બધી કંપનીઓ (All)
+                    </button>
 
-                    {/* Document Type Pills */}
-                    {[
-                        { id: '', label: 'બધા (All)' },
-                        { id: 'stamp', label: '📜 સ્ટેમ્પ પેપર (Stamp)' },
-                        { id: 'pan', label: '💳 પાનકાર્ડ (PAN)' },
-                        { id: 'gst', label: '🧾 જીએસટી (GST)' },
-                        { id: 'udyam', label: '🏭 ઉદ્યમ (Udyam)' },
-                        { id: 'geda', label: '⚡ ગેડા (GEDA)' },
-                        { id: 'aadhaar', label: '🪪 આધારકાર્ડ (Aadhaar)' },
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setSelectedDocType(tab.id)}
-                            className={`px-3 py-1.5 rounded-xl text-xs transition cursor-pointer ${
-                                selectedDocType === tab.id
-                                    ? 'bg-blue-600 text-white font-medium shadow-sm'
-                                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-                            }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
+                    {companies.map(c => {
+                        const isSel = String(selectedCompanyId) === String(c.id);
+                        return (
+                            <button
+                                key={c.id}
+                                onClick={() => setSelectedCompanyId(isSel ? '' : c.id)}
+                                className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer flex items-center space-x-1.5 ${
+                                    isSel
+                                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-md shadow-blue-500/20 border border-blue-400/40'
+                                        : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+                                }`}
+                            >
+                                <span>🏢</span>
+                                <span>{c.name}</span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 

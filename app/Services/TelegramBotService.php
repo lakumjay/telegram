@@ -80,6 +80,21 @@ class TelegramBotService
         // 3. Handle Text Messages & Commands
         $text = trim($message['text'] ?? '');
 
+        // Check for 1, 2, 3, 4 numbered selection from previous suggestions
+        if (is_numeric($text)) {
+            $num = (int) $text;
+            $session = (array) $user->session_state;
+            if (isset($session['numbered_docs'][$num])) {
+                $docId = $session['numbered_docs'][$num];
+                $doc = Document::with('company')->find($docId);
+                if ($doc) {
+                    $this->sendMessage($chatId, "✅ *તમે પસંદ કરેલ દસ્તાવેજ (#{$num}) મોકલી રહી છું:*");
+                    $this->deliverDocumentsToTelegram($chatId, collect([$doc]));
+                    return ['status' => 'numbered_doc_delivered'];
+                }
+            }
+        }
+
         if ($text === '/start') {
             return $this->handleStartCommand($chatId, $user);
         }
@@ -203,16 +218,37 @@ class TelegramBotService
     {
         $result = $this->searchService->search($query);
 
-        // 1. Check for Disambiguation (e.g. GEDA document present in multiple companies)
+        // 1. Check for Disambiguation (e.g. GST or PAN present in multiple companies)
         if ($result['disambiguation_required']) {
             $disData = $result['disambiguation_data'];
-            $buttons = [];
-            foreach ($disData['companies'] as $c) {
-                $buttons[] = [['text' => "🏢 " . $c['name'], 'callback_data' => 'search_q_' . substr(md5($c['query']), 0, 10)]];
-            }
+            $numberedDocs = [];
+            $numListText = "❓ *કન્ફર્મેશન: કઈ કંપનીનું જોઈએ છે?*\nતમે `{$disData['doc_type']}` માંગ્યું છે, તે નીચેની કંપનીઓમાં ઉપલબ્ધ છે:\n\n";
 
-            $keyboard = ['inline_keyboard' => $buttons];
-            $this->sendMessage($chatId, "❓ *કન્ફર્મેશન જરૂરી છે:*\nતમે `{$disData['doc_type']}` માંગ્યું છે, પરંતુ આ દસ્તાવેજ નીચેની કંપનીઓમાં ઉપલબ્ધ છે. તમારે કઈ કંપનીનું જોઈએ છે?", $keyboard);
+            $buttons = [];
+            $i = 1;
+            foreach ($disData['companies'] as $c) {
+                // Find matching document id if available
+                $matchingDoc = Document::where('company_id', $c['id'])->where(function($q) use ($disData) {
+                    $q->where('doc_type', $disData['doc_type'])
+                      ->orWhere('title', 'LIKE', "%{$disData['doc_type']}%");
+                })->first();
+
+                if ($matchingDoc) {
+                    $numberedDocs[$i] = $matchingDoc->id;
+                }
+                $numListText .= "{$i}️⃣ *{$c['name']}* ({$disData['doc_type']})\n";
+                $buttons[] = ['text' => "{$i}. " . $c['name'], 'callback_data' => 'search_q_' . substr(md5($c['query']), 0, 10)];
+                $i++;
+            }
+            $numListText .= "\n💡 *ચેટમાં ફક્ત નંબર (જેમ કે {$i}) લખો અથવા નીચે બટન દબાવો:*";
+
+            // Save state for single number reply
+            $session = (array) $user->session_state;
+            $session['numbered_docs'] = $numberedDocs;
+            $user->update(['session_state' => $session]);
+
+            $keyboard = ['inline_keyboard' => array_chunk($buttons, 2)];
+            $this->sendMessage($chatId, $numListText, $keyboard);
             return ['status' => 'disambiguation_sent'];
         }
 

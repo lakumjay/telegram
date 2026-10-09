@@ -6,10 +6,9 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
     if (!isOpen) return null;
 
     const [file, setFile] = useState(null);
+    const [filePreview, setFilePreview] = useState(null);
     const [title, setTitle] = useState('');
-    const [docType, setDocType] = useState('gst');
     const [companyId, setCompanyId] = useState('');
-    const [folderId, setFolderId] = useState('');
     const [companies, setCompanies] = useState([]);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -19,27 +18,32 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
     // Fetch companies
     useEffect(() => {
         axios.get('/api/companies').then(res => {
-            setCompanies(res.data.companies || []);
+            const list = res.data.companies || [];
+            setCompanies(list);
+            // Default select first company if available
+            if (list.length > 0 && !companyId) {
+                setCompanyId(list[0].id);
+            }
         }).catch(err => console.error(err));
     }, []);
-
-    const selectedCompany = companies.find(c => c.id === parseInt(companyId));
-    const folders = selectedCompany?.folders || [];
 
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
             const f = e.target.files[0];
             setFile(f);
+            
+            // Image preview
+            if (f.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (re) => setFilePreview(re.target.result);
+                reader.readAsDataURL(f);
+            } else {
+                setFilePreview(null);
+            }
+
             if (!title) {
-                // Auto generate title from filename
                 const nameWithoutExt = f.name.replace(/\.[^/.]+$/, "");
                 setTitle(nameWithoutExt);
-                // Auto detect doc type
-                if (/gst/i.test(nameWithoutExt)) setDocType('gst');
-                else if (/pan/i.test(nameWithoutExt)) setDocType('pan');
-                else if (/aadhaar|aadhar/i.test(nameWithoutExt)) setDocType('aadhaar');
-                else if (/stamp|stemp|करार/i.test(nameWithoutExt)) setDocType('stamp');
-                else if (/bill|light/i.test(nameWithoutExt)) setDocType('lightbill');
             }
         }
     };
@@ -47,7 +51,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
     const handleUpload = async (e) => {
         e.preventDefault();
         if (!file) {
-            setError('કૃપા કરીને ફાઇલ પસંદ કરો');
+            setError('કૃપા કરીને ફાઇલ (PDF અથવા ફોટો) પસંદ કરો');
             return;
         }
 
@@ -57,9 +61,8 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('title', title);
-        formData.append('doc_type', docType);
+        formData.append('doc_type', 'auto'); // Server auto-detects from OCR
         if (companyId) formData.append('company_id', companyId);
-        if (folderId) formData.append('folder_id', folderId);
 
         try {
             const res = await axios.post('/api/documents', formData, {
@@ -145,108 +148,81 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                     <form onSubmit={handleUpload} className="space-y-4">
                         
                         {/* Drag & Drop Area */}
-                        <div className="border-2 border-dashed border-slate-700 hover:border-blue-500/80 rounded-2xl p-6 text-center cursor-pointer transition bg-slate-950/40 relative">
+                        <div className="border-2 border-dashed border-slate-700 hover:border-blue-500/80 rounded-2xl p-5 text-center cursor-pointer transition bg-slate-950/40 relative">
                             <input
                                 type="file"
                                 onChange={handleFileChange}
-                                accept=".pdf,.jpg,.jpeg,.png"
+                                accept=".pdf,.jpg,.jpeg,.png,.webp"
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                             />
                             {file ? (
-                                <div className="space-y-1">
-                                    <File className="w-10 h-10 text-blue-400 mx-auto" />
+                                <div className="space-y-2">
+                                    {filePreview ? (
+                                        <img src={filePreview} alt="Preview" className="w-16 h-16 object-cover mx-auto rounded-xl border border-slate-700 shadow-md" />
+                                    ) : (
+                                        <File className="w-10 h-10 text-blue-400 mx-auto" />
+                                    )}
                                     <p className="text-xs font-bold text-white">{file.name}</p>
-                                    <p className="text-[11px] text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
+                                    <p className="text-[11px] text-slate-500">{(file.size / 1024).toFixed(1)} KB • ક્લિક કરીને બદલી શકો છો</p>
                                 </div>
                             ) : (
-                                <div className="space-y-1">
-                                    <UploadCloud className="w-10 h-10 text-slate-500 mx-auto" />
-                                    <p className="text-xs font-medium text-slate-300">ફાઇલ અહીં ખેંચો અથવા ક્લિક કરો</p>
-                                    <p className="text-[11px] text-slate-500">PDF, JPG, PNG (મહત્તમ 50 MB)</p>
+                                <div className="space-y-1.5">
+                                    <UploadCloud className="w-10 h-10 text-slate-400 mx-auto" />
+                                    <p className="text-xs font-medium text-slate-200">ફાઇલ અથવા ફોટો પસંદ કરો</p>
+                                    <p className="text-[11px] text-slate-400">PDF, JPG, PNG ફોટો (મહત્તમ 50 MB)</p>
                                 </div>
                             )}
                         </div>
 
-                        {/* Title and Doc Type Inputs */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">
-                                    દસ્તાવેજનું નામ (Title)
-                                </label>
-                                <input
-                                    type="text"
-                                    value={title}
-                                    onChange={(e) => setTitle(e.target.value)}
-                                    placeholder="દા.ત. Rajeshwari Solar GST, ₹300 Stamp"
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">
-                                    દસ્તાવેજનો પ્રકાર (Doc Type)
-                                </label>
-                                <select
-                                    value={docType}
-                                    onChange={(e) => setDocType(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                                >
-                                    <option value="gst">જીએસટી (GST Certificate)</option>
-                                    <option value="pan">પાનકાર્ડ (PAN Card)</option>
-                                    <option value="stamp">સ્ટેમ્પ પેપર (Stamp Paper / કરાર)</option>
-                                    <option value="aadhaar">આધારકાર્ડ (Aadhaar Card)</option>
-                                    <option value="udyam">ઉદ્યમ રજીસ્ટ્રેશન (Udyam)</option>
-                                    <option value="geda">ગેડા (GEDA Document)</option>
-                                    <option value="lightbill">લાઇટ બિલ (Electricity Bill)</option>
-                                    <option value="rc_book">આરસી બુક (RC Book)</option>
-                                    <option value="other">જનરલ દસ્તાવેજ (Other)</option>
-                                </select>
-                            </div>
+                        {/* Document Title */}
+                        <div>
+                            <label className="block text-xs font-medium text-slate-300 mb-1">
+                                દસ્તાવેજનું નામ (Title)
+                            </label>
+                            <input
+                                type="text"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                placeholder="દા.ત. Rajeshwari Solar GST, Sunrise Lease Deed, ₹300 Stamp"
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                            />
                         </div>
 
-                        {/* Company & Folder Select */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">
-                                    કંપની / વ્યક્તિ (Company)
-                                </label>
-                                <select
-                                    value={companyId}
-                                    onChange={(e) => {
-                                        setCompanyId(e.target.value);
-                                        setFolderId('');
-                                    }}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                                >
-                                    <option value="">જનરલ (General)</option>
-                                    {companies.map(c => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">
-                                    ફોલ્ડર (Folder)
-                                </label>
-                                <select
-                                    value={folderId}
-                                    onChange={(e) => setFolderId(e.target.value)}
-                                    disabled={!companyId}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 disabled:opacity-50"
-                                >
-                                    <option value="">ડિફોલ્ટ ફોલ્ડર</option>
-                                    {folders.map(f => (
-                                        <option key={f.id} value={f.id}>{f.name}</option>
-                                    ))}
-                                </select>
+                        {/* 3 Companies Section Selection */}
+                        <div>
+                            <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center justify-between">
+                                <span>કંપની પસંદ કરો (Company Selection)</span>
+                                <span className="text-[10px] text-emerald-400">AI Auto-Categorized</span>
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                {companies.map(c => {
+                                    const isSelected = String(companyId) === String(c.id);
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={c.id}
+                                            onClick={() => setCompanyId(c.id)}
+                                            className={`p-3 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                                                isSelected 
+                                                    ? 'bg-blue-600/20 border-blue-500 text-white shadow-lg shadow-blue-500/10' 
+                                                    : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between w-full mb-1">
+                                                <Building2 className={`w-4 h-4 ${isSelected ? 'text-blue-400' : 'text-slate-500'}`} />
+                                                {isSelected && <span className="w-2 h-2 rounded-full bg-blue-400"></span>}
+                                            </div>
+                                            <span className="text-xs font-bold leading-tight">{c.name}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
                         {/* OCR Info Note */}
-                        <div className="p-3 bg-blue-950/30 border border-blue-900/40 rounded-xl flex items-center space-x-2 text-[11px] text-blue-300">
-                            <Sparkles className="w-4 h-4 flex-shrink-0 text-blue-400" />
-                            <span>અપલોડ થતાં જ AI દસ્તાવેજની અંદરનું બધું જ લખાણ વાંચીને સર્ચ માટે તૈયાર કરશે.</span>
+                        <div className="p-3 bg-gradient-to-r from-blue-950/40 to-indigo-950/40 border border-blue-900/50 rounded-xl flex items-center space-x-2 text-[11px] text-blue-200">
+                            <Sparkles className="w-4 h-4 flex-shrink-0 text-amber-400" />
+                            <span>✨ <strong>Doc Type પસંદ કરવાની જરૂર નથી:</strong> AI આપમેળે ઓળખી લેશે (GST, PAN, લીઝ ડીડ કે અન્ય).</span>
                         </div>
 
                         {/* Submit Button */}

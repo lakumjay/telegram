@@ -7,6 +7,7 @@ import SecurityWhitelist from './components/SecurityWhitelist';
 import VoiceCallModal from './components/VoiceCallModal';
 import DocumentUploadModal from './components/DocumentUploadModal';
 import SettingsModal from './components/SettingsModal';
+import LoginScreen from './components/LoginScreen';
 import axios from 'axios';
 import { 
     PhoneCall, 
@@ -16,7 +17,10 @@ import {
     Bot, 
     Layers, 
     Archive,
-    CheckCircle2
+    CheckCircle2,
+    MessageSquare,
+    Sliders,
+    LogOut
 } from 'lucide-react';
 
 function App() {
@@ -25,6 +29,14 @@ function App() {
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [stats, setStats] = useState(null);
+    const [currentUser, setCurrentUser] = useState(() => {
+        try {
+            const saved = localStorage.getItem('auth_user');
+            return saved ? JSON.parse(saved) : null;
+        } catch(e) {
+            return null;
+        }
+    });
 
     // Check if running inside Telegram Mini App
     const isTelegramMiniApp = window.location.pathname.includes('/miniapp') || Boolean(window.Telegram?.WebApp?.initData);
@@ -47,6 +59,16 @@ function App() {
             console.error('Error fetching stats:', err);
         }
     };
+
+    const handleLogout = () => {
+        localStorage.removeItem('auth_user');
+        setCurrentUser(null);
+    };
+
+    // If not authenticated and not running as direct authorized Telegram Mini App, show LoginScreen
+    if (!currentUser && !isTelegramMiniApp) {
+        return <LoginScreen onLoginSuccess={(u) => setCurrentUser(u)} />;
+    }
 
     // If loaded as Telegram Mini App, auto open Voice Call or streamlined view
     if (isTelegramMiniApp) {
@@ -106,6 +128,7 @@ function App() {
                 onOpenCall={() => setIsCallModalOpen(true)}
                 onOpenUpload={() => setIsUploadModalOpen(true)}
                 onOpenSettings={() => setIsSettingsModalOpen(true)}
+                onLogout={handleLogout}
                 stats={stats}
             />
 
@@ -175,9 +198,48 @@ function App() {
 
             </main>
 
+            {/* Mobile Web App Floating Alexa Call Dial & Bottom Bar */}
+            <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/90 backdrop-blur-xl border-t border-slate-800/80 px-4 py-2 sm:hidden flex items-center justify-around">
+                <button
+                    onClick={() => setActiveTab('explorer')}
+                    className={`flex flex-col items-center py-1 text-[11px] ${
+                        activeTab === 'explorer' ? 'text-blue-400 font-bold' : 'text-slate-400'
+                    }`}
+                >
+                    <Layers className="w-5 h-5 mb-0.5" />
+                    <span>દસ્તાવેજો</span>
+                </button>
+
+                {/* Central Floating Alexa Call Button */}
+                <button
+                    onClick={() => setIsCallModalOpen(true)}
+                    className="relative -top-5 w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-400 text-white shadow-xl shadow-emerald-500/40 border-4 border-slate-950 flex items-center justify-center cursor-pointer active:scale-95 transition"
+                >
+                    <PhoneCall className="w-6 h-6 animate-bounce text-white" />
+                </button>
+
+                <button
+                    onClick={() => setActiveTab('simulator')}
+                    className={`flex flex-col items-center py-1 text-[11px] ${
+                        activeTab === 'simulator' ? 'text-blue-400 font-bold' : 'text-slate-400'
+                    }`}
+                >
+                    <MessageSquare className="w-5 h-5 mb-0.5" />
+                    <span>ચેટ બોટ</span>
+                </button>
+
+                <button
+                    onClick={() => setIsUploadModalOpen(true)}
+                    className="flex flex-col items-center py-1 text-[11px] text-slate-400"
+                >
+                    <FileText className="w-5 h-5 mb-0.5 text-blue-400" />
+                    <span>અપલોડ</span>
+                </button>
+            </div>
+
             {/* Footer */}
-            <footer className="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
-                <p>AI Document Assistant & Telegram Voice Bot • 100% Free APIs (Gemini Flash & Whisper)</p>
+            <footer className="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500 hidden sm:block">
+                <p>DocVoice AI Assistant • 100% Free Gemini & Whisper APIs • Built for Jay Sir</p>
             </footer>
 
             {/* Modals */}

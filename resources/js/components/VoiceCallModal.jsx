@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { GoogleGenAI, Modality } from '@google/genai';
-import { PcmPlayer, arrayBufferToBase64, base64ToInt16 } from '../lib/audio';
+import { PcmPlayer, ToneGenerator, arrayBufferToBase64, base64ToInt16 } from '../lib/audio';
 
 export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 999888777 }) {
     if (!isOpen) return null;
@@ -33,6 +33,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     // Refs
     const sessionRef = useRef(null);
     const playerRef = useRef(null);
+    const toneGenRef = useRef(null);
     const micCtxRef = useRef(null);
     const micStreamRef = useRef(null);
     const workletNodeRef = useRef(null);
@@ -80,6 +81,13 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
     const endCall = useCallback(async () => {
         closingRef.current = true;
         setCallState('ended');
+
+        // Play phone disconnect tone & vibration
+        try {
+            if (toneGenRef.current) {
+                toneGenRef.current.playDisconnectTone();
+            }
+        } catch(e) {}
 
         try {
             sessionRef.current?.close();
@@ -472,6 +480,14 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
         setMicPermissionError(null);
         setCallState('connecting');
 
+        // Start Realistic Telephone Ringing Sound
+        try {
+            if (!toneGenRef.current) {
+                toneGenRef.current = new ToneGenerator();
+            }
+            toneGenRef.current.startRingTone();
+        } catch(e) {}
+
         try {
             // 1. Output Audio Player (24kHz)
             const player = new PcmPlayer(24000);
@@ -622,10 +638,22 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             // 4. Start Microphone capture
             await startMic();
 
+            // Stop Ring tone as call is now connected
+            try {
+                if (toneGenRef.current) {
+                    toneGenRef.current.stopRingTone();
+                }
+            } catch(e) {}
+
             setCallState('connected');
-            setTranscriptHistory([{ sender: 'ai', text: 'નમસ્તે! રિયા લાઈવ છે. તમે બોલી શકો છો...' }]);
+            setTranscriptHistory([{ sender: 'ai', text: 'નમસ્તે જય સર! હું એલેક્સા બોલું છું, કહો આજે કયા ડોક્યુમેન્ટનું કામ છે?' }]);
         } catch (err) {
             console.error('Failed to start Live Session:', err);
+            try {
+                if (toneGenRef.current) {
+                    toneGenRef.current.stopRingTone();
+                }
+            } catch(e) {}
             setConnectionError(err.message || 'લાઇવ સેશન શરૂ કરવામાં ભૂલ.');
             setCallState('ended');
         }
@@ -715,13 +743,13 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
 
                     {/* Caller Name */}
                     <h2 className="text-2xl font-semibold tracking-tight text-white mt-1">
-                        રિયા (AI Assistant)
+                        એલેક્સા (Alexa AI)
                     </h2>
 
                     {/* Call Status / Timer */}
                     <p className="text-sm font-medium mt-1">
                         {callState === 'connecting' ? (
-                            <span className="text-neutral-400 animate-pulse">Calling...</span>
+                            <span className="text-amber-400 animate-pulse font-medium">ટ્રિન... ટ્રિન... (Calling Alexa)</span>
                         ) : callState === 'connected' ? (
                             <span className="text-neutral-300 font-mono tracking-wider">{formatTime(callDuration)}</span>
                         ) : (
@@ -735,7 +763,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                             {isAiSpeaking ? (
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-pink-500/20 text-pink-300 border border-pink-500/30">
                                     <Volume2 className="w-3 h-3 mr-1.5 animate-bounce" />
-                                    રિયા બોલી રહી છે...
+                                    એલેક્સા બોલી રહી છે...
                                 </span>
                             ) : !isMuted && callState === 'connected' ? (
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
@@ -774,7 +802,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 <div className="mx-6 my-2 h-28 overflow-y-auto rounded-2xl bg-neutral-900/60 border border-neutral-800/80 p-3 text-xs leading-relaxed text-neutral-300 backdrop-blur-md shadow-inner flex flex-col justify-end">
                     {transcriptHistory.slice(-3).map((item, idx) => (
                         <div key={idx} className={`mb-1 ${item.sender === 'user' ? 'text-blue-300 font-medium' : 'text-neutral-200'}`}>
-                            <span className="text-[10px] text-neutral-500 block">{item.sender === 'user' ? '👤 તમે:' : '👩‍💼 રિયા:'}</span>
+                            <span className="text-[10px] text-neutral-500 block">{item.sender === 'user' ? '👤 તમે:' : '👩‍💼 એલેક્સા:'}</span>
                             <span>{item.text}</span>
                         </div>
                     ))}

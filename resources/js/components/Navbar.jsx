@@ -17,6 +17,7 @@ export default function Navbar({
     onOpenCall, 
     onOpenUpload, 
     onOpenSettings,
+    onLogout,
     stats 
 }) {
     return (
@@ -117,6 +118,17 @@ export default function Navbar({
                         >
                             <Sliders className="w-4 h-4" />
                         </button>
+
+                        {/* Logout Button */}
+                        {onLogout && (
+                            <button
+                                onClick={onLogout}
+                                className="p-2 rounded-xl bg-slate-800 hover:bg-red-950/80 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-500/50 transition cursor-pointer"
+                                title="લૉગઆઉટ"
+                            >
+                                <span className="text-xs font-semibold px-1">Logout</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
