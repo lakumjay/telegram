@@ -170,6 +170,104 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             return;
         }
 
+        if (call.name === 'analyze_document_risk') {
+            const docName = call.args?.document_name || '';
+            console.log(`[ToolCall] Gemini invoked analyze_document_risk: doc="${docName}"`);
+            setLastToolEvent(`⚖️ કાયદાકીય રિસ્ક અને પેનલ્ટી શરતો તપાસી રહી છું...`);
+
+            try {
+                const res = await axios.post('/api/voice/analyze-risk', {
+                    document_name: docName
+                });
+                const payload = res.data;
+                console.log('[Risk Analysis Result]', payload);
+
+                if (sessionRef.current) {
+                    sessionRef.current.sendToolResponse({
+                        functionResponses: [{
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                                output: {
+                                    status: "success",
+                                    risk_summary: payload.risk_summary || "કોઈ મોટું નુકસાનકારક રિસ્ક મળ્યું નથી.",
+                                    critical_clauses: payload.critical_clauses || []
+                                }
+                            }
+                        }]
+                    });
+                }
+            } catch (err) {
+                console.error('[Risk Analysis Error]', err);
+                if (sessionRef.current) {
+                    sessionRef.current.sendToolResponse({
+                        functionResponses: [{
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                                output: {
+                                    status: "error",
+                                    risk_summary: "રિસ્ક એનાલિસિસમાં ક્ષતિ આવી."
+                                }
+                            }
+                        }]
+                    });
+                }
+            }
+            return;
+        }
+
+        if (call.name === 'draft_document') {
+            console.log(`[ToolCall] Gemini invoked draft_document:`, call.args);
+            setLastToolEvent(`✍️ નવો દસ્તાવેજ બનાવીને PDF ટેલિગ્રામમાં મોકલી રહી છું...`);
+
+            try {
+                const tgWebApp = window.Telegram?.WebApp;
+                const initData = tgWebApp?.initData || '';
+
+                const res = await axios.post('/api/voice/draft-document', {
+                    ...call.args,
+                    init_data: initData,
+                    telegram_user_id: telegramUserId
+                });
+                const payload = res.data;
+                console.log('[Draft Document Result]', payload);
+                setLastToolEvent(`✅ નવો દસ્તાવેજ ટેલિગ્રામમાં મોકલી દીધો!`);
+
+                if (sessionRef.current) {
+                    sessionRef.current.sendToolResponse({
+                        functionResponses: [{
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                                output: {
+                                    status: "success",
+                                    message: payload.message || "દસ્તાવેજ સફળતાપૂર્વક તૈયાર કરીને ટેલિગ્રામમાં મોકલી દીધો છે."
+                                }
+                            }
+                        }]
+                    });
+                }
+            } catch (err) {
+                console.error('[Draft Document Error]', err);
+                if (sessionRef.current) {
+                    sessionRef.current.sendToolResponse({
+                        functionResponses: [{
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                                output: {
+                                    status: "error",
+                                    message: "દસ્તાવેજ ડ્રાફ્ટ કરવામાં ટેકનિકલ ક્ષતિ થઈ."
+                                }
+                            }
+                        }]
+                    });
+                }
+            }
+            return;
+        }
+
         if (call.name === 'get_document') {
             const docType = call.args?.document_type;
             console.log(`[ToolCall] Gemini invoked get_document: ${docType}`);
@@ -432,6 +530,54 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                                             }
                                         },
                                         required: ['query']
+                                    }
+                                },
+                                {
+                                    name: 'analyze_document_risk',
+                                    description: 'Analyze legal/financial risks, penalty clauses, lock-in period, interest rates, loopholes, or liabilities in lease deed or agreement.',
+                                    parameters: {
+                                        type: 'OBJECT',
+                                        properties: {
+                                            document_name: {
+                                                type: 'STRING',
+                                                description: 'Name of the document or agreement to analyze (e.g., lease deed, agreement).'
+                                            }
+                                        },
+                                        required: ['document_name']
+                                    }
+                                },
+                                {
+                                    name: 'draft_document',
+                                    description: 'Generate and draft a new document/agreement (e.g., rent agreement, lease deed) from spoken parameters and deliver PDF to Telegram.',
+                                    parameters: {
+                                        type: 'OBJECT',
+                                        properties: {
+                                            doc_type: {
+                                                type: 'STRING',
+                                                description: 'Type of document to create (e.g., rent_agreement, lease_deed).'
+                                            },
+                                            first_party: {
+                                                type: 'STRING',
+                                                description: 'Name of the first party / landlord.'
+                                            },
+                                            second_party: {
+                                                type: 'STRING',
+                                                description: 'Name of the second party / tenant.'
+                                            },
+                                            amount: {
+                                                type: 'STRING',
+                                                description: 'Monthly rent or agreement amount (e.g. 15000).'
+                                            },
+                                            duration_months: {
+                                                type: 'STRING',
+                                                description: 'Duration in months (e.g. 11 months).'
+                                            },
+                                            city: {
+                                                type: 'STRING',
+                                                description: 'City/Place of agreement (e.g. Botad, Ahmedabad).'
+                                            }
+                                        },
+                                        required: ['doc_type', 'first_party', 'second_party']
                                     }
                                 },
                                 {

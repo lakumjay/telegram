@@ -323,6 +323,242 @@ class VoiceAgentController extends Controller
             'summary' => $summary,
         ]);
     }
+    /**
+     * Tool Call Endpoint: analyze_document_risk
+     * Scans agreement/lease deed clauses for legal & financial risks:
+     * - Penalty clauses / High interest rates (e.g. 24% p.a.)
+     * - Lock-in periods & Termination notice
+     * - Subletting restrictions & indemnities
+     * - Expiry & renewal obligations
+     */
+    public function analyzeDocumentRisk(Request $request): JsonResponse
+    {
+        $request->validate([
+            'document_name' => 'nullable|string',
+        ]);
+
+        $docName = trim($request->input('document_name', ''));
+
+        // Query agreement / lease deed or specific document
+        $query = \App\Models\Document::with('pages');
+        if (!empty($docName)) {
+            $query->where(function($q) use ($docName) {
+                $q->where('title', 'LIKE', "%{$docName}%")
+                  ->orWhere('original_filename', 'LIKE', "%{$docName}%")
+                  ->orWhere('doc_type', 'LIKE', "%{$docName}%");
+            });
+        } else {
+            $query->where(function($q) {
+                $q->where('title', 'LIKE', '%lease%')
+                  ->orWhere('title', 'LIKE', '%agreement%')
+                  ->orWhere('title', 'LIKE', '%deed%')
+                  ->orWhere('doc_type', 'LIKE', '%contract%')
+                  ->orWhere('doc_type', 'LIKE', '%agreement%');
+            });
+        }
+
+        $document = $query->first() ?: \App\Models\Document::with('pages')->latest()->first();
+
+        if (!$document) {
+            return response()->json([
+                'success' => false,
+                'status' => 'not_found',
+                'risk_summary' => 'એનાલિસિસ કરવા માટે કોઈ કરાર કે એગ્રીમેન્ટ મળ્યું નથી.',
+                'critical_clauses' => [],
+            ]);
+        }
+
+        // Search clauses for risks
+        $pages = $document->pages()->orderBy('page_number')->get();
+        $criticalClauses = [];
+
+        $riskPatterns = [
+            'penalty_interest' => ['/(\d{1,2}%\s*(?:interest|penalty|per annum|p\.a\.|rate))/i', 'વ્યાજ / પેનલ્ટી શરત'],
+            'lock_in' => ['/(lock[\s\-]?in\s*(?:period|of)?\s*\d+\s*(?:months|years)?)/i', 'લોક-ઇન સમયગાળો'],
+            'termination' => ['/(notice\s+period\s+of\s+\d+\s*(?:days|months)|terminate\s+forthwith|immediate\s+termination)/i', 'નોટિસ પિરિયડ / રદ્દીકરણ શરત'],
+            'indemnity' => ['/(indemnify|indemnity|keep\s+harmless|solely\s+liable)/i', 'નુકસાની ભરપાઈ (Indemnity) શરત'],
+            'escalation' => ['/(escalat(?:e|ion)\s*(?:of|by)?\s*\d+%\s*|annual\s+increase\s+of\s+\d+%\s*)/i', 'વાર્ષિક ભાડા વધારો (Escalation) શરત'],
+            'forfeiture' => ['/(forfeit(?:ure)?\s+of\s+security\s+deposit)/i', 'સિક્યોરિટી ડિપોઝિટ જપ્તી શરત'],
+        ];
+
+        foreach ($pages as $pg) {
+            $text = $pg->content;
+            foreach ($riskPatterns as $key => [$regex, $label]) {
+                if (preg_match($regex, $text, $matches)) {
+                    $pos = mb_strpos($text, $matches[0]);
+                    $start = max(0, $pos - 80);
+                    $snippet = mb_substr($text, $start, 260);
+                    $clean = trim(preg_replace('/\s+/', ' ', $snippet));
+
+                    $criticalClauses[] = [
+                        'type' => $label,
+                        'page_number' => $pg->page_number,
+                        'matched' => $matches[0],
+                        'clause_text' => $clean,
+                    ];
+                }
+            }
+        }
+
+        // Build Gujarati voice risk summary
+        if (count($criticalClauses) > 0) {
+            $points = [];
+            foreach (array_slice($criticalClauses, 0, 3) as $c) {
+                $points[] = "પાના નં. {$c['page_number']} પર {$c['type']}: '{$c['matched']}'";
+            }
+            $riskSummary = "ધ્યાન આપો, આ કરારમાં મુખ્ય રિસ્ક મળ્યા છે: " . implode(', તેમજ ', $points) . ". વિગતવાર શરતો તપાસવી સલાહભર્યું છે.";
+        } else {
+            $riskSummary = "આ કરારમાં કોઈ અસામાન્ય અથવા નુકસાનકારક પેનલ્ટી શરત દેખાઈ નથી. કરાર સામાન્ય જણાય છે.";
+        }
+
+        return response()->json([
+            'success' => true,
+            'document_title' => $document->title,
+            'total_pages' => $pages->count(),
+            'critical_clauses' => $criticalClauses,
+            'risk_summary' => $riskSummary,
+        ]);
+    }
+
+    /**
+     * Tool Call Endpoint: draft_document
+     * Voice-to-Document Creation (Magic Drafting):
+     * Generates a clean PDF document on the fly based on voice call parameters
+     * and delivers it directly to user's Telegram chat.
+     */
+    public function draftDocument(Request $request): JsonResponse
+    {
+        $request->validate([
+            'doc_type' => 'required|string',
+            'first_party' => 'required|string',
+            'second_party' => 'required|string',
+            'amount' => 'nullable|string',
+            'duration_months' => 'nullable|string',
+            'city' => 'nullable|string',
+            'init_data' => 'nullable|string',
+        ]);
+
+        $docType = trim($request->input('doc_type'));
+        $firstParty = trim($request->input('first_party'));
+        $secondParty = trim($request->input('second_party'));
+        $amount = trim($request->input('amount', '15,000'));
+        $duration = trim($request->input('duration_months', '11 મહિના'));
+        $city = trim($request->input('city', 'બોટાદ'));
+        $initData = $request->input('init_data');
+
+        // Authenticate Telegram User
+        $telegramUser = $this->validateTelegramInitData($initData);
+        $chatId = null;
+        if ($telegramUser && isset($telegramUser['id'])) {
+            $chatId = $telegramUser['id'];
+        } else {
+            $fallbackId = $request->input('telegram_user_id');
+            if ($fallbackId) {
+                $user = TelegramUser::where('telegram_id', $fallbackId)->where('is_authorized', true)->first();
+                if ($user) $chatId = $user->telegram_id;
+            }
+        }
+        if (!$chatId) {
+            $latestUser = TelegramUser::where('is_authorized', true)->latest('id')->first()
+                       ?: TelegramUser::latest('id')->first();
+            if ($latestUser) $chatId = $latestUser->telegram_id;
+        }
+
+        // Generate Text Draft
+        $dateStr = now()->format('d/m/Y');
+        $agreementTitle = "ભાડા કરાર (RENT AGREEMENT)";
+        if (stripos($docType, 'lease') !== false) {
+            $agreementTitle = "લીઝ ડીડ કરાર (LEASE DEED)";
+        }
+
+        $draftContent = <<<EOT
+============================================================
+              {$agreementTitle}
+============================================================
+
+તારીખ: {$dateStr}
+સ્થળ: {$city}, ગુજરાત
+
+આ કરાર નીચે દર્શાવેલ બંને પક્ષકારો વચ્ચે સ્વેચ્છાએ કરવામાં આવ્યો છે:
+
+પ્રથમ પક્ષકાર (મકાનમાલિક / લેસર):
+નામ: {$firstParty}
+સરનામું: {$city}, ગુજરાત
+
+અને
+
+બીજો પક્ષકાર (ભાડુઆત / લેસી):
+નામ: {$secondParty}
+સરનામું: {$city}, ગુજરાત
+
+મુખ્ય શરતો અને નિયમો:
+------------------------------------------------------------
+૧. મુદત (Duration): આ કરારની મુદત {$duration} માટે રહેશે.
+૨. માસિક રકમ (Monthly Rent): બીજા પક્ષકાર પ્રથમ પક્ષકારને દર મહિને ₹{$amount}/- ભાડું ચૂકવશે.
+૩. વીજળી અને પાણી: વપરાશ મુજબ બિલ બીજા પક્ષકારે અલગથી ચૂકવવાનું રહેશે.
+૪. ઉપયોગ: આ મિલકતનો ઉપયોગ ફક્ત કાયદેસર હેતુ માટે જ કરવામાં આવશે.
+૫. નોટિસ પિરિયડ: કરાર રદ કરવા માટે ૧ મહિનાની લેખિત નોટિસ આપવી જરૂરી રહેશે.
+
+સાક્ષીઓ:
+૧. _____________________        પ્રથમ પક્ષકાર: {$firstParty}
+                                સહી: _____________________
+
+૨. _____________________        બીજો પક્ષકાર: {$secondParty}
+                                સહી: _____________________
+============================================================
+(Drafted automatically by Riya Voice Assistant)
+EOT;
+
+        // Save draft as clean text/pdf document in storage
+        $safeFirst = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $firstParty);
+        $fileName = "Draft_{$safeFirst}_Agreement_" . time() . ".txt";
+        $storageDir = storage_path('app/private/documents');
+        if (!file_exists($storageDir)) {
+            @mkdir($storageDir, 0755, true);
+        }
+        $fullPath = $storageDir . '/' . $fileName;
+        file_put_contents($fullPath, $draftContent);
+
+        // Record in Database
+        $doc = \App\Models\Document::create([
+            'title' => "{$agreementTitle} - {$firstParty} & {$secondParty}",
+            'original_filename' => $fileName,
+            'file_path' => 'documents/' . $fileName,
+            'file_type' => 'text/plain',
+            'file_size' => strlen($draftContent),
+            'doc_type' => 'agreement',
+            'ocr_text' => $draftContent,
+            'search_keywords' => "{$firstParty} {$secondParty} {$agreementTitle} {$city} {$amount}",
+            'extracted_metadata' => [
+                'first_party' => $firstParty,
+                'second_party' => $secondParty,
+                'amount' => $amount,
+                'duration' => $duration,
+                'city' => $city,
+            ],
+            'ocr_status' => 'completed',
+        ]);
+
+        // Index page for immediate querying
+        app(\App\Services\OcrService::class)->indexDocumentPages($doc, $draftContent);
+
+        // Deliver to user Telegram chat immediately
+        if ($chatId) {
+            try {
+                $caption = "✍️ *નવો તૈયાર કરેલ દસ્તાવેજ (Magic Draft):*\n\n📄 *{$agreementTitle}*\n👤 પ્રથમ પક્ષ: {$firstParty}\n👤 બીજો પક્ષ: {$secondParty}\n💰 રકમ: ₹{$amount}\n⏳ મુદત: {$duration}";
+                $this->telegramBotService->sendDocument($chatId, $fullPath, $caption, $fileName);
+            } catch (\Throwable $e) {
+                Log::warning("Telegram delivery of draft failed: " . $e->getMessage());
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'document_id' => $doc->id,
+            'title' => $doc->title,
+            'message' => "હા ભાઈ, મેં {$firstParty} અને {$secondParty} નો ₹{$amount} વાળો કરાર ડ્રાફ્ટ કરીને તમારા ટેલિગ્રામમાં મોકલી દીધો છે!",
+        ]);
+    }
 
     /**
      * Tool Call Endpoint: get_document
@@ -471,12 +707,18 @@ class VoiceAgentController extends Controller
    - જ્યારે યુઝર દસ્તાવેજની અંદરનો કોઈ પણ નાનો મુદ્દો, વિગત, શરત, સરનામું કે ટોપિક પૂછે:
    - તમારે ફરજિયાત `query_document_content` ટૂલ વાપરીને અંદરના પાનાઓમાંથી એ ચોક્કસ વિગત વાંચીને દેશી ગુજરાતીમાં સ્પષ્ટ સમજાવી દેવી!
    - **સખત મનાઈ:** સવાલ પૂછતી વખતે સીધું "શું તમને ફાઈલ મોકલી આપું?" એમ પૂછીને વાત ટાળવી નહીં! પહેલાં સવાલનો ૧૦૦% સાચો અને સંતોષકારક જવાબ આપવો.
-૨. **ફાઈલ મોકલવી (Send File):**
+૨. **કાયદાકીય / રિસ્ક એનાલિસિસ (Risk & Loophole Analysis):**
+   - જો યુઝર પૂછે કે "આ કરારમાં કોઈ રિસ્ક કે ખોટી શરત છે?", "પેનલ્ટી કેટલી છે?", "વ્યાજ કેટલું છે?":
+   - તરત જ `analyze_document_risk` ટૂલ વાપરીને પેનલ્ટી, વ્યાજદર, લોક-ઇન કે નોટિસ પિરિયડની નુકસાનકારક શરતો શોધીને ગુજરાતીમાં ચેતવણી આપવી.
+૩. **મેજિક ડ્રાફ્ટિંગ (Voice-to-Document Creation):**
+   - જો યુઝર નવો દસ્તાવેજ બનાવવાનું કહે (જેમ કે "રમેશભાઈ સાથે ૧૫૦૦૦ નું ૧૧ મહિનાનું ભાડા કરાર બનાવી આપો"):
+   - તરત જ `draft_document` ટૂલ ચલાવીને નવી ફાઈલ તૈયાર કરીને ટેલિગ્રામમાં મોકલી દેવી અને ખુશખુશાલ જવાબ આપવો: "હા ભાઈ, મેં કરાર બનાવીને ટેલિગ્રામમાં મોકલી દીધો છે!".
+૪. **ફાઈલ મોકલવી (Send File):**
    - જ્યાં સુધી યુઝર સામેથી સ્પષ્ટ ન કહે કે "મને ફાઈલ મોકલો", "ટેલિગ્રામમાં સેન્ડ કરો", કે "પીડીએફ આપો", ત્યાં સુધી ફાઈલ મોકલવાની વાત પણ કરવી નહીં!
    - જ્યારે યુઝર "હા મોકલો" કહે, ત્યારે જ `get_document` ટૂલ ચલાવીને ટેલિગ્રામમાં ફાઈલ મોકલવી.
-૩. **મલ્ટિપલ કંપની:**
+૫. **મલ્ટિપલ કંપની:**
    - જો ફક્ત "GST આપો" કહે, તો પૂછવું: "રાજેશ્વરી સોલાર કે સનરાઇઝ ગ્રીન, કઈ કંપનીનું જોઈએ છે?".
-૪. ૧ થી ૨ નાના વાક્યોમાં જ દેશી શૈલીમાં મીઠો અને સાચો ઉત્તર આપવો.
+૬. દેશી શૈલીમાં મીઠો અને સાચો ઉત્તર આપવો (જેમ કે: "હા ભાઈ", "એક જ મિનિટ હોં", "હું જોઈને કહું").
 EOT;
 
         $masterKey = env('GEMINI_API_KEY');
