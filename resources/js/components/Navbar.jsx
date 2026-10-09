@@ -9,7 +9,8 @@ import {
     Search,
     MessageSquare,
     FolderArchive,
-    FileText
+    FileText,
+    LogOut
 } from 'lucide-react';
 
 export default function Navbar({ 

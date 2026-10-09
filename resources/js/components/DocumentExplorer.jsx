@@ -21,7 +21,10 @@ import {
     Scissors,
     LayoutGrid,
     List,
-    Share2
+    Share2,
+    MessageSquare,
+    ShieldCheck,
+    Layers
 } from 'lucide-react';
 import axios from 'axios';
 
