@@ -28,20 +28,20 @@ export default function Navbar({
                     <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 p-0.5 shadow-lg shadow-blue-500/20">
                             <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                                <Bot className="w-5 h-5 text-cyan-400 animate-pulse" />
+                                <FileText className="w-5 h-5 text-cyan-400" />
                             </div>
                         </div>
                         <div>
                             <div className="flex items-center space-x-2">
                                 <span className="font-bold text-lg bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-                                    DocVoice AI
+                                    DocManager AI
                                 </span>
-                                <span className="px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">
-                                    Telegram Bot Active
+                                <span className="px-2 py-0.5 text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full">
+                                    File Manager
                                 </span>
                             </div>
                             <p className="text-[11px] text-slate-400 hidden sm:block">
-                                AI Document Assistant & Voice Agent (ધ્વનિ)
+                                સ્માર્ટ દસ્તાવેજ ફાઈલ મેનેજર & એલેક્સા વૉઇસ
                             </p>
                         </div>
                     </div>

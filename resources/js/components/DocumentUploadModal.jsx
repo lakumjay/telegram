@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { UploadCloud, File, CheckCircle2, AlertCircle, Sparkles, Building2, Folder } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { UploadCloud, File, CheckCircle2, AlertCircle, Sparkles, Building2, Camera, RefreshCw, Scissors } from 'lucide-react';
 import axios from 'axios';
 
 export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
     if (!isOpen) return null;
 
+    const [uploadMode, setUploadMode] = useState('file'); // 'file' or 'camera'
     const [file, setFile] = useState(null);
     const [filePreview, setFilePreview] = useState(null);
     const [title, setTitle] = useState('');
@@ -14,39 +15,77 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState(null);
     const [successDoc, setSuccessDoc] = useState(null);
+    
+    // Live Camera Scanner States
+    const [isCameraActive, setIsCameraActive] = useState(false);
+    const videoRef = useRef(null);
+    const streamRef = useRef(null);
 
     // Fetch companies
     useEffect(() => {
         axios.get('/api/companies').then(res => {
             const list = res.data.companies || [];
             setCompanies(list);
-            // Default select first company if available
             if (list.length > 0 && !companyId) {
                 setCompanyId(list[0].id);
             }
         }).catch(err => console.error(err));
     }, []);
 
-    const handleFileChange = (e) => {
-        if (e.target.files && e.target.files[0]) {
-            const f = e.target.files[0];
-            setFile(f);
-            
-            // Image preview
-            if (f.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (re) => setFilePreview(re.target.result);
-                reader.readAsDataURL(f);
-            } else {
-                setFilePreview(null);
+    const startCamera = async () => {
+        setError(null);
+        setUploadMode('camera');
+        setIsCameraActive(true);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: 'environment' } },
+                audio: false
+            });
+            streamRef.current = stream;
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
             }
-
-            if (!title) {
-                const nameWithoutExt = f.name.replace(/\.[^/.]+$/, "");
-                setTitle(nameWithoutExt);
-            }
+        } catch(err) {
+            console.error('Camera open error:', err);
+            setError('કેમેરા ઓપન કરવામાં ભૂલ આવી. પરમિશન Allow કરો.');
+            setIsCameraActive(false);
+            setUploadMode('file');
         }
     };
+
+    const stopCamera = () => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(t => t.stop());
+            streamRef.current = null;
+        }
+        setIsCameraActive(false);
+    };
+
+    const captureDocument = () => {
+        if (!videoRef.current) return;
+        const video = videoRef.current;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob((blob) => {
+            if (!blob) return;
+            const capturedFile = new File([blob], `Scanned_Doc_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            setFile(capturedFile);
+            setFilePreview(canvas.toDataURL('image/jpeg'));
+            if (!title) setTitle(`Scanned Document ${new Date().toLocaleDateString()}`);
+            stopCamera();
+            setUploadMode('file');
+        }, 'image/jpeg', 0.92);
+    };
+
+    useEffect(() => {
+        return () => {
+            stopCamera();
+        };
+    }, []);
 
     const handleUpload = async (e) => {
         e.preventDefault();
@@ -147,7 +186,65 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                     /* Upload Form */
                     <form onSubmit={handleUpload} className="space-y-4">
                         
+                        {/* Selector Tabs: File Upload vs Camera Scanner */}
+                        <div className="flex items-center space-x-2 bg-slate-950 p-1 rounded-2xl border border-slate-800">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    stopCamera();
+                                    setUploadMode('file');
+                                }}
+                                className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center space-x-1.5 ${
+                                    uploadMode === 'file' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                                }`}
+                            >
+                                <UploadCloud className="w-4 h-4" />
+                                <span>ફાઇલ / ફોટો પસંદ કરો</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={startCamera}
+                                className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center space-x-1.5 ${
+                                    uploadMode === 'camera' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                                }`}
+                            >
+                                <Camera className="w-4 h-4 text-emerald-300 animate-pulse" />
+                                <span>📷 CamScanner (કેમેરાથી સ્કેન)</span>
+                            </button>
+                        </div>
+
+                        {/* Live Camera Scanner View */}
+                        {uploadMode === 'camera' && (
+                            <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-emerald-500/50 aspect-video flex flex-col items-center justify-center shadow-2xl">
+                                <video
+                                    ref={videoRef}
+                                    autoPlay
+                                    playsInline
+                                    className="w-full h-full object-cover"
+                                />
+                                {/* Scanner Frame Overlay */}
+                                <div className="absolute inset-4 border-2 border-dashed border-emerald-400/70 rounded-xl pointer-events-none flex items-center justify-center">
+                                    <span className="text-[10px] text-emerald-300 font-bold bg-black/60 px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-sm">
+                                        દસ્તાવેજને ફ્રેમમાં રાખો
+                                    </span>
+                                </div>
+                                {/* Capture Button */}
+                                <div className="absolute bottom-3 flex items-center space-x-3 z-10">
+                                    <button
+                                        type="button"
+                                        onClick={captureDocument}
+                                        className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-full shadow-lg shadow-emerald-500/50 transition active:scale-95 flex items-center space-x-1.5 cursor-pointer"
+                                    >
+                                        <Camera className="w-4 h-4" />
+                                        <span>ફોટો સ્કેન કરો (Auto Crop)</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Drag & Drop Area */}
+                        {uploadMode === 'file' && (
                         <div className="border-2 border-dashed border-slate-700 hover:border-blue-500/80 rounded-2xl p-5 text-center cursor-pointer transition bg-slate-950/40 relative">
                             <input
                                 type="file"
@@ -173,6 +270,7 @@ export default function DocumentUploadModal({ isOpen, onClose, onUploaded }) {
                                 </div>
                             )}
                         </div>
+                        )}
 
                         {/* Document Title */}
                         <div>

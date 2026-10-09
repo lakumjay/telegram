@@ -133,50 +133,7 @@ function App() {
             />
 
             {/* Main Content Area */}
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-                
-                {/* Hero Stats Banner */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-                    <div className="glass-card p-4 rounded-2xl border border-slate-800/80 flex items-center space-x-3">
-                        <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl">
-                            <Layers className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-[11px] text-slate-400 font-medium">કુલ દસ્તાવેજો</p>
-                            <h3 className="text-lg font-bold text-white">{stats?.total_documents || 0}</h3>
-                        </div>
-                    </div>
-
-                    <div className="glass-card p-4 rounded-2xl border border-slate-800/80 flex items-center space-x-3">
-                        <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl">
-                            <Sparkles className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-[11px] text-slate-400 font-medium">Deep OCR ઇન્ડેક્સ</p>
-                            <h3 className="text-lg font-bold text-white">{stats?.total_ocr_indexed || 0}</h3>
-                        </div>
-                    </div>
-
-                    <div className="glass-card p-4 rounded-2xl border border-slate-800/80 flex items-center space-x-3">
-                        <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl">
-                            <FileText className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-[11px] text-slate-400 font-medium">સ્ટેમ્પ પેપર્સ (Stamps)</p>
-                            <h3 className="text-lg font-bold text-white">{stats?.stamp_papers_count || 0}</h3>
-                        </div>
-                    </div>
-
-                    <div className="glass-card p-4 rounded-2xl border border-slate-800/80 flex items-center space-x-3">
-                        <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
-                            <ShieldCheck className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <p className="text-[11px] text-slate-400 font-medium">સિક્યુરિટી & વ્હાઇટલિસ્ટ</p>
-                            <h3 className="text-lg font-bold text-emerald-400">સક્રિય (Active)</h3>
-                        </div>
-                    </div>
-                </div>
+            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
 
                 {/* Tab Views */}
                 {activeTab === 'explorer' && (

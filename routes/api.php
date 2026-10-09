@@ -16,6 +16,8 @@ Route::prefix('documents')->group(function () {
     Route::get('/stats', [DocumentController::class, 'stats']);
     Route::get('/{id}', [DocumentController::class, 'show']);
     Route::get('/{id}/download', [DocumentController::class, 'download']);
+    Route::post('/{id}/move-or-copy', [DocumentController::class, 'moveOrCopy']);
+    Route::post('/{id}/share-telegram', [DocumentController::class, 'shareToTelegram']);
     Route::delete('/{id}', [DocumentController::class, 'destroy']);
 });
 

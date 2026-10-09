@@ -15,7 +15,13 @@ import {
     Tag,
     Trash2,
     Eye,
-    CheckCircle2
+    CheckCircle2,
+    Send,
+    Copy,
+    Scissors,
+    LayoutGrid,
+    List,
+    Share2
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -33,6 +39,13 @@ export default function DocumentExplorer({ onOpenUpload, onOpenCall }) {
     const [previewDoc, setPreviewDoc] = useState(null);
     const [isCreatingZip, setIsCreatingZip] = useState(false);
     const [zipSuccessData, setZipSuccessData] = useState(null);
+
+    // Mobile File Manager: View mode (grid or list)
+    const [viewMode, setViewMode] = useState('grid');
+    // Move / Copy modal state
+    const [moveCopyTarget, setMoveCopyTarget] = useState(null);
+    const [targetCompanyId, setTargetCompanyId] = useState('');
+    const [actionMessage, setActionMessage] = useState(null);
 
     // Fetch companies & folders on mount
     useEffect(() => {
@@ -127,8 +140,61 @@ export default function DocumentExplorer({ onOpenUpload, onOpenCall }) {
             await axios.delete(`/api/documents/${id}`);
             fetchDocuments();
             setSelectedDocIds(prev => prev.filter(i => i !== id));
+            showToast('દસ્તાવેજ સફળતાપૂર્વક ડિલીટ થયો!');
         } catch (err) {
             console.error('Error deleting document:', err);
+            showToast('ડિલીટ કરવામાં ભૂલ આવી.', true);
+        }
+    };
+
+    // Show temporary toast message
+    const showToast = (msg, isErr = false) => {
+        setActionMessage({ text: msg, error: isErr });
+        setTimeout(() => setActionMessage(null), 3500);
+    };
+
+    // Direct Telegram Sharing
+    const [sharingDocId, setSharingDocId] = useState(null);
+    const handleShareToTelegram = async (docId) => {
+        setSharingDocId(docId);
+        try {
+            const res = await axios.post(`/api/documents/${docId}/share-telegram`);
+            if (res.data.success) {
+                showToast(res.data.message || 'દસ્તાવેજ ટેલિગ્રામમાં મોકલાઈ ગયો છે!');
+            } else {
+                showToast(res.data.message || 'ટેલિગ્રામમાં મોકલવામાં સમસ્યા આવી.', true);
+            }
+        } catch (err) {
+            console.error('Share to Telegram failed:', err);
+            showToast('ટેલિગ્રામ શેર કરવામાં ભૂલ આવી.', true);
+        } finally {
+            setSharingDocId(null);
+        }
+    };
+
+    // Execute Move or Copy
+    const [isExecutingMoveCopy, setIsExecutingMoveCopy] = useState(false);
+    const handleMoveCopySubmit = async () => {
+        if (!moveCopyTarget || !targetCompanyId) return;
+        setIsExecutingMoveCopy(true);
+        try {
+            const res = await axios.post(`/api/documents/${moveCopyTarget.doc.id}/move-or-copy`, {
+                action: moveCopyTarget.action, // 'move' or 'copy'
+                company_id: targetCompanyId
+            });
+            if (res.data.success) {
+                showToast(res.data.message);
+                setMoveCopyTarget(null);
+                setTargetCompanyId('');
+                fetchDocuments();
+            } else {
+                showToast(res.data.message || 'ઓપરેશન નિષ્ફળ ગયું.', true);
+            }
+        } catch (err) {
+            console.error('Move/Copy failed:', err);
+            showToast('ફાઇલ ખસેડવામાં કે કૉપી કરવામાં ભૂલ આવી.', true);
+        } finally {
+            setIsExecutingMoveCopy(false);
         }
     };
 
@@ -324,10 +390,22 @@ export default function DocumentExplorer({ onOpenUpload, onOpenCall }) {
                 </div>
             )}
 
-            {/* Documents Grid / Table */}
+            {/* Toast Notification */}
+            {actionMessage && (
+                <div className={`p-3.5 rounded-2xl flex items-center justify-between animate-fadeIn text-xs font-semibold shadow-lg ${
+                    actionMessage.error 
+                        ? 'bg-rose-950/80 border border-rose-500/50 text-rose-200' 
+                        : 'bg-emerald-950/80 border border-emerald-500/50 text-emerald-200'
+                }`}>
+                    <span>{actionMessage.text}</span>
+                    <button onClick={() => setActionMessage(null)} className="ml-2 text-slate-400 hover:text-white">✕</button>
+                </div>
+            )}
+
+            {/* Documents Grid / Table Toolbar */}
             <div>
                 <div className="flex items-center justify-between pb-3 px-1">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3">
                         <button
                             onClick={toggleSelectAll}
                             className="text-xs text-slate-400 hover:text-slate-200 flex items-center space-x-1.5 cursor-pointer"
@@ -340,111 +418,280 @@ export default function DocumentExplorer({ onOpenUpload, onOpenCall }) {
                             <span>બધા સિલેક્ટ કરો ({documents.length})</span>
                         </button>
                     </div>
-                    <p className="text-xs text-slate-500">
-                        {isLoading ? 'લોડ થઈ રહ્યું છે...' : `કુલ ${documents.length} દસ્તાવેજ મળ્યા`}
-                    </p>
+
+                    <div className="flex items-center space-x-3">
+                        <p className="hidden sm:block text-xs text-slate-500">
+                            {isLoading ? 'લોડ થઈ રહ્યું છે...' : `કુલ ${documents.length} દસ્તાવેજ`}
+                        </p>
+
+                        {/* View Switcher: Grid vs List */}
+                        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5">
+                            <button
+                                onClick={() => setViewMode('grid')}
+                                className={`p-1.5 rounded-lg text-xs transition cursor-pointer ${
+                                    viewMode === 'grid' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                                }`}
+                                title="Grid View"
+                            >
+                                <LayoutGrid className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={`p-1.5 rounded-lg text-xs transition cursor-pointer ${
+                                    viewMode === 'list' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+                                }`}
+                                title="List View"
+                            >
+                                <List className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Document Cards */}
+                {/* Documents Display */}
                 {documents.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {documents.map((doc) => {
-                            const isSelected = selectedDocIds.includes(doc.id);
-                            return (
-                                <div
-                                    key={doc.id}
-                                    className={`glass-card p-4 rounded-2xl border transition-all duration-200 hover:border-slate-600 flex flex-col justify-between ${
-                                        isSelected ? 'border-blue-500 ring-1 ring-blue-500/50 bg-blue-950/20' : 'border-slate-800'
-                                    }`}
-                                >
-                                    <div>
-                                        {/* Card Header */}
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex items-center space-x-2">
-                                                <button
-                                                    onClick={() => toggleSelectDoc(doc.id)}
-                                                    className="cursor-pointer"
-                                                >
-                                                    {isSelected ? (
-                                                        <CheckSquare className="w-4 h-4 text-blue-500" />
-                                                    ) : (
-                                                        <Square className="w-4 h-4 text-slate-600 hover:text-slate-400" />
-                                                    )}
-                                                </button>
-                                                <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded-lg border border-blue-500/20">
-                                                    {doc.doc_type?.toUpperCase()}
-                                                </span>
-                                                {doc.stamp_value ? (
-                                                    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-300 text-[10px] font-bold rounded-lg border border-amber-500/20">
-                                                        ₹{doc.stamp_value} સ્ટેમ્પ
+                    viewMode === 'grid' ? (
+                        /* GRID VIEW */
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {documents.map((doc) => {
+                                const isSelected = selectedDocIds.includes(doc.id);
+                                return (
+                                    <div
+                                        key={doc.id}
+                                        className={`glass-card p-4 rounded-2xl border transition-all duration-200 hover:border-slate-600 flex flex-col justify-between ${
+                                            isSelected ? 'border-blue-500 ring-1 ring-blue-500/50 bg-blue-950/20' : 'border-slate-800'
+                                        }`}
+                                    >
+                                        <div>
+                                            {/* Card Header */}
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex items-center space-x-2">
+                                                    <button
+                                                        onClick={() => toggleSelectDoc(doc.id)}
+                                                        className="cursor-pointer"
+                                                    >
+                                                        {isSelected ? (
+                                                            <CheckSquare className="w-4 h-4 text-blue-500" />
+                                                        ) : (
+                                                            <Square className="w-4 h-4 text-slate-600 hover:text-slate-400" />
+                                                        )}
+                                                    </button>
+                                                    <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded-lg border border-blue-500/20">
+                                                        {doc.doc_type?.toUpperCase()}
                                                     </span>
-                                                ) : null}
+                                                    {doc.stamp_value ? (
+                                                        <span className="px-2 py-0.5 bg-amber-500/10 text-amber-300 text-[10px] font-bold rounded-lg border border-amber-500/20">
+                                                            ₹{doc.stamp_value} સ્ટેમ્પ
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+
+                                                <div className="flex items-center space-x-1">
+                                                    <button
+                                                        onClick={() => setPreviewDoc(doc)}
+                                                        className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition"
+                                                        title="OCR જુઓ"
+                                                    >
+                                                        <Eye className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteDoc(doc.id)}
+                                                        className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition"
+                                                        title="ડિલીટ"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
                                             </div>
 
-                                            <div className="flex items-center space-x-1">
-                                                <button
-                                                    onClick={() => setPreviewDoc(doc)}
-                                                    className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition"
-                                                    title="OCR Content જુઓ"
-                                                >
-                                                    <Eye className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteDoc(doc.id)}
-                                                    className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition"
-                                                    title="ડિલીટ કરો"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
+                                            {/* Document Title */}
+                                            <h4 className="text-sm font-bold text-white mt-2.5 line-clamp-1">
+                                                {doc.title}
+                                            </h4>
+
+                                            {/* Company & Folder Info */}
+                                            <div className="flex items-center space-x-2 mt-1 text-xs text-slate-400">
+                                                <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                                                <span className="truncate">{doc.company?.name || 'જનરલ દસ્તાવેજ'}</span>
                                             </div>
-                                        </div>
 
-                                        {/* Document Title */}
-                                        <h4 className="text-sm font-bold text-white mt-2.5 line-clamp-1">
-                                            {doc.title}
-                                        </h4>
-
-                                        {/* Company & Folder Info */}
-                                        <div className="flex items-center space-x-2 mt-1 text-xs text-slate-400">
-                                            <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                                            <span className="truncate">{doc.company?.name || 'જનરલ દસ્તાવેજ'}</span>
-                                            {doc.folder && (
-                                                <>
-                                                    <span>•</span>
-                                                    <span className="text-slate-500 truncate">{doc.folder.name}</span>
-                                                </>
+                                            {/* OCR Snippet */}
+                                            {doc.ocr_text && (
+                                                <div className="mt-2.5 p-2 bg-slate-950/60 rounded-xl border border-slate-800/80">
+                                                    <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed font-mono">
+                                                        {doc.ocr_text}
+                                                    </p>
+                                                </div>
                                             )}
                                         </div>
 
-                                        {/* OCR Content Snippet (Deep search proof) */}
-                                        {doc.ocr_text && (
-                                            <div className="mt-2.5 p-2 bg-slate-950/60 rounded-xl border border-slate-800/80">
-                                                <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed font-mono">
-                                                    {doc.ocr_text}
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
+                                        {/* File Actions (Move, Copy, Telegram Share, Download) */}
+                                        <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between gap-1">
+                                            <div className="flex items-center space-x-1">
+                                                <button
+                                                    onClick={() => {
+                                                        setMoveCopyTarget({ doc, action: 'move' });
+                                                        setTargetCompanyId(doc.company_id ? String(doc.company_id) : '');
+                                                    }}
+                                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] rounded-lg transition flex items-center space-x-1"
+                                                    title="ખસેડો (Move/Cut)"
+                                                >
+                                                    <Scissors className="w-3 h-3 text-amber-400" />
+                                                    <span className="hidden sm:inline">Move</span>
+                                                </button>
 
-                                    {/* Card Footer */}
-                                    <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                                        <span className="text-[11px] text-slate-500">
-                                            {doc.file_size_formatted}
-                                        </span>
-                                        <a
-                                            href={`/api/documents/${doc.id}/download`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="flex items-center space-x-1 text-xs font-semibold text-blue-400 hover:text-blue-300 hover:underline"
-                                        >
-                                            <Download className="w-3.5 h-3.5" />
-                                            <span>ડાઉનલોડ</span>
-                                        </a>
+                                                <button
+                                                    onClick={() => {
+                                                        setMoveCopyTarget({ doc, action: 'copy' });
+                                                        setTargetCompanyId(doc.company_id ? String(doc.company_id) : '');
+                                                    }}
+                                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] rounded-lg transition flex items-center space-x-1"
+                                                    title="કૉપી કરો (Copy)"
+                                                >
+                                                    <Copy className="w-3 h-3 text-blue-400" />
+                                                    <span className="hidden sm:inline">Copy</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={() => handleShareToTelegram(doc.id)}
+                                                    disabled={sharingDocId === doc.id}
+                                                    className="px-2 py-1 bg-sky-950/60 hover:bg-sky-900 border border-sky-600/40 text-sky-300 text-[11px] rounded-lg transition flex items-center space-x-1"
+                                                    title="ટેલિગ્રામમાં મોકલો"
+                                                >
+                                                    <Send className="w-3 h-3 text-sky-400" />
+                                                    <span>{sharingDocId === doc.id ? '...' : 'Telegram'}</span>
+                                                </button>
+                                            </div>
+
+                                            <a
+                                                href={`/api/documents/${doc.id}/download`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-slate-800 rounded-lg transition"
+                                                title="ડાઉનલોડ"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                            </a>
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        /* LIST VIEW (Mobile File Manager Style) */
+                        <div className="glass-panel rounded-2xl overflow-hidden border border-slate-800 divide-y divide-slate-800/80">
+                            {documents.map((doc) => {
+                                const isSelected = selectedDocIds.includes(doc.id);
+                                return (
+                                    <div
+                                        key={doc.id}
+                                        className={`p-3.5 flex items-center justify-between hover:bg-slate-900/60 transition ${
+                                            isSelected ? 'bg-blue-950/20' : ''
+                                        }`}
+                                    >
+                                        <div className="flex items-center space-x-3 flex-1 min-w-0 pr-2">
+                                            <button
+                                                onClick={() => toggleSelectDoc(doc.id)}
+                                                className="cursor-pointer"
+                                            >
+                                                {isSelected ? (
+                                                    <CheckSquare className="w-4 h-4 text-blue-500" />
+                                                ) : (
+                                                    <Square className="w-4 h-4 text-slate-600 hover:text-slate-400" />
+                                                )}
+                                            </button>
+
+                                            <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 flex-shrink-0">
+                                                <FileText className="w-4 h-4" />
+                                            </div>
+
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center space-x-2">
+                                                    <h4 className="text-xs font-bold text-white truncate">
+                                                        {doc.title}
+                                                    </h4>
+                                                    <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 text-[9px] font-bold rounded border border-blue-500/20 flex-shrink-0">
+                                                        {doc.doc_type?.toUpperCase()}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center space-x-2 mt-0.5 text-[11px] text-slate-400 truncate">
+                                                    <span>{doc.company?.name || 'જનરલ દસ્તાવેજ'}</span>
+                                                    <span>•</span>
+                                                    <span>{doc.file_size_formatted}</span>
+                                                    {doc.stamp_value ? (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span className="text-amber-300">₹{doc.stamp_value} સ્ટેમ્પ</span>
+                                                        </>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Action buttons on row */}
+                                        <div className="flex items-center space-x-1 flex-shrink-0">
+                                            <button
+                                                onClick={() => {
+                                                    setMoveCopyTarget({ doc, action: 'move' });
+                                                    setTargetCompanyId(doc.company_id ? String(doc.company_id) : '');
+                                                }}
+                                                className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition"
+                                                title="Move"
+                                            >
+                                                <Scissors className="w-3.5 h-3.5" />
+                                            </button>
+
+                                            <button
+                                                onClick={() => {
+                                                    setMoveCopyTarget({ doc, action: 'copy' });
+                                                    setTargetCompanyId(doc.company_id ? String(doc.company_id) : '');
+                                                }}
+                                                className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition"
+                                                title="Copy"
+                                            >
+                                                <Copy className="w-3.5 h-3.5" />
+                                            </button>
+
+                                            <button
+                                                onClick={() => handleShareToTelegram(doc.id)}
+                                                disabled={sharingDocId === doc.id}
+                                                className="p-1.5 text-sky-400 hover:text-sky-300 hover:bg-sky-950/60 rounded-lg transition"
+                                                title="ટેલિગ્રામમાં મોકલો"
+                                            >
+                                                <Send className="w-3.5 h-3.5" />
+                                            </button>
+
+                                            <button
+                                                onClick={() => setPreviewDoc(doc)}
+                                                className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition"
+                                                title="OCR જુઓ"
+                                            >
+                                                <Eye className="w-3.5 h-3.5" />
+                                            </button>
+
+                                            <a
+                                                href={`/api/documents/${doc.id}/download`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition"
+                                                title="ડાઉનલોડ"
+                                            >
+                                                <Download className="w-3.5 h-3.5" />
+                                            </a>
+
+                                            <button
+                                                onClick={() => handleDeleteDoc(doc.id)}
+                                                className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition"
+                                                title="ડિલીટ"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )
                 ) : (
                     /* Empty State */
                     <div className="p-12 text-center glass-panel rounded-3xl space-y-3">
@@ -462,6 +709,82 @@ export default function DocumentExplorer({ onOpenUpload, onOpenCall }) {
                     </div>
                 )}
             </div>
+
+            {/* Move / Copy Modal Dialog */}
+            {moveCopyTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+                    <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-3xl p-6 space-y-4 shadow-2xl">
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-2">
+                                <div className="p-2 bg-blue-500/10 rounded-xl text-blue-400 border border-blue-500/20">
+                                    {moveCopyTarget.action === 'move' ? <Scissors className="w-5 h-5 text-amber-400" /> : <Copy className="w-5 h-5 text-blue-400" />}
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-white">
+                                        {moveCopyTarget.action === 'move' ? 'દસ્તાવેજ ખસેડો (Move File)' : 'દસ્તાવેજ કૉપી કરો (Copy File)'}
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400 truncate max-w-xs">
+                                        {moveCopyTarget.doc.title}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setMoveCopyTarget(null)}
+                                className="p-1.5 text-slate-400 hover:text-white"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="space-y-3 pt-2">
+                            <label className="text-xs font-semibold text-slate-300">
+                                લક્ષ્ય કંપની (Target Company) પસંદ કરો:
+                            </label>
+                            <div className="space-y-2">
+                                {companies.map((c) => (
+                                    <label
+                                        key={c.id}
+                                        className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition ${
+                                            String(targetCompanyId) === String(c.id)
+                                                ? 'bg-blue-950/40 border-blue-500 text-white'
+                                                : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                                        }`}
+                                    >
+                                        <div className="flex items-center space-x-2">
+                                            <Building2 className="w-4 h-4 text-blue-400" />
+                                            <span className="text-xs font-medium">{c.name}</span>
+                                        </div>
+                                        <input
+                                            type="radio"
+                                            name="target_company"
+                                            value={c.id}
+                                            checked={String(targetCompanyId) === String(c.id)}
+                                            onChange={() => setTargetCompanyId(String(c.id))}
+                                            className="accent-blue-500"
+                                        />
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end space-x-2 pt-3 border-t border-slate-800">
+                            <button
+                                onClick={() => setMoveCopyTarget(null)}
+                                className="px-4 py-2 bg-slate-800 text-slate-300 text-xs font-medium rounded-xl hover:bg-slate-700 transition"
+                            >
+                                રદ કરો
+                            </button>
+                            <button
+                                onClick={handleMoveCopySubmit}
+                                disabled={!targetCompanyId || isExecutingMoveCopy}
+                                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg transition"
+                            >
+                                {isExecutingMoveCopy ? 'પ્રક્રિયા ચાલુ છે...' : (moveCopyTarget.action === 'move' ? 'અહીં ખસેડો' : 'અહીં કૉપી કરો')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Document Detail & OCR Preview Modal */}
             {previewDoc && (

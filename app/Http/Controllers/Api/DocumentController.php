@@ -170,6 +170,95 @@ class DocumentController extends Controller
     }
 
     /**
+     * Move or Copy Document between companies or folders
+     */
+    public function moveOrCopy(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'action' => 'required|in:move,copy',
+            'target_company_id' => 'required|exists:companies,id',
+            'target_folder_id' => 'nullable|exists:folders,id',
+        ]);
+
+        $doc = Document::findOrFail($id);
+        $action = $request->input('action');
+        $targetCompanyId = $request->input('target_company_id');
+        $targetFolderId = $request->input('target_folder_id');
+
+        if ($action === 'move') {
+            $doc->update([
+                'company_id' => $targetCompanyId,
+                'folder_id' => $targetFolderId,
+            ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'દસ્તાવેજ સફળતાપૂર્વક ખસેડવામાં (Move) આવ્યો છે.',
+                'document' => $doc->fresh(['company', 'folder']),
+            ]);
+        } else {
+            // Copy
+            $copyDoc = $doc->replicate();
+            $copyDoc->company_id = $targetCompanyId;
+            $copyDoc->folder_id = $targetFolderId;
+            $copyDoc->title = $doc->title . ' (Copy)';
+            $copyDoc->save();
+
+            // Duplicate pages in document_pages
+            foreach ($doc->pages as $page) {
+                $copyPage = $page->replicate();
+                $copyPage->document_id = $copyDoc->id;
+                $copyPage->save();
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'દસ્તાવેજની સફળતાપૂર્વક નકલ (Copy) કરવામાં આવી છે.',
+                'document' => $copyDoc->fresh(['company', 'folder']),
+            ]);
+        }
+    }
+
+    /**
+     * Direct Share Document to Telegram Chat
+     */
+    public function shareToTelegram(Request $request, int $id): JsonResponse
+    {
+        $doc = Document::with('company')->findOrFail($id);
+        $telegramBot = app(\App\Services\TelegramBotService::class);
+
+        // Find authorized telegram user
+        $telegramUser = \App\Models\TelegramUser::where('is_authorized', true)->latest('id')->first()
+                     ?: \App\Models\TelegramUser::latest('id')->first();
+
+        if (!$telegramUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'કોઈ અધિકૃત ટેલિગ્રામ યુઝર મળ્યો નથી.',
+            ], 404);
+        }
+
+        $filePath = storage_path('app/' . $doc->file_path);
+        if (!file_exists($filePath)) {
+            $filePath = storage_path('app/private/' . $doc->file_path);
+        }
+
+        if (file_exists($filePath)) {
+            $caption = "📄 *દસ્તાવેજ શેર કર્યો:* {$doc->title}\n🏢 *કંપની:* " . ($doc->company?->name ?? 'જનરલ');
+            $telegramBot->sendDocument($telegramUser->telegram_id, $filePath, $caption, $doc->original_filename);
+
+            return response()->json([
+                'success' => true,
+                'message' => "દસ્તાવેજ સફળતાપૂર્વક ટેલિગ્રામમાં મોકલી દીધો!",
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'દસ્તાવેજની ફાઈલ સર્વર પર મળી નથી.',
+        ], 404);
+    }
+
+    /**
      * Dashboard statistics
      */
     public function stats(): JsonResponse
