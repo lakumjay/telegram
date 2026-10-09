@@ -8,7 +8,8 @@ import {
     Layers, 
     Search,
     MessageSquare,
-    FolderArchive
+    FolderArchive,
+    FileText
 } from 'lucide-react';
 
 export default function Navbar({ 
