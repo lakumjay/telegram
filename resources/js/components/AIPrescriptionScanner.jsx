@@ -335,7 +335,7 @@ export default function AIPrescriptionScanner({
                                         type="tel"
                                         value={phone}
                                         onChange={(e) => setPhone(e.target.value)}
-                                        placeholder="9898xxxxxx"
+                                        placeholder="મોબાઈલ નંબર"
                                         className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
                                     />
                                 </div>
@@ -347,7 +347,7 @@ export default function AIPrescriptionScanner({
                                         type="number"
                                         value={age}
                                         onChange={(e) => setAge(e.target.value)}
-                                        placeholder="દા.ત. 28"
+                                        placeholder="ઉંમર"
                                         className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
                                     />
                                 </div>
@@ -361,7 +361,7 @@ export default function AIPrescriptionScanner({
                                     type="text"
                                     value={diagnosis}
                                     onChange={(e) => setDiagnosis(e.target.value)}
-                                    placeholder="દા.ત. તાવ અને માથાનો દુખાવો"
+                                    placeholder="તકલીફ / નિદાન"
                                     className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
                                 />
                             </div>
@@ -374,7 +374,7 @@ export default function AIPrescriptionScanner({
                                     value={medicines}
                                     onChange={(e) => setMedicines(e.target.value)}
                                     rows={3}
-                                    placeholder="Paracetamol 650 1-0-1, Azithromycin 500"
+                                    placeholder="દવાઓ અને ડોઝની વિગત"
                                     className="w-full px-3 py-2 rounded-xl border border-slate-200 font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
                                 />
                             </div>

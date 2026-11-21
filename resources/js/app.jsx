@@ -21,6 +21,7 @@ import DesktopTopBar from './components/DesktopTopBar';
 
 // Modals
 import DoctorProfileModal from './components/DoctorProfileModal';
+import NotificationModal from './components/NotificationModal';
 import VoiceCallModal from './components/VoiceCallModal';
 import DocumentUploadModal from './components/DocumentUploadModal';
 
@@ -44,6 +45,7 @@ function App() {
     const [clinics, setClinics] = useState([]);
     const [activeClinicId, setActiveClinicId] = useState(1);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
     const [isCallModalOpen, setIsCallModalOpen] = useState(false);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
@@ -158,6 +160,7 @@ function App() {
                         onOpenMoreMenu={() => setActiveTab('more')}
                         onOpenVoiceCall={() => setIsCallModalOpen(true)}
                         onOpenProfileModal={() => setIsProfileModalOpen(true)}
+                        onOpenNotifications={() => setIsNotificationModalOpen(true)}
                     />
                 </div>
 
@@ -168,6 +171,7 @@ function App() {
                         activeClinicId={activeClinicId}
                         onSelectClinic={(id) => setActiveClinicId(id)}
                         onOpenProfileModal={() => setIsProfileModalOpen(true)}
+                        onOpenNotifications={() => setIsNotificationModalOpen(true)}
                         onSearch={(q) => {
                             setActiveTab('patients');
                         }}
@@ -247,6 +251,7 @@ function App() {
                             activeClinic={activeClinic}
                             onBack={() => setActiveTab('home')}
                             onOpenProfileModal={() => setIsProfileModalOpen(true)}
+                            onOpenNotifications={() => setIsNotificationModalOpen(true)}
                             onNavigate={(tab) => setActiveTab(tab)}
                             onLogout={handleLogout}
                             canInstall={canInstall}
@@ -448,7 +453,15 @@ function App() {
                 }}
             />
 
-            {/* 6. AI VOICE CALL MODAL */}
+            {/* 6. NOTIFICATION MODAL */}
+            <NotificationModal
+                isOpen={isNotificationModalOpen}
+                onClose={() => setIsNotificationModalOpen(false)}
+                onNavigate={(tab) => setActiveTab(tab)}
+                activeClinic={activeClinic}
+            />
+
+            {/* 7. AI VOICE CALL MODAL */}
             <VoiceCallModal
                 isOpen={isCallModalOpen}
                 onClose={() => setIsCallModalOpen(false)}

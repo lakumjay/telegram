@@ -870,7 +870,7 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             // 4. Start Microphone capture AFTER session is ready
             await startMic();
 
-            // Stop Ring tone as call is now connected
+            // Stop Ring tone immediately as call is now connected
             try {
                 if (toneGenRef.current) {
                     toneGenRef.current.stopRingTone();
@@ -878,7 +878,22 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             } catch(e) {}
 
             setCallState('connected');
-            setTranscriptHistory([{ sender: 'ai', text: 'Hello! I am Alexa AI. How can I assist you with your documents today?' }]);
+            setTranscriptHistory([{ sender: 'ai', text: 'નમસ્તે! હું શ્રીરામ ક્લિનિકમાંથી બોલું છું.' }]);
+
+            // Trigger immediate spoken greeting so user does not wait in silence!
+            try {
+                session.sendClientContent({
+                    turns: [{
+                        role: 'user',
+                        parts: [{
+                            text: "નમસ્તે! કૉલ કનેક્ટ થઈ ગયો છે. તરત જ ૧ વાક્યમાં દેશી ગુજરાતીમાં મીઠો આવકાર આપો: 'નમસ્તે, હું શ્રીરામ ક્લિનિકમાંથી ડૉક્ટરના સહાયક તરીકે બોલું છું. હું તમને કેવી રીતે મદદ કરી શકું?'"
+                        }]
+                    }],
+                    turnComplete: true
+                });
+            } catch (greetErr) {
+                console.error('[Greeting Error]', greetErr);
+            }
         } catch (err) {
             console.error('Failed to start Live Session:', err);
             try {

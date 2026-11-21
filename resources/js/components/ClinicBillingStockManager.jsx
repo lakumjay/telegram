@@ -413,7 +413,7 @@ export default function ClinicBillingStockManager({ activeClinicId = 1 }) {
                                     required
                                     value={billPatientName}
                                     onChange={(e) => setBillPatientName(e.target.value)}
-                                    placeholder="દા.ત. જય લાકુમ"
+                                    placeholder="દર્દીનું પૂરું નામ"
                                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-emerald-500"
                                 />
                             </div>
@@ -482,7 +482,7 @@ export default function ClinicBillingStockManager({ activeClinicId = 1 }) {
                                     required
                                     value={expenseTitle}
                                     onChange={(e) => setExpenseTitle(e.target.value)}
-                                    placeholder="કમ્પાઉન્ડર પગાર, ચા-પાણી"
+                                    placeholder="ખર્ચની વિગત"
                                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none"
                                 />
                             </div>
@@ -494,7 +494,7 @@ export default function ClinicBillingStockManager({ activeClinicId = 1 }) {
                                     required
                                     value={expenseAmount}
                                     onChange={(e) => setExpenseAmount(e.target.value)}
-                                    placeholder="500"
+                                    placeholder="રકમ"
                                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none"
                                 />
                             </div>
@@ -529,7 +529,7 @@ export default function ClinicBillingStockManager({ activeClinicId = 1 }) {
                                     required
                                     value={medName}
                                     onChange={(e) => setMedName(e.target.value)}
-                                    placeholder="Paracetamol 650mg"
+                                    placeholder="દવાનું નામ"
                                     className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none"
                                 />
                             </div>
@@ -542,7 +542,7 @@ export default function ClinicBillingStockManager({ activeClinicId = 1 }) {
                                         required
                                         value={medQuantity}
                                         onChange={(e) => setMedQuantity(e.target.value)}
-                                        placeholder="100"
+                                        placeholder="જથ્થો"
                                         className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none"
                                     />
                                 </div>
@@ -553,7 +553,7 @@ export default function ClinicBillingStockManager({ activeClinicId = 1 }) {
                                         step="0.01"
                                         value={medPrice}
                                         onChange={(e) => setMedPrice(e.target.value)}
-                                        placeholder="2.50"
+                                        placeholder="વેચાણ કિંમત"
                                         className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none"
                                     />
                                 </div>

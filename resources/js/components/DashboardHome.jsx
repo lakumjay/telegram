@@ -139,7 +139,7 @@ export default function DashboardHome({
                         type="text"
                         value={searchQuery}
                         onChange={handleSearchChange}
-                        placeholder="દર્દી શોધો: નામ (Jay, રમેશ) અથવા મોબાઈલ નંબર લખો..."
+                        placeholder="દર્દીનું નામ અથવા મોબાઈલ નંબર શોધો..."
                         className="w-full bg-transparent pl-10 pr-10 py-3 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 font-bold focus:outline-none"
                     />
                     {isSearching ? (

@@ -204,7 +204,7 @@ export default function DoctorPatientManager({
                         type="text"
                         value={searchQuery}
                         onChange={handleSearchChange}
-                        placeholder="Search by name or mobile..."
+                        placeholder="નામ અથવા મોબાઈલ નંબર શોધો..."
                         className="w-full bg-white border border-slate-200 focus:border-emerald-600 rounded-2xl pl-10 pr-10 py-2.5 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 font-medium shadow-2xs focus:outline-none transition"
                     />
                     {isSearching ? (
@@ -369,7 +369,7 @@ export default function DoctorPatientManager({
                                     required
                                     value={newPatientName}
                                     onChange={(e) => setNewPatientName(e.target.value)}
-                                    placeholder="દા.ત. રમેશભાઈ પટેલ"
+                                    placeholder="દર્દીનું પૂરું નામ"
                                     className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
                                 />
                             </div>
@@ -381,7 +381,7 @@ export default function DoctorPatientManager({
                                         type="tel"
                                         value={newPatientPhone}
                                         onChange={(e) => setNewPatientPhone(e.target.value)}
-                                        placeholder="9898xxxxxx"
+                                        placeholder="મોબાઈલ નંબર"
                                         className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
                                     />
                                 </div>
@@ -391,7 +391,7 @@ export default function DoctorPatientManager({
                                         type="number"
                                         value={newPatientAge}
                                         onChange={(e) => setNewPatientAge(e.target.value)}
-                                        placeholder="દા.ત. 30"
+                                        placeholder="ઉંમર"
                                         className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
                                     />
                                 </div>
@@ -403,7 +403,7 @@ export default function DoctorPatientManager({
                                     type="text"
                                     value={newPatientDiagnosis}
                                     onChange={(e) => setNewPatientDiagnosis(e.target.value)}
-                                    placeholder="તાવ, શરદી અથવા બ્લડ પ્રેશર"
+                                    placeholder="તકલીફ / નિદાન"
                                     className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
                                 />
                             </div>

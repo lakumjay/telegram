@@ -14,6 +14,7 @@ export default function DesktopTopBar({
     activeClinicId, 
     onSelectClinic, 
     onOpenProfileModal,
+    onOpenNotifications,
     onSearch 
 }) {
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
@@ -91,6 +92,7 @@ export default function DesktopTopBar({
             {/* Right: Notifications, Grid & Doctor Avatar matching Screen 2 */}
             <div className="flex items-center space-x-3">
                 <button
+                    onClick={onOpenNotifications}
                     className="relative w-9 h-9 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-600 transition cursor-pointer"
                     title="Notifications"
                 >

@@ -20,6 +20,7 @@ export default function MoreSettingsPage({
     activeClinic, 
     onBack, 
     onOpenProfileModal, 
+    onOpenNotifications,
     onNavigate, 
     onLogout,
     canInstall,
@@ -84,7 +85,9 @@ export default function MoreSettingsPage({
             desc: 'એસએમએસ, વોટ્સએપ અને એલર્ટ્સ',
             icon: Bell,
             color: 'bg-amber-50 text-amber-600',
-            action: () => {}
+            action: () => {
+                if (onOpenNotifications) onOpenNotifications();
+            }
         },
         {
             id: 'security',
@@ -92,31 +95,40 @@ export default function MoreSettingsPage({
             desc: 'સુરક્ષા અને 2FA સેટિંગ્સ',
             icon: ShieldCheck,
             color: 'bg-rose-50 text-rose-600',
-            action: () => onNavigate('whitelist')
+            action: () => onNavigate('staff')
         }
     ];
 
     return (
         <div className="max-w-xl mx-auto space-y-4 pb-20">
             
-            {/* Header matching Screen 6 */}
+            {/* Header matching Screen 6 with Working Back AND Close Buttons */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center space-x-3">
                     <button
                         onClick={onBack}
                         className="w-9 h-9 rounded-2xl bg-white border border-slate-200/80 hover:bg-slate-50 flex items-center justify-center text-slate-700 transition active:scale-95 cursor-pointer shadow-2xs"
+                        title="Back to Home"
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </button>
                     <div>
                         <h2 className="font-extrabold text-base sm:text-lg text-slate-900 leading-tight">
-                            More
+                            More Settings
                         </h2>
                         <p className="text-[11px] text-slate-400 font-medium">
                             Clinic Settings & Administrative Tools
                         </p>
                     </div>
                 </div>
+
+                {/* Explicit Close Button for Mobile */}
+                <button
+                    onClick={onBack}
+                    className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs flex items-center space-x-1 cursor-pointer"
+                >
+                    <span>Home</span>
+                </button>
             </div>
 
             {/* Doctor Profile Card matching Screen 6 */}

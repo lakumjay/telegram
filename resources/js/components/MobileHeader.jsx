@@ -15,7 +15,8 @@ export default function MobileHeader({
     onSelectClinic, 
     onOpenMoreMenu,
     onOpenVoiceCall,
-    onOpenProfileModal
+    onOpenProfileModal,
+    onOpenNotifications
 }) {
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
 
@@ -63,7 +64,7 @@ export default function MobileHeader({
                         {/* Notification Bell matching Screen 1 */}
                         <button
                             type="button"
-                            onClick={onOpenMoreMenu}
+                            onClick={onOpenNotifications}
                             className="relative w-9 h-9 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-600 transition active:scale-95 cursor-pointer"
                             title="Notifications"
                         >
