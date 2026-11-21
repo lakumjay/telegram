@@ -366,6 +366,51 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             return;
         }
 
+        if (call.name === 'get_clinic_daily_accounts') {
+            const period = call.args?.period || 'today';
+            console.log(`[ToolCall] Gemini invoked get_clinic_daily_accounts: period="${period}"`);
+            setLastToolEvent(`💰 ક્લિનિકનો ${period === 'month' ? 'માસિક' : 'આજનો'} હિસાબ અને સ્ટોક ગણી રહી છું...`);
+
+            try {
+                const res = await axios.post('/api/voice/clinic-daily-accounts', {
+                    period: period,
+                    clinic_id: 1
+                });
+                const payload = res.data;
+                console.log('[Clinic Accounts Result]', payload);
+                setLastToolEvent(`✅ હિસાબ ગણતરી પૂર્ણ! (આવક: ₹${payload.income}, નફો: ₹${payload.net_profit})`);
+
+                if (sessionRef.current) {
+                    sessionRef.current.sendToolResponse({
+                        functionResponses: [{
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                                output: payload
+                            }
+                        }]
+                    });
+                }
+            } catch (err) {
+                console.error('[Clinic Accounts Error]', err);
+                if (sessionRef.current) {
+                    sessionRef.current.sendToolResponse({
+                        functionResponses: [{
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                                output: {
+                                    status: "error",
+                                    message: "ક્લિનિકનો હિસાબ મેળવવામાં ટેકનિકલ ક્ષતિ આવી."
+                                }
+                            }
+                        }]
+                    });
+                }
+            }
+            return;
+        }
+
         if (call.name === 'get_patient_history') {
             const patientName = call.args?.patient_name;
             const context = call.args?.context || '';
@@ -774,6 +819,19 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                                             }
                                         },
                                         required: ['patient_name']
+                                    }
+                                },
+                                {
+                                    name: 'get_clinic_daily_accounts',
+                                    description: 'Get clinic daily or monthly financial accounts summary including total patient visits, gross income, total expenses, net profit, and medicine stock alerts.',
+                                    parameters: {
+                                        type: 'OBJECT',
+                                        properties: {
+                                            period: {
+                                                type: 'STRING',
+                                                description: 'Period for accounts summary: "today" or "month". Default is "today".'
+                                            }
+                                        }
                                     }
                                 }
                             ]

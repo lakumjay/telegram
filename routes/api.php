@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\ClinicAccountsController;
 use App\Http\Controllers\Api\CompanyController;
 use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\PatientController;
@@ -43,6 +44,7 @@ Route::prefix('voice')->group(function () {
     Route::post('/analyze-risk', [VoiceAgentController::class, 'analyzeDocumentRisk'])->middleware('throttle:15,1');
     Route::post('/draft-document', [VoiceAgentController::class, 'draftDocument'])->middleware('throttle:10,1');
     Route::post('/patient-history', [VoiceAgentController::class, 'getPatientHistory'])->middleware('throttle:30,1');
+    Route::post('/clinic-daily-accounts', [VoiceAgentController::class, 'getClinicDailyAccounts'])->middleware('throttle:30,1');
 });
 
 // 4. ZIP Archive API
@@ -77,4 +79,15 @@ Route::prefix('patients')->group(function () {
     Route::post('/{id}', [PatientController::class, 'update']);
     Route::delete('/{id}', [PatientController::class, 'destroy']);
 });
+
+// 8. Multi-Clinic Accounts, Daily Billing, Medicine Stock & Expenses
+Route::prefix('clinic-accounts')->group(function () {
+    Route::get('/clinics', [ClinicAccountsController::class, 'getClinics']);
+    Route::get('/summary', [ClinicAccountsController::class, 'getFinancialSummary']);
+    Route::post('/bills', [ClinicAccountsController::class, 'storeBill']);
+    Route::post('/expenses', [ClinicAccountsController::class, 'storeExpense']);
+    Route::get('/medicines', [ClinicAccountsController::class, 'getMedicines']);
+    Route::post('/medicines', [ClinicAccountsController::class, 'storeMedicine']);
+});
+
 

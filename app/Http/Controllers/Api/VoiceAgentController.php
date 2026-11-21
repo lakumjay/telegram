@@ -645,6 +645,62 @@ EOT;
     }
 
     /**
+     * Tool Call Endpoint: get_clinic_daily_accounts
+     * Retrieve today's or this month's income, expenses, profit and low-stock alerts for doctor.
+     */
+    public function getClinicDailyAccounts(Request $request): JsonResponse
+    {
+        $clinicId = (int)$request->input('clinic_id', 1);
+        $period = $request->input('period', 'today'); // 'today' or 'month'
+
+        $clinic = \App\Models\Clinic::find($clinicId) ?: \App\Models\Clinic::first();
+        $clinicName = $clinic ? $clinic->name : 'ક્લિનિક';
+
+        $today = date('Y-m-d');
+        $thisMonth = date('Y-m');
+
+        if ($period === 'month') {
+            $bills = \App\Models\ClinicBill::where('clinic_id', $clinicId)->where('bill_date', 'LIKE', "{$thisMonth}%")->get();
+            $expenses = \App\Models\ClinicExpense::where('clinic_id', $clinicId)->where('expense_date', 'LIKE', "{$thisMonth}%")->get();
+            $periodLabel = "આ મહિનાનો";
+        } else {
+            $bills = \App\Models\ClinicBill::where('clinic_id', $clinicId)->whereDate('bill_date', $today)->get();
+            $expenses = \App\Models\ClinicExpense::where('clinic_id', $clinicId)->whereDate('expense_date', $today)->get();
+            $periodLabel = "આજનો";
+        }
+
+        $income = (float)$bills->sum('total_amount');
+        $patientsCount = $bills->count();
+        $expenseTotal = (float)$expenses->sum('amount');
+        $netProfit = $income - $expenseTotal;
+
+        // Check low stock medicines
+        $lowStockMeds = \App\Models\ClinicMedicine::where('clinic_id', $clinicId)
+            ->whereRaw('stock_quantity <= low_stock_alert')
+            ->pluck('name')
+            ->take(3)
+            ->implode(', ');
+
+        $stockAlertText = !empty($lowStockMeds) 
+            ? " અને દવાઓમાં {$lowStockMeds} નો સ્ટોક ઓછો છે, નવો મંગાવવો પડશે." 
+            : " અને બધી મુખ્ય દવાઓનો સ્ટોક પૂરતો છે.";
+
+        $speech = "હા ડૉક્ટર સાહેબ! {$clinicName} નો {$periodLabel} હિસાબ આ મુજબ છે: કુલ {$patientsCount} દર્દીઓ આવ્યા છે. કુલ આવક ₹" . number_format($income) . " થઈ છે, ખર્ચ ₹" . number_format($expenseTotal) . " થયો છે, અને ચોખ્ખો નફો ₹" . number_format($netProfit) . " છે!{$stockAlertText}";
+
+        return response()->json([
+            'status' => 'success',
+            'clinic_name' => $clinicName,
+            'period' => $period,
+            'income' => $income,
+            'expense' => $expenseTotal,
+            'net_profit' => $netProfit,
+            'patients_count' => $patientsCount,
+            'speech_summary' => $speech,
+            'message' => $speech,
+        ]);
+    }
+
+    /**
      * Tool Call Endpoint: get_document
      * Whitelist strictly: gst, pan, stamp.
      * Identifies user ONLY from validated Telegram initData (or fallback authorized user).
@@ -818,7 +874,11 @@ EOT;
    - તમારે તરત જ `get_patient_history` ટૂલ વાપરવું!
    - **જો એક જ નામના ૨ દર્દીઓ મળે (દા.ત. બે જય):** તો ડૉક્ટરને સ્પષ્ટ પૂછવું કે "સર, જય નામના બે દર્દી છે – એક જેમને છેલ્લે તાવની દવા આપી હતી અને બીજા જેમને ઉધરસની દવા આપી હતી, તમારે કોની વિગત જોઈએ છે?".
    - ડૉક્ટર જે દર્દીની વાત કરે તેની છેલ્લી મુલાકાત, રોગ/તકલીફ અને આપેલી દવાઓની વિગત દેશી ગુજરાતીમાં બોલીને સમજાવી દેવી.
-૯. દેશી શૈલીમાં મીઠો અને સાચો ઉત્તર આપવો (જેમ કે: "હા ભાઈ", "એક જ મિનિટ હોં", "હું જોઈને કહું").
+૯. **ક્લિનિક ડેઇલી હિસાબ, સ્ટોક અને આવક (Daily Accounts, Income & Medicine Stock):**
+   - જો ડૉક્ટર ક્લિનિકના આજના કે આ મહિનાના હિસાબ વિશે પૂછે (જેમ કે "આજનો હિસાબ શું થયો?", "આજે કેટલા દર્દી આવ્યા અને કેટલી કમાણી થઈ?", "દવાનો સ્ટોક કેટલો છે?"):
+   - તમારે તરત જ `get_clinic_daily_accounts` ટૂલ ચલાવવું!
+   - અને ડૉક્ટરને દેશી ગુજરાતીમાં સ્પષ્ટ કહેવું: "આજે કુલ આટલા દર્દી આવ્યા, કુલ આવક ₹X થઈ, ખર્ચ ₹Y થયો અને ચોખ્ખો નફો ₹Z છે. અને કઈ દવાનો સ્ટોક ઓછો છે તે પણ કહી દેવું!".
+૧૦. દેશી શૈલીમાં મીઠો અને સાચો ઉત્તર આપવો (જેમ કે: "હા ભાઈ", "એક જ મિનિટ હોં", "હું જોઈને કહું").
 EOT;
 
         $masterKey = env('GEMINI_API_KEY');

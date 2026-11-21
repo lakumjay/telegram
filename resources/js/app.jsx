@@ -11,6 +11,7 @@ import SettingsModal from './components/SettingsModal';
 import LoginScreen from './components/LoginScreen';
 import WelcomeTourModal from './components/WelcomeTourModal';
 import DoctorPatientManager from './components/DoctorPatientManager';
+import ClinicBillingStockManager from './components/ClinicBillingStockManager';
 import axios from 'axios';
 import { 
     PhoneCall, 
@@ -169,7 +170,12 @@ function App() {
                     />
                 )}
 
-                {/* 3. My Files View (Dedicated Document Explorer) */}
+                {/* 3. Multi-Clinic Accounts, Billing, Stock & Expenses (New Feature) */}
+                {activeTab === 'billing' && (
+                    <ClinicBillingStockManager />
+                )}
+
+                {/* 4. My Files View (Dedicated Document Explorer) */}
                 {activeTab === 'files' && (
                     <DocumentExplorer
                         onOpenUpload={handleOpenUpload}

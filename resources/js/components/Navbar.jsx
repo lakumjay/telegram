@@ -6,7 +6,8 @@ import {
     LogOut,
     Home,
     ShieldCheck,
-    Stethoscope
+    Stethoscope,
+    Receipt
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -61,6 +62,18 @@ export default function Navbar({
                         >
                             <Stethoscope className="w-3.5 h-3.5 text-emerald-600" />
                             <span>Doctor Clinic</span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab('billing')}
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center space-x-1.5 ${
+                                activeTab === 'billing' 
+                                    ? 'bg-white text-indigo-800 shadow-2xs font-bold' 
+                                    : 'text-slate-500 hover:text-slate-900'
+                            }`}
+                        >
+                            <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Billing & Stock</span>
                         </button>
 
                         <button
