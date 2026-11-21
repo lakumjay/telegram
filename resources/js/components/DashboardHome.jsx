@@ -529,28 +529,36 @@ export default function DashboardHome({
                                 <span className="text-slate-500 font-medium flex items-center gap-2">
                                     <span className="w-2 h-2 rounded-full bg-blue-500" /> Total Patients
                                 </span>
-                                <span className="font-bold text-slate-900">324</span>
+                                <span className="font-bold text-slate-900">
+                                    {summary?.total_patients_count ?? (summary?.month?.patients_count ?? 0)}
+                                </span>
                             </div>
 
                             <div className="flex items-center justify-between">
                                 <span className="text-slate-500 font-medium flex items-center gap-2">
                                     <span className="w-2 h-2 rounded-full bg-emerald-500" /> Total Bills
                                 </span>
-                                <span className="font-bold text-slate-900">₹1,85,000</span>
+                                <span className="font-bold text-slate-900">
+                                    {summary?.month?.income ? `₹${Number(summary.month.income).toLocaleString('en-IN')}` : '₹0'}
+                                </span>
                             </div>
 
                             <div className="flex items-center justify-between">
                                 <span className="text-slate-500 font-medium flex items-center gap-2">
                                     <span className="w-2 h-2 rounded-full bg-orange-500" /> Total Expenses
                                 </span>
-                                <span className="font-bold text-slate-900">₹65,000</span>
+                                <span className="font-bold text-slate-900">
+                                    {summary?.month?.expense ? `₹${Number(summary.month.expense).toLocaleString('en-IN')}` : '₹0'}
+                                </span>
                             </div>
 
                             <div className="pt-2 border-t border-slate-100 flex items-center justify-between font-extrabold">
                                 <span className="text-emerald-700 flex items-center gap-2">
                                     <span className="w-2 h-2 rounded-full bg-emerald-600" /> Monthly Profit
                                 </span>
-                                <span className="text-emerald-700 text-sm">₹1,20,000</span>
+                                <span className="text-emerald-700 text-sm">
+                                    {summary?.month?.net_profit ? `₹${Number(summary.month.net_profit).toLocaleString('en-IN')}` : '₹0'}
+                                </span>
                             </div>
                         </div>
                     </div>

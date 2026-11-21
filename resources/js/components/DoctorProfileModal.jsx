@@ -104,10 +104,16 @@ export default function DoctorProfileModal({
 
             if (res.data?.success) {
                 setStatusMessage({ type: 'success', text: '✅ પ્રોફાઇલ સફળતાપૂર્વક અપડેટ થઈ ગઈ!' });
+                if (window.showAppToast) {
+                    window.showAppToast('✅ પ્રોફાઇલ સફળતાપૂર્વક અપડેટ થઈ ગઈ!');
+                }
+                if (window.triggerAppRefresh) {
+                    window.triggerAppRefresh();
+                }
                 if (onUpdated) onUpdated(res.data.clinic);
                 setTimeout(() => {
                     onClose();
-                }, 1000);
+                }, 800);
             }
         } catch (err) {
             setStatusMessage({ type: 'error', text: err.response?.data?.message || 'પ્રોફાઇલ સેવ કરવામાં ક્ષતિ આવી.' });

@@ -26,6 +26,14 @@ export default function NewBillScreen({
     const clinicId = activeClinic?.id || 1;
     const defaultConsultation = activeClinic?.default_consultation_fee || 300;
 
+    const getLocalDateString = () => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     const [patientName, setPatientName] = useState(initialPatient?.name || '');
     const [patientPhone, setPatientPhone] = useState(initialPatient?.phone || '');
     const [patientId, setPatientId] = useState(initialPatient?.id || null);
@@ -107,7 +115,7 @@ export default function NewBillScreen({
                 procedure_fee: Number(labCharges) + Number(otherCharges),
                 discount: discount,
                 payment_method: paymentMethod,
-                bill_date: new Date().toISOString().split('T')[0],
+                bill_date: getLocalDateString(),
                 notes: 'OPD Bill Consultation'
             });
 

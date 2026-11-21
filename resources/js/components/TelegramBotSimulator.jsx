@@ -244,7 +244,7 @@ export default function TelegramBotSimulator({ onOpenCall, onBack = null }) {
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            placeholder="Type a message... (e.g. /call, Rajeshwari PAN, 300 stamp, /zip all)"
+                            placeholder="સંદેશ અથવા આદેશ લખો..."
                             className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                         />
                         <button

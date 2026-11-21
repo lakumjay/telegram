@@ -49,6 +49,7 @@ function App() {
     const [navHistory, setNavHistory] = useState(['home']);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [appToast, setAppToast] = useState(null);
+    const [openAddPatientModal, setOpenAddPatientModal] = useState(false);
 
     const [clinics, setClinics] = useState([]);
     const [activeClinicId, setActiveClinicId] = useState(1);
@@ -180,19 +181,19 @@ function App() {
             
             {/* FLOATING TOP APP TOAST NOTIFICATION (Appears instantly on any Save, Update, Delete) */}
             {appToast && (
-                <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 max-w-sm w-full px-4 animate-in fade-in slide-in-from-top-4 duration-200">
-                    <div className={`p-3.5 rounded-2xl shadow-xl border flex items-center justify-between space-x-2 ${
+                <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] max-w-sm sm:max-w-md w-full px-4 animate-in fade-in slide-in-from-top-4 duration-200 pointer-events-auto">
+                    <div className={`p-4 rounded-2xl shadow-2xl border-2 flex items-center justify-between space-x-3 text-white ${
                         appToast.type === 'error'
-                            ? 'bg-rose-600 text-white border-rose-500'
+                            ? 'bg-rose-600 border-rose-400 shadow-rose-950/30'
                             : appToast.type === 'warning'
-                            ? 'bg-amber-500 text-white border-amber-400'
-                            : 'bg-emerald-700 text-white border-emerald-600'
+                            ? 'bg-amber-600 border-amber-400 shadow-amber-950/30'
+                            : 'bg-emerald-700 border-emerald-500 shadow-emerald-950/30'
                     }`}>
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2.5">
                             {appToast.type === 'error' ? <AlertCircle className="w-5 h-5 flex-shrink-0" /> : <CheckCircle2 className="w-5 h-5 flex-shrink-0" />}
-                            <span className="text-xs sm:text-sm font-extrabold">{appToast.message}</span>
+                            <span className="text-xs sm:text-sm font-black tracking-wide leading-snug">{appToast.message}</span>
                         </div>
-                        <button onClick={() => setAppToast(null)} className="p-1 text-white/80 hover:text-white cursor-pointer">
+                        <button onClick={() => setAppToast(null)} className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/15 cursor-pointer transition">
                             <X className="w-4 h-4" />
                         </button>
                     </div>
@@ -261,7 +262,10 @@ function App() {
                                 setSelectedPatientForBill(pt || null);
                                 navigateTo('new-bill');
                             }}
-                            onOpenNewPatient={() => navigateTo('patients')}
+                            onOpenNewPatient={() => {
+                                setOpenAddPatientModal(true);
+                                navigateTo('patients');
+                            }}
                             onOpenAddExpense={() => navigateTo('expenses')}
                             onOpenAppointments={() => navigateTo('appointments')}
                         />
@@ -272,6 +276,8 @@ function App() {
                         <DoctorPatientManager
                             activeClinicId={activeClinicId}
                             refreshTrigger={refreshTrigger}
+                            initialOpenAdd={openAddPatientModal}
+                            onCloseAdd={() => setOpenAddPatientModal(false)}
                             onOpenVoiceCall={() => setIsCallModalOpen(true)}
                             onOpenNewBill={(pt) => {
                                 setSelectedPatientForBill(pt || null);
@@ -481,9 +487,10 @@ function App() {
                             <button
                                 onClick={() => {
                                     setIsFabMenuOpen(false);
+                                    setOpenAddPatientModal(true);
                                     navigateTo('patients');
                                 }}
-                                className="p-3.5 rounded-2xl bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-100 text-left transition active:scale-95"
+                                className="p-3.5 rounded-2xl bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-100 text-left transition active:scale-95 cursor-pointer"
                             >
                                 <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center mb-2 shadow-xs">
                                     <Users className="w-4 h-4" />

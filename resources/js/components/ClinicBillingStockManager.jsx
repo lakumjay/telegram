@@ -37,10 +37,15 @@ export default function ClinicBillingStockManager({
     onBack = null,
     refreshTrigger = 0
 }) {
-    const [selectedDate, setSelectedDate] = useState(() => {
-        const today = new Date();
-        return today.toISOString().split('T')[0];
-    });
+    const getLocalDateString = () => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const [selectedDate, setSelectedDate] = useState(() => getLocalDateString());
 
     const [summary, setSummary] = useState(null);
     const [medicines, setMedicines] = useState([]);
@@ -537,7 +542,7 @@ export default function ClinicBillingStockManager({
 
     const today = summary?.today || {};
     const month = summary?.month || {};
-    const isToday = selectedDate === new Date().toISOString().split('T')[0];
+    const isToday = selectedDate === getLocalDateString();
 
     const filteredMedicines = medicines.filter(m => 
         m.name.toLowerCase().includes(stockSearch.toLowerCase()) ||
@@ -1156,7 +1161,7 @@ export default function ClinicBillingStockManager({
                                     required
                                     value={expenseTitle}
                                     onChange={(e) => setExpenseTitle(e.target.value)}
-                                    placeholder="દા.ત. સ્ટાફ પગાર, લાઇટ બિલ"
+                                    placeholder="ખર્ચનું નામ"
                                     className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-rose-500"
                                 />
                             </div>
@@ -1327,7 +1332,7 @@ export default function ClinicBillingStockManager({
                                     required
                                     value={medName}
                                     onChange={(e) => setMedName(e.target.value)}
-                                    placeholder="દા.ત. Paracetamol 650"
+                                    placeholder="દવાનું નામ"
                                     className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
                                 />
                             </div>

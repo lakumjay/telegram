@@ -27,7 +27,9 @@ export default function DoctorPatientManager({
     activeClinicId = 1,
     onBack = null,
     onOpenNewBill = null,
-    refreshTrigger = 0
+    refreshTrigger = 0,
+    initialOpenAdd = false,
+    onCloseAdd = null
 }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterPeriod, setFilterPeriod] = useState('All'); // 'All' | 'Today' | 'This Week' | 'This Month'
@@ -39,7 +41,7 @@ export default function DoctorPatientManager({
     const [isLoadingList, setIsLoadingList] = useState(false);
 
     // New Patient Modal
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
     const [newPatientName, setNewPatientName] = useState('');
     const [newPatientPhone, setNewPatientPhone] = useState('');
     const [newPatientAge, setNewPatientAge] = useState('');
@@ -50,6 +52,12 @@ export default function DoctorPatientManager({
     const [formError, setFormError] = useState('');
 
     const searchDebounceRef = useRef(null);
+
+    useEffect(() => {
+        if (initialOpenAdd) {
+            setIsAddModalOpen(true);
+        }
+    }, [initialOpenAdd]);
 
     useEffect(() => {
         loadPatients();
@@ -142,6 +150,7 @@ export default function DoctorPatientManager({
                 }
 
                 setIsAddModalOpen(false);
+                if (onCloseAdd) onCloseAdd();
                 setNewPatientName('');
                 setNewPatientPhone('');
                 setNewPatientAge('');
@@ -168,20 +177,33 @@ export default function DoctorPatientManager({
             if (!matchName && !matchPhone) return false;
         }
 
-        // Period filter
+        // Period filter with timezone-safe Date objects
+        const parseDate = (val) => {
+            if (!val) return null;
+            const d = new Date(val);
+            return isNaN(d.getTime()) ? null : d;
+        };
+
+        const targetDate = parseDate(p.last_visit_date || p.created_at);
+
         if (filterPeriod === 'Today') {
-            const todayStr = new Date().toISOString().split('T')[0];
-            return p.last_visit_date && p.last_visit_date.startsWith(todayStr);
+            if (!targetDate) return false;
+            const now = new Date();
+            return targetDate.getFullYear() === now.getFullYear() &&
+                   targetDate.getMonth() === now.getMonth() &&
+                   targetDate.getDate() === now.getDate();
         }
         if (filterPeriod === 'This Week') {
-            const weekAgo = new Date();
-            weekAgo.setDate(weekAgo.getDate() - 7);
-            const weekAgoStr = weekAgo.toISOString().split('T')[0];
-            return p.last_visit_date && p.last_visit_date >= weekAgoStr;
+            if (!targetDate) return false;
+            const now = new Date();
+            const diffDays = (now.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24);
+            return diffDays >= -1 && diffDays <= 7;
         }
         if (filterPeriod === 'This Month') {
-            const monthStr = new Date().toISOString().slice(0, 7);
-            return p.last_visit_date && p.last_visit_date.startsWith(monthStr);
+            if (!targetDate) return false;
+            const now = new Date();
+            return targetDate.getFullYear() === now.getFullYear() &&
+                   targetDate.getMonth() === now.getMonth();
         }
         return true;
     });
@@ -385,11 +407,17 @@ export default function DoctorPatientManager({
 
             {/* Add New Patient Modal */}
             {isAddModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95">
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 max-h-[92vh] overflow-y-auto">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                             <h3 className="font-extrabold text-sm text-slate-900">નવો દર્દી ઉમેરો (Add Patient)</h3>
-                            <button onClick={() => setIsAddModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                            <button 
+                                onClick={() => {
+                                    setIsAddModalOpen(false);
+                                    if (onCloseAdd) onCloseAdd();
+                                }} 
+                                className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                            >
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
@@ -451,17 +479,27 @@ export default function DoctorPatientManager({
                             <div className="flex items-center space-x-2 pt-2">
                                 <button
                                     type="button"
-                                    onClick={() => setIsAddModalOpen(false)}
-                                    className="flex-1 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50"
+                                    onClick={() => {
+                                        setIsAddModalOpen(false);
+                                        if (onCloseAdd) onCloseAdd();
+                                    }}
+                                    className="flex-1 py-2.5 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
                                 >
                                     રદ કરો
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={isSavingNew}
-                                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
+                                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs cursor-pointer flex items-center justify-center space-x-1"
                                 >
-                                    {isSavingNew ? 'સેવ થાય છે...' : 'સેવ કરો'}
+                                    {isSavingNew ? (
+                                        <>
+                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                            <span>સેવ થાય છે...</span>
+                                        </>
+                                    ) : (
+                                        <span>સેવ કરો</span>
+                                    )}
                                 </button>
                             </div>
                         </form>
