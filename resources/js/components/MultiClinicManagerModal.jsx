@@ -54,7 +54,7 @@ export default function MultiClinicManagerModal({
         setName('');
         setDoctorName('');
         setPhone('');
-        setCity('Botad');
+        setCity('');
         setQualification('MBBS, MD');
         setSpecialization('General Physician & Consulting Doctor');
         setDefaultFee('300');
@@ -410,7 +410,7 @@ export default function MultiClinicManagerModal({
                                     required
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    placeholder="દા.ત. Dhaval Clinic (ડૉ. ધવલ ક્લિનિક)"
+                                    placeholder="દા.ત. શિવાનંદ ક્લિનિક / City Health Clinic"
                                     className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 font-bold text-slate-900 focus:outline-none focus:border-teal-600"
                                 />
                             </div>
@@ -423,7 +423,7 @@ export default function MultiClinicManagerModal({
                                         required
                                         value={doctorName}
                                         onChange={(e) => setDoctorName(e.target.value)}
-                                        placeholder="Dr. Dhaval"
+                                        placeholder="દા.ત. Dr. Patel / Dr. Sharma"
                                         className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 font-bold text-slate-900 focus:outline-none focus:border-teal-600"
                                     />
                                 </div>
@@ -433,7 +433,7 @@ export default function MultiClinicManagerModal({
                                         type="text"
                                         value={qualification}
                                         onChange={(e) => setQualification(e.target.value)}
-                                        placeholder="MBBS, MD"
+                                        placeholder="દા.ત. MBBS, MD / BAMS"
                                         className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 font-bold text-slate-900 focus:outline-none focus:border-teal-600"
                                     />
                                 </div>
@@ -456,7 +456,7 @@ export default function MultiClinicManagerModal({
                                         type="text"
                                         value={city}
                                         onChange={(e) => setCity(e.target.value)}
-                                        placeholder="Botad"
+                                        placeholder="દા.ત. અમદાવાદ / સુરત / બોટાદ"
                                         className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 font-bold text-slate-900 focus:outline-none focus:border-teal-600"
                                     />
                                 </div>
@@ -479,7 +479,7 @@ export default function MultiClinicManagerModal({
                                         type="text"
                                         value={telegramUsername}
                                         onChange={(e) => setTelegramUsername(e.target.value)}
-                                        placeholder="@dr_dhaval"
+                                        placeholder="દા.ત. @doctor_username"
                                         className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 font-bold text-slate-900 focus:outline-none focus:border-teal-600"
                                     />
                                 </div>

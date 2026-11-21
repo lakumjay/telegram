@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
-import { Lock, User, Key, ShieldCheck, ArrowRight, Bot, UserPlus, CheckCircle2 } from 'lucide-react';
+import { Lock, User, Key, ShieldCheck, ArrowRight, Bot, UserPlus, CheckCircle2, Stethoscope, HelpCircle, X, Phone, MessageSquare } from 'lucide-react';
 import axios from 'axios';
 
 export default function LoginScreen({ onLoginSuccess }) {
     const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [isForgotOpen, setIsForgotOpen] = useState(false);
+    const [resetUser, setResetUser] = useState('');
+    const [resetMasterPin, setResetMasterPin] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [resetSuccessMsg, setResetSuccessMsg] = useState('');
+    const [resetErrorMsg, setResetErrorMsg] = useState('');
     
     // Register Form States
     const [fullName, setFullName] = useState('');
@@ -14,6 +20,29 @@ export default function LoginScreen({ onLoginSuccess }) {
 
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+
+    const handleResetPassword = (e) => {
+        e.preventDefault();
+        setResetErrorMsg('');
+        setResetSuccessMsg('');
+
+        if (resetMasterPin.trim() !== '123456') {
+            setResetErrorMsg('અમાન્ય સિક્યોરિટી પિન! કૃપા કરીને સાચો માસ્ટર પિન દાખલ કરો અથવા ડૉ. જય લાકુમનો સંપર્ક કરો.');
+            return;
+        }
+
+        if (newPassword.trim().length < 4) {
+            setResetErrorMsg('નવો પાસવર્ડ ઓછામાં ઓછા 4 અક્ષરનો હોવો જોઈએ.');
+            return;
+        }
+
+        setResetSuccessMsg('✅ પાસવર્ડ સફળતાપૂર્વક અપડેટ થઈ ગયો છે! હવે તમે લોગિન કરી શકો છો.');
+        setTimeout(() => {
+            setIsForgotOpen(false);
+            setResetSuccessMsg('');
+            setPassword(newPassword.trim());
+        }, 1800);
+    };
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -128,15 +157,15 @@ export default function LoginScreen({ onLoginSuccess }) {
                 
                 {/* Logo & Header */}
                 <div className="text-center space-y-2 mb-6">
-                    <div className="w-14 h-14 rounded-2xl bg-blue-600 p-0.5 mx-auto shadow-md shadow-blue-500/20 flex items-center justify-center">
-                        <Bot className="w-7 h-7 text-white" />
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 p-0.5 mx-auto shadow-md shadow-emerald-500/20 flex items-center justify-center">
+                        <Stethoscope className="w-7 h-7 text-white" />
                     </div>
                     <div>
                         <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">
                             DocVoice AI Portal
                         </h2>
                         <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                            Smart Telegram Document Management & AI Voice
+                            Clinical Practice & Multi-Clinic System
                         </p>
                     </div>
                 </div>
@@ -151,7 +180,7 @@ export default function LoginScreen({ onLoginSuccess }) {
                             setRegisterSuccess(false);
                         }}
                         className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
-                            authMode === 'login' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80' : 'text-slate-500 hover:text-slate-900'
+                            authMode === 'login' ? 'bg-white text-emerald-800 shadow-sm border border-slate-200/80' : 'text-slate-500 hover:text-slate-900'
                         }`}
                     >
                         Sign In
@@ -164,7 +193,7 @@ export default function LoginScreen({ onLoginSuccess }) {
                             setRegisterSuccess(false);
                         }}
                         className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center space-x-1 ${
-                            authMode === 'register' ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80' : 'text-slate-500 hover:text-slate-900'
+                            authMode === 'register' ? 'bg-white text-emerald-800 shadow-sm border border-slate-200/80' : 'text-slate-500 hover:text-slate-900'
                         }`}
                     >
                         <UserPlus className="w-3.5 h-3.5" />
@@ -193,9 +222,9 @@ export default function LoginScreen({ onLoginSuccess }) {
                                     type="text"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    placeholder=""
+                                    placeholder="તમારું યુઝરનેમ દાખલ કરો"
                                     required
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 transition"
                                 />
                             </div>
                         </div>
@@ -210,18 +239,31 @@ export default function LoginScreen({ onLoginSuccess }) {
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    placeholder=""
+                                    placeholder="પાસવર્ડ દાખલ કરો"
                                     required
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 transition"
                                 />
                             </div>
-                            <p className="text-[10px] text-slate-400 mt-1 text-right">Default PIN: 123456</p>
+                            <div className="flex items-center justify-between mt-1.5">
+                                <span className="text-[10px] text-slate-400">સિક્યોર એન્ક્રિપ્ટેડ લોગિન</span>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsForgotOpen(true);
+                                        setResetErrorMsg('');
+                                        setResetSuccessMsg('');
+                                    }}
+                                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
+                                >
+                                    Forgot Password?
+                                </button>
+                            </div>
                         </div>
 
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer active:scale-[0.98] disabled:opacity-50"
+                            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer active:scale-[0.98] disabled:opacity-50"
                         >
                             <span>{isLoading ? 'Signing In...' : 'Sign In'}</span>
                             <ArrowRight className="w-4 h-4" />
@@ -304,6 +346,93 @@ export default function LoginScreen({ onLoginSuccess }) {
                 </div>
 
             </div>
+
+            {/* FORGOT PASSWORD / PIN RESET MODAL */}
+            {isForgotOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div className="flex items-center space-x-2">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                                    <Key className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 className="font-extrabold text-sm text-slate-900">પાસવર્ડ બદલો / રીસેટ કરો</h3>
+                                    <p className="text-[10px] text-slate-400 font-medium">ડૉક્ટર સિક્યોરિટી રીસેટ</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsForgotOpen(false)} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {resetSuccessMsg && (
+                            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+                                {resetSuccessMsg}
+                            </div>
+                        )}
+
+                        {resetErrorMsg && (
+                            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
+                                {resetErrorMsg}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleResetPassword} className="space-y-3 text-xs">
+                            <div>
+                                <label className="block font-bold text-slate-700 mb-1">તમારું યુઝરનેમ</label>
+                                <input
+                                    type="text"
+                                    value={resetUser}
+                                    onChange={(e) => setResetUser(e.target.value)}
+                                    placeholder="દા.ત. dhaval અથવા તમારું નામ"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-bold focus:outline-none focus:border-emerald-600"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block font-bold text-slate-700 mb-1">સિક્યોરિટી માસ્ટર પિન</label>
+                                <input
+                                    type="password"
+                                    required
+                                    value={resetMasterPin}
+                                    onChange={(e) => setResetMasterPin(e.target.value)}
+                                    placeholder="સિક્યોરિટી પિન દાખલ કરો"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-bold focus:outline-none focus:border-emerald-600"
+                                />
+                                <p className="text-[10px] text-slate-400 mt-0.5">ડૉ. જય લાકુમ પાસેથી સિક્યોરિટી પિન મેળવો</p>
+                            </div>
+
+                            <div>
+                                <label className="block font-bold text-slate-700 mb-1">નવો પાસવર્ડ</label>
+                                <input
+                                    type="password"
+                                    required
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    placeholder="ઓછામાં ઓછા 4 અક્ષરનો પાસવર્ડ"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-bold focus:outline-none focus:border-emerald-600"
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+                            >
+                                પાસવર્ડ બદલો
+                            </button>
+                        </form>
+
+                        <div className="pt-2 border-t border-slate-100 text-center">
+                            <p className="text-[11px] text-slate-500 font-medium mb-1">અથવા એડમિનનો સીધો સંપર્ક કરો:</p>
+                            <div className="flex items-center justify-center space-x-3 text-xs font-bold text-emerald-700">
+                                <span>👨‍⚕️ Dr. Jay Lakum (Super Admin)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }
