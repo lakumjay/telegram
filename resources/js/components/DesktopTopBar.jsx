@@ -21,12 +21,26 @@ export default function DesktopTopBar({
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
     const [searchValue, setSearchValue] = useState('');
 
+    const formatDoctorName = (raw) => {
+        if (!raw) return 'Dr. Jay Lakum';
+        let clean = raw.trim();
+        if (/^dr[\s\.]+/i.test(clean)) {
+            clean = clean.replace(/^dr[\s\.]+/i, '');
+        } else if (/^dr/i.test(clean) && clean.length > 2 && clean[2] !== ' ') {
+            clean = clean.replace(/^dr/i, '');
+        }
+        clean = clean.split(' ').filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        return `Dr. ${clean}`;
+    };
+
     const activeClinic = clinics.find(c => c.id === activeClinicId) || clinics[0] || {
         id: 1,
         name: 'શ્રીરામ ક્લિનિક',
         doctor_name: 'Dr. Jay Lakum',
         qualification: 'MBBS'
     };
+
+    const formattedDoctorName = formatDoctorName(activeClinic.doctor_name);
 
     const handleSearchSubmit = (e) => {
         e.preventDefault();
@@ -123,7 +137,7 @@ export default function DesktopTopBar({
                     <div className="text-left hidden xl:block">
                         <div className="flex items-center gap-1.5">
                             <p className="text-xs font-extrabold text-slate-900 group-hover:text-emerald-700 transition leading-tight">
-                                {activeClinic.doctor_name || 'Dr. Jay Lakum'}
+                                {formattedDoctorName}
                             </p>
                             {isSuperAdmin && (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs">

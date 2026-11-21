@@ -29,6 +29,18 @@ class DocumentController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        // Security Isolation: Corporate documents are strictly Super Admin only
+        $clinicId = (int)$request->header('X-Clinic-Id', $request->query('clinic_id', 0));
+        if ($clinicId > 1) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'total' => 0,
+                'current_page' => 1,
+                'last_page' => 1,
+            ]);
+        }
+
         $query = Document::with(['company', 'folder'])->latest();
 
         if ($request->filled('company_id')) {

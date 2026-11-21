@@ -108,8 +108,42 @@ export default function DashboardHome({
         setSearchResults([]);
     };
 
-    const doctorName = activeClinic?.doctor_name || 'Dr. Jay Lakum';
-    const clinicName = activeClinic?.name || 'શ્રીરામ ક્લિનિક';
+    const formatDoctorName = (raw) => {
+        if (!raw) return 'Doctor';
+        let clean = raw.trim();
+        if (/^dr[\s\.]+/i.test(clean)) {
+            clean = clean.replace(/^dr[\s\.]+/i, '');
+        } else if (/^dr/i.test(clean) && clean.length > 2 && clean[2] !== ' ') {
+            clean = clean.replace(/^dr/i, '');
+        }
+        clean = clean.split(' ').filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        return `Dr. ${clean}`;
+    };
+
+    const formatClinicName = (raw) => {
+        if (!raw) return 'શ્રીરામ ક્લિનિક';
+        let clean = raw.trim();
+        clean = clean.split(' ').filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        return clean;
+    };
+
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour >= 4 && hour < 12) {
+            return { en: 'Good Morning', icon: '🌅', gu: 'સુપ્રભાત' };
+        } else if (hour >= 12 && hour < 17) {
+            return { en: 'Good Afternoon', icon: '☀️', gu: 'શુભ બપોર' };
+        } else if (hour >= 17 && hour < 21) {
+            return { en: 'Good Evening', icon: '🌇', gu: 'શુભ સાંજ' };
+        } else {
+            return { en: 'Good Night', icon: '🌙', gu: 'શુભ રાત્રિ' };
+        }
+    };
+
+    const greeting = getGreeting();
+    const rawDoctorName = activeClinic?.doctor_name || 'Dr. Jay Lakum';
+    const doctorName = formatDoctorName(rawDoctorName);
+    const clinicName = formatClinicName(activeClinic?.name || 'શ્રીરામ ક્લિનિક');
     const qualification = activeClinic?.qualification || 'MBBS';
 
     // REAL ACCURATE STATS - NO HARDCODED FALLBACK NUMBERS
@@ -201,7 +235,7 @@ export default function DashboardHome({
                     <div className="space-y-1 sm:space-y-1.5 max-w-lg">
                         <div className="flex items-center space-x-2">
                             <span className="text-sm sm:text-base font-extrabold text-slate-800 flex items-center gap-1.5">
-                                Good Morning, {doctorName}! <span className="inline-block animate-bounce">☀️</span>
+                                {greeting.en}, {doctorName}! <span className="inline-block animate-bounce">{greeting.icon}</span>
                             </span>
                         </div>
                         <p className="text-xs sm:text-sm text-slate-500 font-medium">

@@ -25,6 +25,7 @@ import NotificationModal from './components/NotificationModal';
 import VoiceCallModal from './components/VoiceCallModal';
 import DocumentUploadModal from './components/DocumentUploadModal';
 import MultiClinicManagerModal from './components/MultiClinicManagerModal';
+import InstallAppModal from './components/InstallAppModal';
 
 // Icons
 import { 
@@ -65,6 +66,7 @@ function App() {
 
     const [deferredPrompt, setDeferredPrompt] = useState(null);
     const [canInstall, setCanInstall] = useState(false);
+    const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
 
     const [currentUser, setCurrentUser] = useState(() => {
         try {
@@ -86,10 +88,26 @@ function App() {
     useEffect(() => {
         fetchClinics();
 
+        const isStandalone = typeof window !== 'undefined' && (
+            window.matchMedia('(display-mode: standalone)').matches || 
+            window.navigator.standalone
+        );
+        const dismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('dismissed_install_modal');
+
+        if (!isStandalone && !dismissed) {
+            const timer = setTimeout(() => {
+                setIsInstallModalOpen(true);
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+
         const handleBeforeInstall = (e) => {
             e.preventDefault();
             setDeferredPrompt(e);
             setCanInstall(true);
+            if (!dismissed) {
+                setIsInstallModalOpen(true);
+            }
         };
         window.addEventListener('beforeinstallprompt', handleBeforeInstall);
 
@@ -377,8 +395,8 @@ function App() {
                         />
                     )}
 
-                    {/* My Files Archive */}
-                    {activeTab === 'files' && (
+                    {/* My Files Archive (Super Admin Only) */}
+                    {activeTab === 'files' && isSuperAdmin && (
                         <DocumentExplorer
                             onOpenUpload={() => setIsUploadModalOpen(true)}
                             onOpenCall={() => setIsCallModalOpen(true)}
@@ -387,8 +405,8 @@ function App() {
                         />
                     )}
 
-                    {/* Staff & Whitelist */}
-                    {activeTab === 'staff' && (
+                    {/* Staff & Whitelist (Super Admin Only) */}
+                    {activeTab === 'staff' && isSuperAdmin && (
                         <SecurityWhitelist
                             onBack={handleBack}
                         />
@@ -604,6 +622,18 @@ function App() {
                     onClinicsUpdated={fetchClinics}
                 />
             )}
+
+            {/* 9. PWA APP DIRECT INSTALL POPUP (Direct prompt on Home page) */}
+            <InstallAppModal
+                isOpen={isInstallModalOpen}
+                onClose={() => {
+                    setIsInstallModalOpen(false);
+                    try { sessionStorage.setItem('dismissed_install_modal', 'true'); } catch(e) {}
+                }}
+                onInstall={handleInstallPWA}
+                canInstall={canInstall}
+                deferredPrompt={deferredPrompt}
+            />
 
         </div>
     );

@@ -21,11 +21,23 @@ export default function DesktopSidebar({
     onLogout,
     isSuperAdmin = false
 }) {
+    const formatDoctorName = (raw) => {
+        if (!raw) return 'Dr. Jay Lakum';
+        let clean = raw.trim();
+        if (/^dr[\s\.]+/i.test(clean)) {
+            clean = clean.replace(/^dr[\s\.]+/i, '');
+        } else if (/^dr/i.test(clean) && clean.length > 2 && clean[2] !== ' ') {
+            clean = clean.replace(/^dr/i, '');
+        }
+        clean = clean.split(' ').filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        return `Dr. ${clean}`;
+    };
+
     const clinicName = activeClinic?.name || 'શ્રીરામ ક્લિનિક';
-    const doctorName = activeClinic?.doctor_name || 'Dr. Jay Lakum';
+    const doctorName = formatDoctorName(activeClinic?.doctor_name);
     const qualification = activeClinic?.qualification || 'MBBS';
 
-    const navItems = [
+    const allNavItems = [
         { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'patients', label: 'Patients', icon: Users },
         { id: 'appointments', label: 'Appointments', icon: Calendar },
@@ -33,10 +45,12 @@ export default function DesktopSidebar({
         { id: 'expenses', label: 'Expenses', icon: Wallet },
         { id: 'stock', label: 'Stock', icon: Pill },
         { id: 'reports', label: 'Reports', icon: BarChart3 },
-        { id: 'files', label: 'Files', icon: FolderArchive },
-        { id: 'staff', label: 'Staff', icon: ShieldCheck },
+        { id: 'files', label: 'Files', icon: FolderArchive, superAdminOnly: true },
+        { id: 'staff', label: 'Staff', icon: ShieldCheck, superAdminOnly: true },
         { id: 'more', label: 'Settings', icon: Settings },
     ];
+
+    const navItems = allNavItems.filter(item => !item.superAdminOnly || isSuperAdmin);
 
     return (
         <aside className="w-60 bg-white border-r border-slate-200/80 flex flex-col justify-between p-4 flex-shrink-0 min-h-screen">

@@ -56,7 +56,8 @@ export default function MoreSettingsPage({
             desc: 'પ્રિસ્ક્રિપ્શન, લેબ રિપોર્ટ્સ અને પીડીએફ',
             icon: FolderArchive,
             color: 'bg-blue-50 text-blue-600',
-            action: () => onNavigate('files')
+            action: () => onNavigate('files'),
+            superAdminOnly: true
         },
         {
             id: 'staff',
@@ -64,7 +65,8 @@ export default function MoreSettingsPage({
             desc: 'કમ્પાઉન્ડર અને રિસેપ્શનિસ્ટ એક્સેસ',
             icon: Users,
             color: 'bg-purple-50 text-purple-600',
-            action: () => onNavigate('staff')
+            action: () => onNavigate('staff'),
+            superAdminOnly: true
         },
         {
             id: 'ai-voice',

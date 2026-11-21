@@ -21,12 +21,26 @@ export default function MobileHeader({
 }) {
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
 
+    const formatDoctorName = (raw) => {
+        if (!raw) return 'Dr. Jay Lakum';
+        let clean = raw.trim();
+        if (/^dr[\s\.]+/i.test(clean)) {
+            clean = clean.replace(/^dr[\s\.]+/i, '');
+        } else if (/^dr/i.test(clean) && clean.length > 2 && clean[2] !== ' ') {
+            clean = clean.replace(/^dr/i, '');
+        }
+        clean = clean.split(' ').filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        return `Dr. ${clean}`;
+    };
+
     const activeClinic = clinics.find(c => c.id === activeClinicId) || clinics[0] || {
         id: 1,
         name: 'શ્રીરામ ક્લિનિક',
         doctor_name: 'Dr. Jay Lakum',
         qualification: 'MBBS'
     };
+
+    const formattedDoctorName = formatDoctorName(activeClinic.doctor_name);
 
     return (
         <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 py-2.5 shadow-2xs">
@@ -61,7 +75,7 @@ export default function MobileHeader({
                                 )}
                             </div>
                             <p className="text-[11px] font-bold text-slate-400 leading-none mt-1">
-                                {activeClinic.doctor_name || 'Dr. Jay Lakum'}{activeClinic.qualification ? `, ${activeClinic.qualification}` : ', MBBS'}
+                                {formattedDoctorName}{activeClinic.qualification ? `, ${activeClinic.qualification}` : ', MBBS'}
                             </p>
                         </div>
                     </div>
