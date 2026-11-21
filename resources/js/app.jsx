@@ -12,6 +12,8 @@ import LoginScreen from './components/LoginScreen';
 import WelcomeTourModal from './components/WelcomeTourModal';
 import DoctorPatientManager from './components/DoctorPatientManager';
 import ClinicBillingStockManager from './components/ClinicBillingStockManager';
+import MobileHeader from './components/MobileHeader';
+import MoreSettingsDrawer from './components/MoreSettingsDrawer';
 import axios from 'axios';
 import { 
     PhoneCall, 
@@ -20,21 +22,26 @@ import {
     Sparkles, 
     Bot, 
     Layers, 
-    Archive,
-    CheckCircle2,
-    MessageSquare,
-    Sliders,
-    LogOut,
-    UploadCloud,
-    Stethoscope
+    Archive, 
+    CheckCircle2, 
+    MessageSquare, 
+    Sliders, 
+    LogOut, 
+    UploadCloud, 
+    Stethoscope,
+    Receipt,
+    Download
 } from 'lucide-react';
 
 function App() {
-    const [activeTab, setActiveTab] = useState('home'); // 'home' (Dashboard) | 'files' (My Files) | 'simulator'
+    const [activeTab, setActiveTab] = useState('patients'); // Default directly to Doctor Clinic!
     const [filesFilter, setFilesFilter] = useState({ companyId: '', docType: '', search: '' });
     const [isCallModalOpen, setIsCallModalOpen] = useState(false);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+    const [isMoreDrawerOpen, setIsMoreDrawerOpen] = useState(false);
+    const [clinics, setClinics] = useState([]);
+    const [activeClinicId, setActiveClinicId] = useState(1);
     const [stats, setStats] = useState(null);
     const [companies, setCompanies] = useState([]);
     const [currentUser, setCurrentUser] = useState(() => {
@@ -64,6 +71,7 @@ function App() {
     useEffect(() => {
         fetchStats();
         fetchCompanies();
+        fetchClinics();
 
         // Listen for PWA Install prompt event
         const handleBeforeInstall = (e) => {
@@ -85,6 +93,18 @@ function App() {
             window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
         };
     }, []);
+
+    const fetchClinics = async () => {
+        try {
+            const res = await axios.get('/api/clinic-accounts/clinics');
+            if (res.data?.success) {
+                setClinics(res.data.clinics || []);
+                if (res.data.clinics?.length > 0) {
+                    setActiveClinicId(res.data.clinics[0].id);
+                }
+            }
+        } catch(e) {}
+    };
 
     const handleInstallPWA = async () => {
         triggerHaptic(25);
@@ -135,23 +155,47 @@ function App() {
     }
 
     return (
-        <div className="min-h-screen w-full bg-[#f1f5f9] text-slate-900 flex flex-col selection:bg-emerald-600 selection:text-white overflow-y-auto">
+        <div className="min-h-screen w-full bg-[#f8fafc] text-slate-900 flex flex-col selection:bg-emerald-600 selection:text-white overflow-y-auto">
             
-            {/* Header Navbar */}
-            <Navbar
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                onOpenCall={() => setIsCallModalOpen(true)}
-                onOpenUpload={handleOpenUpload}
-                onOpenSettings={() => setIsSettingsModalOpen(true)}
-                onLogout={handleLogout}
-                stats={stats}
+            {/* 1. Dedicated Mobile Header (Solo Doctor App Design) */}
+            <MobileHeader
+                clinics={clinics}
+                activeClinicId={activeClinicId}
+                onSelectClinic={(id) => setActiveClinicId(id)}
+                onOpenMoreMenu={() => setIsMoreDrawerOpen(true)}
+                onOpenVoiceCall={() => setIsCallModalOpen(true)}
             />
 
-            {/* Main Content Area with adequate pb-36 and scrolling support so all pages scroll smoothly */}
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4 pb-36 overflow-y-visible">
+            {/* Desktop Navbar for larger screens */}
+            <div className="hidden md:block">
+                <Navbar
+                    activeTab={activeTab}
+                    setActiveTab={setActiveTab}
+                    onOpenCall={() => setIsCallModalOpen(true)}
+                    onOpenUpload={handleOpenUpload}
+                    onOpenSettings={() => setIsSettingsModalOpen(true)}
+                    onLogout={handleLogout}
+                    stats={stats}
+                />
+            </div>
 
-                {/* 1. Home Dashboard View */}
+            {/* Main Content Area */}
+            <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-5 space-y-4 pb-28">
+
+                {/* 1. Doctor Clinic Patient Records (Primary Screen) */}
+                {activeTab === 'patients' && (
+                    <DoctorPatientManager
+                        activeClinicId={activeClinicId}
+                        onOpenVoiceCall={() => setIsCallModalOpen(true)}
+                    />
+                )}
+
+                {/* 2. Multi-Clinic Accounts, Billing, Stock & Expenses */}
+                {activeTab === 'billing' && (
+                    <ClinicBillingStockManager />
+                )}
+
+                {/* 3. Home Dashboard View */}
                 {activeTab === 'home' && (
                     <DashboardHome
                         stats={stats}
@@ -161,18 +205,6 @@ function App() {
                         onNavigateToFiles={handleNavigateToFiles}
                         onNavigateToPatients={() => setActiveTab('patients')}
                     />
-                )}
-
-                {/* 2. Doctor Clinic Patient Records (New Feature) */}
-                {activeTab === 'patients' && (
-                    <DoctorPatientManager
-                        onOpenVoiceCall={() => setIsCallModalOpen(true)}
-                    />
-                )}
-
-                {/* 3. Multi-Clinic Accounts, Billing, Stock & Expenses (New Feature) */}
-                {activeTab === 'billing' && (
-                    <ClinicBillingStockManager />
                 )}
 
                 {/* 4. My Files View (Dedicated Document Explorer) */}
@@ -187,105 +219,92 @@ function App() {
                     />
                 )}
 
-                {/* 3. Telegram Simulator */}
+                {/* 5. Telegram Simulator */}
                 {activeTab === 'simulator' && (
                     <TelegramBotSimulator
                         onOpenCall={() => setIsCallModalOpen(true)}
                     />
                 )}
 
-                {/* 4. Security Whitelist */}
+                {/* 6. Security Whitelist */}
                 {activeTab === 'whitelist' && (
                     <SecurityWhitelist />
                 )}
 
             </main>
 
-            {/* Mobile Bottom Navigation Bar (Home, My Files, AI Call, Upload) */}
-            <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-4 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden flex items-center justify-around shadow-lg">
-                {/* 1. Home Tab */}
-                <button
-                    onClick={() => {
-                        triggerHaptic(10);
-                        setActiveTab('home');
-                    }}
-                    className={`flex flex-col items-center py-1 text-[11px] font-semibold transition active:scale-90 ${
-                        activeTab === 'home' ? 'text-emerald-700 font-bold' : 'text-slate-400'
-                    }`}
-                >
-                    <Bot className="w-5 h-5 mb-0.5" />
-                    <span>Home</span>
-                </button>
-
-                {/* 2. Clinic Tab */}
+            {/* Mobile Bottom Navigation Bar (Clinic, AI Call, Billing & More) */}
+            <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-6 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] md:hidden flex items-center justify-between shadow-lg">
+                
+                {/* 1. Clinic Tab */}
                 <button
                     onClick={() => {
                         triggerHaptic(10);
                         setActiveTab('patients');
                     }}
-                    className={`flex flex-col items-center py-1 text-[11px] font-semibold transition active:scale-90 ${
-                        activeTab === 'patients' ? 'text-emerald-700 font-bold' : 'text-slate-400'
+                    className={`flex flex-col items-center py-1 transition active:scale-95 cursor-pointer ${
+                        activeTab === 'patients' ? 'text-emerald-700 font-extrabold' : 'text-slate-400 font-semibold'
                     }`}
                 >
                     <Stethoscope className="w-5 h-5 mb-0.5" />
-                    <span>Clinic</span>
+                    <span className="text-[11px]">Clinic</span>
                 </button>
 
-                {/* 3. Central AI Call Dial */}
+                {/* 2. Central Big Round AI Call Dial Button */}
                 <button
                     onClick={() => {
                         triggerHaptic(20);
                         setIsCallModalOpen(true);
                     }}
-                    className="relative -top-4 w-12 h-12 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-700/30 border-4 border-[#f1f5f9] flex items-center justify-center cursor-pointer active:scale-90 transition"
+                    className="relative -top-4 w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white shadow-xl shadow-emerald-700/30 border-4 border-[#f8fafc] flex items-center justify-center cursor-pointer active:scale-90 transition"
                     title="Start AI Call"
                 >
-                    <PhoneCall className="w-5 h-5 text-white" />
+                    <PhoneCall className="w-6 h-6 text-white" />
                 </button>
 
-                {/* 4. Upload File Button */}
-                <button
-                    onClick={() => {
-                        triggerHaptic(12);
-                        handleOpenUpload('file');
-                    }}
-                    className="flex flex-col items-center py-1 text-[11px] font-semibold text-slate-400 hover:text-emerald-700 transition active:scale-90"
-                >
-                    <UploadCloud className="w-5 h-5 mb-0.5" />
-                    <span>Upload</span>
-                </button>
-
-                {/* 5. Roles & Access Tab */}
+                {/* 3. Billing & Stock Tab */}
                 <button
                     onClick={() => {
                         triggerHaptic(10);
-                        setActiveTab('whitelist');
+                        setActiveTab('billing');
                     }}
-                    className={`flex flex-col items-center py-1 text-[11px] font-semibold transition active:scale-90 ${
-                        activeTab === 'whitelist' ? 'text-emerald-700 font-bold' : 'text-slate-400'
+                    className={`flex flex-col items-center py-1 transition active:scale-95 cursor-pointer ${
+                        activeTab === 'billing' ? 'text-emerald-700 font-extrabold' : 'text-slate-400 font-semibold'
                     }`}
                 >
-                    <ShieldCheck className="w-5 h-5 mb-0.5" />
-                    <span>Roles</span>
+                    <Receipt className="w-5 h-5 mb-0.5" />
+                    <span className="text-[11px]">Billing</span>
+                </button>
+
+                {/* 4. More Tab */}
+                <button
+                    onClick={() => {
+                        triggerHaptic(10);
+                        setIsMoreDrawerOpen(true);
+                    }}
+                    className="flex flex-col items-center py-1 text-slate-400 font-semibold hover:text-slate-700 transition active:scale-95 cursor-pointer"
+                >
+                    <Sliders className="w-5 h-5 mb-0.5" />
+                    <span className="text-[11px]">More</span>
                 </button>
             </div>
 
-            {/* PWA Install App Toast Banner */}
+            {/* PWA Install Banner (Top Fixed Toast with 1-Tap Install) */}
             {canInstall && (
-                <div className="fixed top-16 left-4 right-4 z-50 sm:hidden bg-blue-600 text-white p-3 rounded-2xl shadow-xl flex items-center justify-between animate-slideDown">
-                    <div className="flex items-center space-x-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
-                            <Bot className="w-5 h-5 text-white" />
+                <div className="fixed top-16 left-3 right-3 z-50 md:hidden bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 text-white p-3.5 rounded-3xl shadow-2xl flex items-center justify-between border border-emerald-500/40 animate-slideDown">
+                    <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                            <Stethoscope className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <p className="text-xs font-bold leading-tight">Install DocVoice AI</p>
-                            <p className="text-[10px] text-blue-100">Add to home screen like a native app</p>
+                            <p className="text-xs font-black leading-tight">Install Clinic Mobile App</p>
+                            <p className="text-[11px] text-emerald-100 mt-0.5">હોમ સ્ક્રીન પર એપ આઈકોન ઉમેરો</p>
                         </div>
                     </div>
-                    <div className="flex items-center space-x-1.5">
+                    <div className="flex items-center space-x-2">
                         <button
                             onClick={handleInstallPWA}
-                            className="px-3 py-1 bg-white text-blue-600 font-bold text-xs rounded-lg shadow-xs"
+                            className="px-3.5 py-1.5 bg-white text-emerald-800 font-black text-xs rounded-xl shadow-xs active:scale-95 transition cursor-pointer"
                         >
                             Install
                         </button>
@@ -304,7 +323,19 @@ function App() {
                 <p>DocVoice AI Assistant • 100% Free Gemini & Whisper APIs • Built for Jay Sir</p>
             </footer>
 
-            {/* Modals */}
+            {/* Modals & Drawers */}
+            <MoreSettingsDrawer
+                isOpen={isMoreDrawerOpen}
+                onClose={() => setIsMoreDrawerOpen(false)}
+                clinics={clinics}
+                activeClinicId={activeClinicId}
+                onSelectClinic={(id) => setActiveClinicId(id)}
+                onNavigate={(tab) => setActiveTab(tab)}
+                onInstallPwa={handleInstallPWA}
+                canInstall={canInstall}
+                onLogout={handleLogout}
+            />
+
             <VoiceCallModal
                 isOpen={isCallModalOpen}
                 onClose={() => setIsCallModalOpen(false)}

@@ -2,54 +2,42 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { 
     Search, 
-    Upload, 
+    Camera, 
+    Phone, 
+    Sparkles, 
     User, 
-    FileText, 
     Calendar, 
     Pill, 
-    Clock, 
-    AlertCircle, 
-    CheckCircle2, 
-    Plus, 
-    X, 
-    Camera, 
-    Sparkles, 
-    Phone, 
     MapPin, 
-    ChevronRight,
-    Eye,
-    RefreshCw,
-    Activity
+    ChevronRight, 
+    X, 
+    Eye, 
+    RefreshCw, 
+    CheckCircle2, 
+    AlertCircle,
+    Activity,
+    Plus
 } from 'lucide-react';
 
-export default function DoctorPatientManager({ onOpenVoiceCall }) {
+export default function DoctorPatientManager({ onOpenVoiceCall, activeClinicId = 1 }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [suggestions, setSuggestions] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     const [selectedPatient, setSelectedPatient] = useState(null);
-    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-    const [selectedImagePreview, setSelectedImagePreview] = useState(null);
-    const [prescriptionFile, setPrescriptionFile] = useState(null);
+    const [patientList, setPatientList] = useState([]);
+    const [isLoadingList, setIsLoadingList] = useState(false);
+
+    // 1-Tap Camera Upload State
     const [isProcessingOcr, setIsProcessingOcr] = useState(false);
     const [ocrSuccessData, setOcrSuccessData] = useState(null);
     const [errorMessage, setErrorMessage] = useState('');
-    const [patientList, setPatientList] = useState([]);
-    const [isLoadingList, setIsLoadingList] = useState(false);
-    const [activeTab, setActiveTab] = useState('all'); // 'all', 'recent'
-
-    // Form data for manual overrides if needed
-    const [patientNameInput, setPatientNameInput] = useState('');
-    const [phoneInput, setPhoneInput] = useState('');
-    const [cityInput, setCityInput] = useState('');
-    const [notesInput, setNotesInput] = useState('');
 
     const searchDebounceRef = useRef(null);
     const fileInputRef = useRef(null);
 
-    // Initial load of recent patients
     useEffect(() => {
         loadRecentPatients();
-    }, []);
+    }, [activeClinicId]);
 
     const loadRecentPatients = async () => {
         setIsLoadingList(true);
@@ -65,7 +53,7 @@ export default function DoctorPatientManager({ onOpenVoiceCall }) {
         }
     };
 
-    // Ultra-Fast Suggestion Search (Debounced 150ms for instant 10-25ms response)
+    // Fast 150ms Debounced Suggestion Search (Instant Result)
     const handleSearchChange = (e) => {
         const val = e.target.value;
         setSearchQuery(val);
@@ -104,31 +92,22 @@ export default function DoctorPatientManager({ onOpenVoiceCall }) {
                 setSelectedPatient(res.data.patient);
             }
         } catch (err) {
-            console.error('Error fetching patient details:', err);
             setSelectedPatient(patient);
         }
     };
 
-    // 1-Click Instant Photo Upload: As soon as doctor selects/clicks photo, immediately send to AI OCR
-    const handleFileChange = async (e) => {
+    // 1-Tap Direct Camera Photo Capture & Immediate AI Upload
+    const handleDirectPhotoSelect = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        setPrescriptionFile(file);
+        setIsProcessingOcr(true);
         setErrorMessage('');
         setOcrSuccessData(null);
-        setIsProcessingOcr(true);
 
-        // Preview image
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            setSelectedImagePreview(event.target.result);
-        };
-        reader.readAsDataURL(file);
-
-        // Direct Instant Auto-Upload (No manual typing required by doctor!)
         const formData = new FormData();
         formData.append('photo', file);
+        formData.append('clinic_id', activeClinicId);
 
         try {
             const res = await axios.post('/api/patients/upload-prescription', formData, {
@@ -138,136 +117,115 @@ export default function DoctorPatientManager({ onOpenVoiceCall }) {
             if (res.data?.success) {
                 setOcrSuccessData(res.data);
                 setSelectedPatient(res.data.patient);
-                loadRecentPatients(); // refresh directory
-                // Auto close modal after brief 1.5s success feedback so doctor doesn't have to click anything
-                setTimeout(() => {
-                    setIsUploadModalOpen(false);
-                    setPrescriptionFile(null);
-                    setSelectedImagePreview(null);
-                    setOcrSuccessData(null);
-                }, 1800);
+                loadRecentPatients();
+                // Clear success toast after 4s
+                setTimeout(() => setOcrSuccessData(null), 4000);
             } else {
-                setErrorMessage(res.data?.message || 'અપલોડમાં ક્ષતિ આવી.');
+                setErrorMessage(res.data?.message || 'ફોટો પ્રોસેસ ન થઈ શક્યો.');
             }
         } catch (err) {
-            console.error('Direct Upload Error:', err);
-            setErrorMessage(err.response?.data?.message || 'સર્વર એરર: ફોટો પ્રોસેસ ન થઈ શક્યો.');
+            setErrorMessage(err.response?.data?.message || 'સર્વર કનેક્શનમાં ક્ષતિ આવી.');
         } finally {
             setIsProcessingOcr(false);
-        }
-    };
-
-    const handleUploadPrescription = async (e) => {
-        e.preventDefault();
-        if (!prescriptionFile) {
-            setErrorMessage('કૃપા કરીને પ્રિસ્ક્રિપ્શન અથવા પેજનો ફોટો પસંદ કરો.');
-            return;
-        }
-
-        setIsProcessingOcr(true);
-        setErrorMessage('');
-
-        const formData = new FormData();
-        formData.append('photo', prescriptionFile);
-        if (patientNameInput.trim()) formData.append('patient_name', patientNameInput.trim());
-        if (phoneInput.trim()) formData.append('phone', phoneInput.trim());
-        if (cityInput.trim()) formData.append('city', cityInput.trim());
-        if (notesInput.trim()) formData.append('notes', notesInput.trim());
-
-        try {
-            const res = await axios.post('/api/patients/upload-prescription', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-
-            if (res.data?.success) {
-                setOcrSuccessData(res.data);
-                setSelectedPatient(res.data.patient);
-                loadRecentPatients(); // refresh table
-                // Reset inputs
-                setPrescriptionFile(null);
-                setSelectedImagePreview(null);
-                setPatientNameInput('');
-                setPhoneInput('');
-                setCityInput('');
-                setNotesInput('');
-                setTimeout(() => {
-                    setIsUploadModalOpen(false);
-                }, 2000);
-            } else {
-                setErrorMessage(res.data?.message || 'અપલોડમાં ક્ષતિ આવી.');
-            }
-        } catch (err) {
-            console.error('Upload Error:', err);
-            setErrorMessage(err.response?.data?.message || 'સર્વર એરર: ફોટો પ્રોસેસ ન થઈ શક્યો.');
-        } finally {
-            setIsProcessingOcr(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
 
     return (
-        <div className="space-y-4 max-w-6xl mx-auto pb-12">
+        <div className="space-y-4 max-w-lg mx-auto pb-24 px-1 sm:px-0">
             
-            {/* Top Clinic Header & Actions */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center space-x-3">
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-xs">
-                        <Activity className="w-6 h-6" />
+            {/* Hidden native camera file input */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleDirectPhotoSelect}
+                accept="image/*,application/pdf"
+                capture="environment" // Direct mobile camera trigger!
+                className="hidden"
+            />
+
+            {/* 1. Large 1-Tap Action Buttons (Tailored for Doctor Thumb Ergonomics) */}
+            <div className="grid grid-cols-2 gap-3">
+                {/* Big Camera Snap Button */}
+                <button
+                    onClick={() => !isProcessingOcr && fileInputRef.current?.click()}
+                    disabled={isProcessingOcr}
+                    className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-700/25 flex flex-col items-center justify-center text-center space-y-2 active:scale-95 transition cursor-pointer"
+                >
+                    {isProcessingOcr ? (
+                        <>
+                            <RefreshCw className="w-8 h-8 animate-spin" />
+                            <div>
+                                <p className="font-extrabold text-sm sm:text-base leading-tight">AI સ્કેન કરે છે...</p>
+                                <p className="text-[11px] text-emerald-100 mt-0.5">વિગત વાંચી રહ્યો છે</p>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shadow-inner">
+                                <Camera className="w-7 h-7" />
+                            </div>
+                            <div>
+                                <p className="font-extrabold text-sm sm:text-base leading-tight">પેજનો ફોટો પાડો</p>
+                                <p className="text-[11px] text-emerald-100 font-medium mt-0.5">1-Tap Auto AI OCR</p>
+                            </div>
+                        </>
+                    )}
+                </button>
+
+                {/* Big Voice AI Call Button */}
+                <button
+                    onClick={onOpenVoiceCall}
+                    className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg shadow-blue-700/25 flex flex-col items-center justify-center text-center space-y-2 active:scale-95 transition cursor-pointer"
+                >
+                    <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shadow-inner">
+                        <Phone className="w-7 h-7" />
                     </div>
                     <div>
-                        <div className="flex items-center space-x-2">
-                            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                                Doctor Clinic & Patient Records
-                            </h2>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                AI Vision OCR
-                            </span>
-                        </div>
-                        <p className="text-xs text-slate-500">
-                            ફોટો અપલોડ કરો, પલકવારમાં પેશન્ટની દવા/હિસ્ટ્રી ઓટોમેટિક વાંચો અને કૉલ પર પૂછો.
-                        </p>
+                        <p className="font-extrabold text-sm sm:text-base leading-tight">AI વૉઇસ કૉલ</p>
+                        <p className="text-[11px] text-blue-100 font-medium mt-0.5">દર્દીની વિગત પૂછો</p>
                     </div>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                    {/* Call AI Assistant Button */}
-                    <button
-                        onClick={onOpenVoiceCall}
-                        className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold text-xs transition border border-blue-200 cursor-pointer"
-                    >
-                        <Phone className="w-4 h-4 text-blue-600" />
-                        <span>Voice AI Call</span>
-                    </button>
-
-                    {/* Upload Prescription Button */}
-                    <button
-                        onClick={() => {
-                            setOcrSuccessData(null);
-                            setErrorMessage('');
-                            setIsUploadModalOpen(true);
-                        }}
-                        className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition cursor-pointer"
-                    >
-                        <Plus className="w-4 h-4" />
-                        <span>Upload Prescription Page</span>
-                    </button>
-                </div>
+                </button>
             </div>
 
-            {/* Smart Real-time Search Box with Live Diagnosis Differences */}
-            <div className="relative bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-4 shadow-xs">
+            {/* AI OCR Real-time Scan Notification */}
+            {ocrSuccessData && (
+                <div className="p-4 rounded-3xl bg-emerald-50 border-2 border-emerald-300 text-emerald-900 shadow-md space-y-2 animate-in zoom-in-95">
+                    <div className="flex items-center space-x-2 font-bold text-sm text-emerald-800">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                        <span>AI એ નવો રેકોર્ડ આપમેળે સેવ કર્યો!</span>
+                    </div>
+                    <div className="bg-white/90 rounded-2xl p-3 border border-emerald-200 text-xs space-y-1">
+                        <p className="font-bold text-slate-900 text-sm">{ocrSuccessData.patient?.name}</p>
+                        <p className="text-amber-800 font-semibold">🩺 તકલીફ: {ocrSuccessData.extracted?.diagnosis || 'સામાન્ય તપાસ'}</p>
+                        {ocrSuccessData.extracted?.medicines && (
+                            <p className="text-slate-600">💊 દવા: {ocrSuccessData.extracted?.medicines}</p>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {errorMessage && (
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center space-x-2">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <span>{errorMessage}</span>
+                </div>
+            )}
+
+            {/* 2. Large Touch-Friendly Search Box */}
+            <div className="relative">
                 <div className="relative flex items-center">
-                    <Search className="absolute left-3.5 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <Search className="absolute left-4 w-5 h-5 text-slate-400 pointer-events-none" />
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={handleSearchChange}
-                        placeholder="દર્દીનું નામ લખો (દા.ત. Jay, રમેશ, પટેલ) અથવા મોબાઇલ નંબર..."
-                        className="w-full bg-slate-50 border border-slate-200/90 focus:border-emerald-500 focus:bg-white rounded-xl pl-10 pr-24 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none transition font-medium"
+                        placeholder="દર્દીનું નામ (દા.ત. Jay, રમેશ) અથવા મોબાઈલ..."
+                        className="w-full bg-white border-2 border-slate-200/90 focus:border-emerald-600 rounded-2xl pl-12 pr-12 py-3.5 text-sm sm:text-base text-slate-900 placeholder:text-slate-400 font-semibold shadow-xs focus:outline-none transition"
                     />
                     {isSearching ? (
-                        <div className="absolute right-3.5 flex items-center space-x-1 text-slate-400 text-xs">
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
-                            <span className="text-[11px] font-medium">શોધી રહ્યું છે...</span>
+                        <div className="absolute right-4">
+                            <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />
                         </div>
                     ) : searchQuery ? (
                         <button
@@ -275,204 +233,152 @@ export default function DoctorPatientManager({ onOpenVoiceCall }) {
                                 setSearchQuery('');
                                 setSuggestions([]);
                             }}
-                            className="absolute right-3 p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                            className="absolute right-3.5 p-1.5 rounded-xl bg-slate-100 text-slate-400 hover:text-slate-600"
                         >
                             <X className="w-4 h-4" />
                         </button>
                     ) : null}
                 </div>
 
-                {/* Instant Dropdown Suggestions Popup (Highlighting Duplicate Names with Treatment Differences) */}
+                {/* Instant Suggestion Dropdown (Clear Highlight for Duplicate Names e.g. Fever vs Cough) */}
                 {suggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden divide-y divide-slate-100 max-h-96 overflow-y-auto animate-in fade-in slide-in-from-top-1">
-                        <div className="bg-slate-50/90 px-3.5 py-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                    <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-white border-2 border-emerald-500/30 rounded-3xl shadow-2xl overflow-hidden divide-y divide-slate-100 max-h-96 overflow-y-auto animate-in fade-in slide-in-from-top-2">
+                        <div className="bg-emerald-50/90 px-4 py-2 text-xs font-bold text-emerald-800 flex items-center justify-between">
                             <span>મળેલા દર્દીઓ ({suggestions.length})</span>
-                            <span className="text-emerald-700 font-semibold lowercase">તુરંત ઓળખવા માટે છેલ્લી તકલીફ/દવા જુઓ</span>
+                            <span className="text-[11px] font-medium text-emerald-600">તુરંત ઓળખવા છેલ્લી દવા જુઓ</span>
                         </div>
 
                         {suggestions.map((p) => (
                             <div
                                 key={p.id}
                                 onClick={() => handleSelectPatient(p)}
-                                className="p-3 sm:px-4 hover:bg-emerald-50/60 transition cursor-pointer flex items-center justify-between group"
+                                className="p-3.5 sm:p-4 hover:bg-emerald-50/50 transition cursor-pointer flex items-center justify-between active:bg-emerald-100/50"
                             >
-                                <div className="space-y-1">
+                                <div className="space-y-1 pr-2">
                                     <div className="flex items-center space-x-2">
-                                        <span className="font-bold text-slate-900 text-sm group-hover:text-emerald-700">
+                                        <span className="font-extrabold text-slate-900 text-base">
                                             {p.name}
                                         </span>
-                                        {p.name_gujarati && p.name_gujarati !== p.name && (
-                                            <span className="text-xs text-slate-500 font-medium">
-                                                ({p.name_gujarati})
-                                            </span>
-                                        )}
                                         {p.age && (
-                                            <span className="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md font-medium">
-                                                ઉંમર: {p.age}
+                                            <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg font-bold">
+                                                {p.age} વર્ષ
                                             </span>
                                         )}
                                         {p.city && (
-                                            <span className="text-[11px] text-slate-400 flex items-center space-x-0.5">
-                                                <MapPin className="w-2.5 h-2.5 inline" />
-                                                <span>{p.city}</span>
+                                            <span className="text-xs text-slate-400 font-medium">
+                                                • {p.city}
                                             </span>
                                         )}
                                     </div>
 
-                                    {/* Crucial: Distinction between duplicate names (e.g. Fever vs Cough) */}
+                                    {/* Distinction pill: Fever vs Cough */}
                                     <div className="flex items-center space-x-1.5 text-xs">
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200/80 font-medium text-[11px]">
-                                            <Pill className="w-3 h-3 mr-1 text-amber-600" />
-                                            <span>છેલ્લી દવા/તકલીફ: {p.last_diagnosis || 'સામાન્ય તપાસ'}</span>
+                                        <span className="inline-flex items-center px-2.5 py-1 rounded-xl bg-amber-50 text-amber-900 border border-amber-200/90 font-bold text-xs">
+                                            <Pill className="w-3.5 h-3.5 mr-1 text-amber-600 flex-shrink-0" />
+                                            <span>છેલ્લે: {p.last_diagnosis || 'સામાન્ય તપાસ'}</span>
                                         </span>
                                         {p.last_medicines && (
-                                            <span className="text-slate-500 text-[11px] truncate max-w-xs">
+                                            <span className="text-slate-500 text-xs truncate max-w-[140px] sm:max-w-xs">
                                                 ({p.last_medicines})
                                             </span>
                                         )}
                                     </div>
                                 </div>
 
-                                <div className="text-right flex items-center space-x-2 flex-shrink-0">
-                                    {p.last_visit_date && (
-                                        <span className="text-[11px] text-slate-400 hidden sm:inline">
-                                            {new Date(p.last_visit_date).toLocaleDateString('gu-IN', { month: 'short', day: 'numeric' })}
-                                        </span>
-                                    )}
-                                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition" />
-                                </div>
+                                <ChevronRight className="w-5 h-5 text-slate-300 flex-shrink-0" />
                             </div>
                         ))}
                     </div>
                 )}
             </div>
 
-            {/* Selected Patient Detailed View (Prescription History & Photo Timeline) */}
+            {/* 3. Selected Patient History Card with Full Prescription Photo */}
             {selectedPatient && (
-                <div className="bg-white border-2 border-emerald-500/30 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4 animate-in fade-in">
+                <div className="bg-white border-2 border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-md space-y-4 animate-in fade-in">
                     <div className="flex items-start justify-between border-b border-slate-100 pb-3">
                         <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-lg border border-emerald-100">
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-xl">
                                 {selectedPatient.name.charAt(0)}
                             </div>
                             <div>
-                                <div className="flex items-center space-x-2">
-                                    <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                                        {selectedPatient.name}
-                                    </h3>
-                                    {selectedPatient.name_gujarati && (
-                                        <span className="text-xs text-slate-500">
-                                            ({selectedPatient.name_gujarati})
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-0.5">
-                                    {selectedPatient.age && <span>ઉંમર: {selectedPatient.age} વર્ષ</span>}
-                                    {selectedPatient.gender && <span>• {selectedPatient.gender}</span>}
-                                    {selectedPatient.city && <span>• {selectedPatient.city}</span>}
-                                    {selectedPatient.phone && <span>• 📞 {selectedPatient.phone}</span>}
-                                    <span className="text-emerald-700 font-semibold">• કુલ મુલાકાત: {selectedPatient.total_visits || 1}</span>
-                                </div>
+                                <h3 className="font-extrabold text-lg text-slate-900">
+                                    {selectedPatient.name}
+                                </h3>
+                                <p className="text-xs text-slate-500 font-medium">
+                                    {selectedPatient.age ? `${selectedPatient.age} વર્ષ` : ''} {selectedPatient.city ? `• ${selectedPatient.city}` : ''} {selectedPatient.phone ? `• 📞 ${selectedPatient.phone}` : ''}
+                                </p>
                             </div>
                         </div>
 
                         <button
                             onClick={() => setSelectedPatient(null)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                            className="p-1.5 rounded-xl bg-slate-100 text-slate-400 hover:text-slate-600"
                         >
-                            <X className="w-4 h-4" />
+                            <X className="w-5 h-5" />
                         </button>
                     </div>
 
-                    {/* Last Prescription Summary Card */}
-                    <div className="bg-gradient-to-r from-emerald-50/70 to-teal-50/70 border border-emerald-200/80 rounded-xl p-3.5 space-y-1.5">
-                        <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
-                            <span className="flex items-center space-x-1">
-                                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>છેલ્લી સારવાર સમરી (AI Extracted):</span>
-                            </span>
-                            <span className="text-[11px] text-emerald-700 font-normal">
-                                તારીખ: {selectedPatient.last_visit_date ? new Date(selectedPatient.last_visit_date).toLocaleDateString() : 'N/A'}
-                            </span>
-                        </div>
-                        <p className="text-sm font-semibold text-slate-800">
-                            {selectedPatient.last_diagnosis || 'સામાન્ય તપાસ'}
-                        </p>
+                    {/* Quick Medicine Pill */}
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 space-y-1">
+                        <p className="text-xs font-bold text-emerald-900">છેલ્લી તકલીફ & સારવાર:</p>
+                        <p className="font-black text-sm text-slate-900">{selectedPatient.last_diagnosis || 'સામાન્ય તપાસ'}</p>
                         {selectedPatient.last_medicines && (
-                            <p className="text-xs text-slate-600 font-medium">
-                                <span className="font-bold text-slate-700">લખેલી દવાઓ:</span> {selectedPatient.last_medicines}
-                            </p>
+                            <p className="text-xs font-semibold text-slate-600">લખેલી દવા: {selectedPatient.last_medicines}</p>
                         )}
                     </div>
 
-                    {/* Prescription Pages Timeline */}
-                    <div className="space-y-2">
-                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center space-x-1.5">
-                            <FileText className="w-3.5 h-3.5 text-slate-400" />
-                            <span>પ્રિસ્ક્રિપ્શન પેજ ફોટા અને મુલાકાત ઇતિહાસ ({selectedPatient.visits?.length || 0})</span>
-                        </h4>
+                    {/* Prescription Photos Timeline */}
+                    <div className="space-y-2 pt-1">
+                        <p className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">
+                            પ્રિસ્ક્રિપ્શન પેજ ફોટા ({selectedPatient.visits?.length || 0})
+                        </p>
 
-                        {selectedPatient.visits && selectedPatient.visits.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {selectedPatient.visits.map((v) => (
-                                    <div key={v.id} className="border border-slate-200 rounded-xl p-3 bg-slate-50/50 space-y-2">
-                                        <div className="flex items-center justify-between text-xs">
-                                            <span className="font-bold text-slate-800 flex items-center space-x-1">
-                                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                                                <span>{new Date(v.visit_date).toLocaleDateString('gu-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                                            </span>
-                                            <span className="text-[11px] bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-600">
-                                                {v.diagnosis}
-                                            </span>
-                                        </div>
+                        <div className="space-y-3">
+                            {selectedPatient.visits?.map((v) => (
+                                <div key={v.id} className="border border-slate-200 rounded-2xl p-3 bg-slate-50/70 space-y-2">
+                                    <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                                        <span>📅 {new Date(v.visit_date).toLocaleDateString('gu-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                        <span className="bg-white px-2 py-0.5 rounded-lg border border-slate-200 text-slate-600 text-[11px]">
+                                            {v.diagnosis}
+                                        </span>
+                                    </div>
 
-                                        {/* Prescription Photo thumbnail */}
-                                        {v.photo_path && (
-                                            <div className="relative group rounded-lg overflow-hidden border border-slate-200 bg-black/5 aspect-[4/3] flex items-center justify-center">
+                                    {v.photo_path && (
+                                        <div className="rounded-xl overflow-hidden border border-slate-200 bg-black/5 aspect-[4/3]">
+                                            <a href={v.photo_path} target="_blank" rel="noreferrer">
                                                 <img 
                                                     src={v.photo_path} 
                                                     alt="Prescription" 
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                                    className="w-full h-full object-cover"
                                                 />
-                                                <a 
-                                                    href={v.photo_path} 
-                                                    target="_blank" 
-                                                    rel="noreferrer"
-                                                    className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold space-x-1"
-                                                >
-                                                    <Eye className="w-4 h-4" />
-                                                    <span>મોટો ફોટો જુઓ</span>
-                                                </a>
-                                            </div>
-                                        )}
+                                            </a>
+                                        </div>
+                                    )}
 
-                                        {v.medicines && (
-                                            <div className="text-xs text-slate-600 bg-white p-2 rounded-lg border border-slate-200/80">
-                                                <span className="font-semibold text-slate-800">દવા:</span> {v.medicines}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-xs text-slate-400 italic">કોઈ જૂની મુલાકાતનો ફોટો ઉપલબ્ધ નથી.</p>
-                        )}
+                                    {v.medicines && (
+                                        <p className="text-xs text-slate-600 bg-white p-2 rounded-xl border border-slate-200">
+                                            <span className="font-bold">દવા:</span> {v.medicines}
+                                        </p>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* Patients Directory Table & List */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3">
+            {/* 4. Recent Patients Card Directory */}
+            <div className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-5 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
-                        <User className="w-4 h-4 text-emerald-600" />
+                    <h3 className="font-extrabold text-sm sm:text-base text-slate-900 flex items-center space-x-2">
+                        <Activity className="w-4 h-4 text-emerald-600" />
                         <span>દર્દીઓની યાદી (Recent Patients)</span>
                     </h3>
                     <button 
                         onClick={loadRecentPatients}
-                        className="text-xs text-slate-500 hover:text-emerald-700 flex items-center space-x-1"
+                        className="text-xs font-bold text-emerald-700 flex items-center space-x-1"
                     >
-                        <RefreshCw className="w-3 h-3" />
+                        <RefreshCw className="w-3.5 h-3.5" />
                         <span>રિફ્રેશ</span>
                     </button>
                 </div>
@@ -480,161 +386,46 @@ export default function DoctorPatientManager({ onOpenVoiceCall }) {
                 {isLoadingList ? (
                     <div className="py-8 text-center text-xs text-slate-400">દર્દીઓ લોડ થઈ રહ્યા છે...</div>
                 ) : patientList.length === 0 ? (
-                    <div className="py-8 text-center text-xs text-slate-400">હજી સુધી કોઈ દર્દીનો રેકોર્ડ નથી. ઉપર આપેલા બટનથી પ્રિસ્ક્રિપ્શન ફોટો અપલોડ કરો.</div>
+                    <div className="py-8 text-center text-xs text-slate-400">
+                        કોઈ દર્દી નથી. ઉપરના લીલા બટનથી પેજનો ફોટો પાડો.
+                    </div>
                 ) : (
-                    <div className="divide-y divide-slate-100 overflow-x-auto">
+                    <div className="divide-y divide-slate-100">
                         {patientList.map((p) => (
                             <div 
                                 key={p.id}
                                 onClick={() => handleSelectPatient(p)}
-                                className="py-2.5 px-2 hover:bg-slate-50 rounded-xl transition flex items-center justify-between cursor-pointer"
+                                className="py-3 px-1 hover:bg-slate-50 transition flex items-center justify-between cursor-pointer active:scale-[0.99]"
                             >
-                                <div className="space-y-0.5">
+                                <div className="space-y-1">
                                     <div className="flex items-center space-x-2">
-                                        <span className="font-bold text-xs sm:text-sm text-slate-800">{p.name}</span>
-                                        {p.name_gujarati && p.name_gujarati !== p.name && (
-                                            <span className="text-xs text-slate-500">({p.name_gujarati})</span>
-                                        )}
+                                        <span className="font-extrabold text-sm sm:text-base text-slate-900">
+                                            {p.name}
+                                        </span>
                                         {p.city && (
-                                            <span className="text-[11px] text-slate-400">• {p.city}</span>
+                                            <span className="text-xs text-slate-400 font-medium">
+                                                • {p.city}
+                                            </span>
                                         )}
                                     </div>
-                                    <p className="text-xs text-slate-500">
-                                        <span className="font-semibold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px] mr-1">
+                                    <div className="flex items-center space-x-2 text-xs">
+                                        <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 font-bold text-[11px] border border-emerald-200/80">
                                             {p.last_diagnosis || 'સામાન્ય તપાસ'}
                                         </span>
-                                        {p.last_medicines && <span className="text-[11px] text-slate-500">({p.last_medicines})</span>}
-                                    </p>
+                                        {p.last_medicines && (
+                                            <span className="text-slate-500 text-xs truncate max-w-[160px]">
+                                                {p.last_medicines}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="text-right flex items-center space-x-2">
-                                    <span className="text-[11px] text-slate-400">
-                                        {p.last_visit_date ? new Date(p.last_visit_date).toLocaleDateString() : ''}
-                                    </span>
-                                    <ChevronRight className="w-4 h-4 text-slate-300" />
-                                </div>
+
+                                <ChevronRight className="w-5 h-5 text-slate-300 flex-shrink-0" />
                             </div>
                         ))}
                     </div>
                 )}
             </div>
-
-            {/* Upload Prescription Page Modal */}
-            {isUploadModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-100 space-y-4 my-8 animate-in fade-in zoom-in-95">
-                        
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <div className="flex items-center space-x-2.5">
-                                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                                    <Camera className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight">
-                                        Upload Prescription Page Photo
-                                    </h3>
-                                    <p className="text-[11px] text-slate-500">
-                                        AI આપમેળે દર્દીનું નામ, તકલીફ અને દવાઓ વાંચી લેશે.
-                                    </p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => setIsUploadModalOpen(false)}
-                                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        {errorMessage && (
-                            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center space-x-2">
-                                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                                <span>{errorMessage}</span>
-                            </div>
-                        )}
-
-                        {ocrSuccessData ? (
-                            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs space-y-2 animate-in zoom-in-95">
-                                <div className="flex items-center space-x-2 font-bold text-sm text-emerald-800">
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-                                    <span>AI એ સફળતાપૂર્વક તમામ વિગત વાંચી લીધી!</span>
-                                </div>
-                                <div className="bg-white/80 rounded-xl p-3 border border-emerald-100 space-y-1">
-                                    <p><strong>👤 દર્દીનું નામ:</strong> {ocrSuccessData.patient?.name} {ocrSuccessData.patient?.city ? `(${ocrSuccessData.patient?.city})` : ''}</p>
-                                    <p><strong>🩺 રોગ / તકલીફ:</strong> <span className="text-amber-800 font-semibold">{ocrSuccessData.extracted?.diagnosis || 'સામાન્ય તપાસ'}</span></p>
-                                    {ocrSuccessData.extracted?.medicines && (
-                                        <p><strong>💊 લખેલી દવાઓ:</strong> {ocrSuccessData.extracted?.medicines}</p>
-                                    )}
-                                </div>
-                                <p className="text-[11px] text-emerald-700 italic text-center">રેકોર્ડ સેવ થઈ ગયો છે! મોડલ આપમેળે બંધ થઈ રહ્યું છે...</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {/* Large 1-Tap Camera / Photo Dropzone */}
-                                <div 
-                                    onClick={() => !isProcessingOcr && fileInputRef.current?.click()}
-                                    className={`border-3 border-dashed rounded-3xl p-6 sm:p-8 text-center cursor-pointer transition flex flex-col items-center justify-center ${
-                                        isProcessingOcr 
-                                            ? 'border-emerald-500 bg-emerald-50/50 cursor-wait' 
-                                            : selectedImagePreview 
-                                                ? 'border-emerald-500 bg-emerald-50/20' 
-                                                : 'border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/10 bg-slate-50'
-                                    }`}
-                                >
-                                    <input
-                                        type="file"
-                                        ref={fileInputRef}
-                                        onChange={handleFileChange}
-                                        accept="image/*,application/pdf"
-                                        className="hidden"
-                                    />
-
-                                    {isProcessingOcr ? (
-                                        <div className="py-6 space-y-3">
-                                            <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
-                                                <RefreshCw className="w-8 h-8 animate-spin" />
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-slate-800">
-                                                    Gemini AI વિઝન પેજ વાંચી રહ્યું છે...
-                                                </p>
-                                                <p className="text-xs text-slate-500 mt-1">
-                                                    દર્દીનું નામ, તકલીફ અને દવાઓ ઓટોમેટિક ફેચ થઈ રહી છે
-                                                </p>
-                                            </div>
-                                        </div>
-                                    ) : selectedImagePreview ? (
-                                        <div className="space-y-2">
-                                            <img 
-                                                src={selectedImagePreview} 
-                                                alt="Prescription preview" 
-                                                className="max-h-56 rounded-xl shadow-xs mx-auto object-contain border border-slate-200"
-                                            />
-                                            <p className="text-xs text-emerald-700 font-semibold">ફોટો પ્રોસેસ થઈ રહ્યો છે...</p>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3 py-4">
-                                            <div className="w-16 h-16 rounded-2xl bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-600/30">
-                                                <Camera className="w-8 h-8" />
-                                            </div>
-                                            <div>
-                                                <p className="text-base font-bold text-slate-900">
-                                                    પેજનો ફોટો પાડો અથવા સિલેક્ટ કરો
-                                                </p>
-                                                <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-                                                    ડૉક્ટરે કશું ટાઈપ કરવાની જરૂર નથી. ફોટો સિલેક્ટ કરતાં જ AI આપમેળે બધું વાંચીને સેવ કરી લેશે!
-                                                </p>
-                                            </div>
-                                            <span className="inline-block px-3 py-1 bg-slate-200/80 text-slate-700 text-[11px] font-bold rounded-full">
-                                                ⚡ 100% Automatic 1-Tap Upload
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
 
         </div>
     );
