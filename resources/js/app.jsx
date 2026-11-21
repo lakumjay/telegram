@@ -56,6 +56,7 @@ function App() {
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
     const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+    const [selectedPatientForCall, setSelectedPatientForCall] = useState(null);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
     const [selectedPatientForBill, setSelectedPatientForBill] = useState(null);
@@ -256,7 +257,10 @@ function App() {
                             clinics={clinics}
                             refreshTrigger={refreshTrigger}
                             onNavigate={(tab) => navigateTo(tab)}
-                            onOpenVoiceCall={() => setIsCallModalOpen(true)}
+                            onOpenVoiceCall={(pt) => {
+                                setSelectedPatientForCall(pt || null);
+                                setIsCallModalOpen(true);
+                            }}
                             onOpenScan={() => navigateTo('scan')}
                             onOpenNewBill={(pt) => {
                                 setSelectedPatientForBill(pt || null);
@@ -278,7 +282,10 @@ function App() {
                             refreshTrigger={refreshTrigger}
                             initialOpenAdd={openAddPatientModal}
                             onCloseAdd={() => setOpenAddPatientModal(false)}
-                            onOpenVoiceCall={() => setIsCallModalOpen(true)}
+                            onOpenVoiceCall={(pt) => {
+                                setSelectedPatientForCall(pt || null);
+                                setIsCallModalOpen(true);
+                            }}
                             onOpenNewBill={(pt) => {
                                 setSelectedPatientForBill(pt || null);
                                 navigateTo('new-bill');
@@ -499,19 +506,19 @@ function App() {
                                 <p className="text-[10px] text-slate-400">નવો દર્દી ઉમેરો</p>
                             </button>
 
-                            {/* AI Voice Call */}
+                            {/* Clinical Voice AI */}
                             <button
                                 onClick={() => {
                                     setIsFabMenuOpen(false);
                                     setIsCallModalOpen(true);
                                 }}
-                                className="p-3.5 rounded-2xl bg-teal-50/70 hover:bg-teal-100/70 border border-teal-100 text-left transition active:scale-95"
+                                className="p-3.5 rounded-2xl bg-teal-50/70 hover:bg-teal-100/70 border border-teal-100 text-left transition active:scale-95 cursor-pointer"
                             >
                                 <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center mb-2 shadow-xs">
                                     <PhoneCall className="w-4 h-4" />
                                 </div>
-                                <p className="font-extrabold text-xs text-slate-900">AI Voice Call</p>
-                                <p className="text-[10px] text-slate-400">દર્દી સાથે કૉલ</p>
+                                <p className="font-extrabold text-xs text-slate-900">Clinical Voice AI</p>
+                                <p className="text-[10px] text-teal-700 font-bold">દર્દીની હિસ્ટ્રી બોલીને શોધો</p>
                             </button>
                         </div>
                     </div>
@@ -536,10 +543,14 @@ function App() {
                 activeClinic={activeClinic}
             />
 
-            {/* 7. AI VOICE CALL MODAL */}
+            {/* 7. AI VOICE CALL MODAL (Clinical Assistant for Doctor) */}
             <VoiceCallModal
                 isOpen={isCallModalOpen}
-                onClose={() => setIsCallModalOpen(false)}
+                onClose={() => {
+                    setIsCallModalOpen(false);
+                    setSelectedPatientForCall(null);
+                }}
+                initialPatient={selectedPatientForCall}
                 telegramUserId={currentUser?.telegram_id || (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) || 999888777}
             />
 

@@ -368,15 +368,16 @@ export default function DashboardHome({
                         <span className="text-[11px] font-bold text-slate-800 leading-tight">Patient History</span>
                     </button>
 
-                    {/* Action 6: AI Voice Call */}
+                    {/* Action 6: AI Clinical Voice Copilot */}
                     <button
                         onClick={onOpenVoiceCall}
                         className="flex flex-col items-center justify-center p-3 rounded-2xl bg-teal-50/60 hover:bg-teal-100/70 border border-teal-100/60 transition active:scale-95 group text-center cursor-pointer"
+                        title="ડૉક્ટર માટે દર્દીની હિસ્ટ્રી બોલીને શોધો"
                     >
                         <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition mb-1.5">
                             <PhoneCall className="w-5 h-5" />
                         </div>
-                        <span className="text-[11px] font-bold text-slate-800 leading-tight">AI Voice Call</span>
+                        <span className="text-[11px] font-bold text-slate-800 leading-tight">AI Voice Assistant</span>
                     </button>
 
                 </div>
@@ -563,15 +564,15 @@ export default function DashboardHome({
                         </div>
                     </div>
 
-                    {/* AI Voice Call Robot Promo Card matching Screen 2 */}
+                    {/* Clinical Voice Copilot Card matching Doctor's Medical Assistant */}
                     <div className="rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 p-4 sm:p-5 text-white shadow-xs relative overflow-hidden space-y-3">
                         <div className="flex items-center justify-between">
                             <div className="space-y-1">
                                 <p className="font-extrabold text-sm flex items-center gap-1.5">
-                                    <Bot className="w-4 h-4 text-emerald-200" /> AI Voice Call
+                                    <Bot className="w-4 h-4 text-emerald-200" /> Clinical AI Copilot
                                 </p>
                                 <p className="text-[11px] text-emerald-100 leading-snug">
-                                    Follow-up with patients automatically in Gujarati.
+                                    ડૉક્ટર માટે દર્દીઓની જૂની હિસ્ટ્રી, દવાઓ અને હિસાબ બોલીને તરત શોધો.
                                 </p>
                             </div>
                             <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center flex-shrink-0 text-white">
@@ -583,7 +584,7 @@ export default function DashboardHome({
                             onClick={onOpenVoiceCall}
                             className="w-full py-2 bg-white text-emerald-800 font-extrabold text-xs rounded-xl shadow-xs hover:bg-emerald-50 active:scale-95 transition cursor-pointer flex items-center justify-center space-x-1.5"
                         >
-                            <span>Start Call</span>
+                            <span>ડૉક્ટર સહાયક કૉલ શરૂ કરો</span>
                             <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                     </div>

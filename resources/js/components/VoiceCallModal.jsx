@@ -15,7 +15,12 @@ import { PcmPlayer, ToneGenerator, arrayBufferToBase64, base64ToInt16 } from '..
 // Persistent audio stream cache across calls so user is asked permission only ONCE
 let globalMicStream = null;
 
-export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 999888777 }) {
+export default function VoiceCallModal({ 
+    isOpen, 
+    onClose, 
+    telegramUserId = 999888777,
+    initialPatient = null
+}) {
     if (!isOpen) return null;
 
     const [callState, setCallState] = useState('connecting'); // connecting, connected, ended
@@ -878,15 +883,22 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             } catch(e) {}
 
             setCallState('connected');
-            setTranscriptHistory([{ sender: 'ai', text: 'નમસ્તે! હું શ્રીરામ ક્લિનિકમાંથી બોલું છું.' }]);
+            const initialText = initialPatient
+                ? `નમસ્તે ડૉક્ટર સાહેબ! દર્દી ${initialPatient.name} નો રેકોર્ડ ઓપન છે.`
+                : 'નમસ્તે ડૉક્ટર સાહેબ! હું તમારો પર્સનલ ક્લિનિકલ AI સહાયક છું.';
+            setTranscriptHistory([{ sender: 'ai', text: initialText }]);
 
-            // Trigger immediate spoken greeting so user does not wait in silence!
+            // Trigger immediate spoken greeting tailored to Dr. Jay Lakum
             try {
+                const greetingPrompt = initialPatient
+                    ? `નમસ્તે ડૉક્ટર સાહેબ! કૉલ કનેક્ટ થઈ ગયો છે. દર્દી "${initialPatient.name}" ની ફાઈલ ઓપન છે. ૧ વાક્યમાં આદરપૂર્વક દેશી ગુજરાતીમાં બોલો: 'નમસ્તે ડૉક્ટર સાહેબ! દર્દી ${initialPatient.name} ની ફાઈલ ઓપન છે. તેમને છેલ્લે ${initialPatient.last_diagnosis || 'તપાસ'} માટે દવાઓ આપી હતી. બીજી શું વિગત તપાસવી છે?'`
+                    : `નમસ્તે ડૉક્ટર સાહેબ! કૉલ કનેક્ટ થઈ ગયો છે. ૧ વાક્યમાં આદરપૂર્વક દેશી ગુજરાતીમાં બોલો: 'નમસ્તે ડૉક્ટર સાહેબ! હું તમારો પર્સનલ ક્લિનિકલ AI સહાયક છું. કહો, આજે કયા દર્દીની હિસ્ટ્રી કે દવાઓની વિગત તપાસવી છે?'`;
+
                 session.sendClientContent({
                     turns: [{
                         role: 'user',
                         parts: [{
-                            text: "નમસ્તે! કૉલ કનેક્ટ થઈ ગયો છે. તરત જ ૧ વાક્યમાં દેશી ગુજરાતીમાં મીઠો આવકાર આપો: 'નમસ્તે, હું શ્રીરામ ક્લિનિકમાંથી ડૉક્ટરના સહાયક તરીકે બોલું છું. હું તમને કેવી રીતે મદદ કરી શકું?'"
+                            text: greetingPrompt
                         }]
                     }],
                     turnComplete: true
@@ -981,22 +993,25 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                         />
 
                         {/* Caller Photo / Avatar */}
-                        <div className={`relative w-28 h-28 rounded-full p-1 bg-gradient-to-b from-neutral-700 to-neutral-900 border-2 ${isAiSpeaking ? 'border-pink-500 shadow-lg shadow-pink-500/40' : 'border-neutral-700'} shadow-2xl flex items-center justify-center`}>
-                            <div className="w-full h-full rounded-full bg-gradient-to-tr from-purple-900 via-slate-800 to-indigo-900 flex items-center justify-center overflow-hidden">
-                                <span className="text-5xl filter drop-shadow">👩‍💼</span>
+                        <div className={`relative w-28 h-28 rounded-full p-1 bg-gradient-to-b from-emerald-600 to-teal-900 border-2 ${isAiSpeaking ? 'border-emerald-400 shadow-lg shadow-emerald-500/40' : 'border-emerald-700'} shadow-2xl flex items-center justify-center`}>
+                            <div className="w-full h-full rounded-full bg-gradient-to-tr from-emerald-950 via-slate-900 to-teal-950 flex items-center justify-center overflow-hidden">
+                                <span className="text-5xl filter drop-shadow">🩺</span>
                             </div>
                         </div>
                     </div>
 
                     {/* Caller Name */}
-                    <h2 className="text-2xl font-semibold tracking-tight text-white mt-1">
-                        Alexa AI Voice
+                    <h2 className="text-xl font-bold tracking-tight text-white mt-1">
+                        Clinical AI Copilot
                     </h2>
+                    <p className="text-[11px] font-bold text-emerald-400 mt-0.5">
+                        ડૉ. જય લકુમ માટે પર્સનલ સહાયક
+                    </p>
 
                     {/* Call Status / Timer */}
                     <p className="text-sm font-medium mt-1">
                         {callState === 'connecting' ? (
-                            <span className="text-amber-400 animate-pulse font-medium">Calling Alexa AI...</span>
+                            <span className="text-amber-400 animate-pulse font-medium">કનેક્ટ થઈ રહ્યું છે...</span>
                         ) : callState === 'connected' ? (
                             <span className="text-neutral-300 font-mono tracking-wider">{formatTime(callDuration)}</span>
                         ) : (
@@ -1008,14 +1023,14 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     <div className="mt-2 flex flex-col items-center space-y-1">
                         <div>
                             {isAiSpeaking ? (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                                     <Volume2 className="w-3 h-3 mr-1.5 animate-bounce" />
-                                    Alexa Speaking...
+                                    AI બોલી રહ્યું છે...
                                 </span>
                             ) : !isMuted && callState === 'connected' ? (
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-teal-500/15 text-teal-300 border border-teal-500/20">
                                     <Mic className="w-3 h-3 mr-1.5 animate-pulse" />
-                                    Listening (Live VAD)...
+                                    ડૉક્ટરનો અવાજ સાંભળી રહ્યું છે...
                                 </span>
                             ) : isMuted ? (
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-medium bg-neutral-800 text-neutral-400">
@@ -1037,10 +1052,10 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                     </div>
                 </div>
 
-                {/* Tool Event Notification Bar (Telegram Send Confirmation) */}
+                {/* Tool Event Notification Bar (Patient Found / Search Confirmation) */}
                 {lastToolEvent && (
-                    <div className="mx-6 px-3 py-2 bg-indigo-950/70 border border-indigo-500/40 rounded-xl text-[11px] text-indigo-200 flex items-center space-x-2 animate-bounce">
-                        <FileText className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                    <div className="mx-6 px-3 py-2 bg-emerald-950/70 border border-emerald-500/40 rounded-xl text-[11px] text-emerald-200 flex items-center space-x-2 animate-bounce">
+                        <FileText className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                         <span className="truncate">{lastToolEvent}</span>
                     </div>
                 )}
@@ -1048,17 +1063,44 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                 {/* Subtitle / Live Transcript Box */}
                 <div className="mx-6 my-2 h-28 overflow-y-auto rounded-2xl bg-neutral-900/60 border border-neutral-800/80 p-3 text-xs leading-relaxed text-neutral-300 backdrop-blur-md shadow-inner flex flex-col justify-end">
                     {transcriptHistory.slice(-3).map((item, idx) => (
-                        <div key={idx} className={`mb-1 ${item.sender === 'user' ? 'text-blue-300 font-medium' : 'text-neutral-200'}`}>
-                            <span className="text-[10px] text-neutral-500 block">{item.sender === 'user' ? '👤 You:' : '👩‍💼 Alexa:'}</span>
+                        <div key={idx} className={`mb-1 ${item.sender === 'user' ? 'text-emerald-300 font-medium' : 'text-neutral-200'}`}>
+                            <span className="text-[10px] text-neutral-500 block">{item.sender === 'user' ? '🩺 ડૉ. જય લકુમ:' : '🤖 ક્લિનિકલ AI:'}</span>
                             <span>{item.text}</span>
                         </div>
                     ))}
                     {currentAiText && (
-                        <div className="text-pink-300 flex items-center space-x-1 animate-pulse">
+                        <div className="text-emerald-300 flex items-center space-x-1 animate-pulse">
                             <span>{currentAiText}</span>
                         </div>
                     )}
                     <div ref={transcriptEndRef} />
+                </div>
+
+                {/* Doctor Quick Clinical Suggestion Prompts */}
+                <div className="mx-6 mb-2 flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
+                    {[
+                        'જય પટેલની છેલ્લી દવા બતાવો',
+                        'રમેશ સોલંકીની વિગત આપો',
+                        'આજની આવક અને દર્દી કેટલા?',
+                        'દવાનો સ્ટોક કેટલો બાકી છે?'
+                    ].map((promptText, i) => (
+                        <button
+                            key={i}
+                            type="button"
+                            onClick={() => {
+                                if (sessionRef.current) {
+                                    handleTranscript('user', promptText);
+                                    sessionRef.current.sendClientContent({
+                                        turns: [{ role: 'user', parts: [{ text: promptText }] }],
+                                        turnComplete: true
+                                    });
+                                }
+                            }}
+                            className="px-2.5 py-1 rounded-full bg-neutral-850 hover:bg-emerald-900/60 border border-neutral-700 hover:border-emerald-500/60 text-[10px] font-bold text-neutral-300 hover:text-white transition flex-shrink-0 cursor-pointer active:scale-95"
+                        >
+                            💬 {promptText}
+                        </button>
+                    ))}
                 </div>
 
                 {/* iPhone In-Call Control Grid */}
