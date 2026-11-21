@@ -19,7 +19,9 @@ import {
     RefreshCw, 
     ZoomIn, 
     ExternalLink,
-    Plus
+    Plus,
+    Edit2,
+    Save
 } from 'lucide-react';
 
 export default function PatientDetailModal({ 
@@ -39,6 +41,16 @@ export default function PatientDetailModal({
     const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
     const [zoomedPhoto, setZoomedPhoto] = useState(null);
 
+    // Edit Patient State
+    const [isEditing, setIsEditing] = useState(false);
+    const [editName, setEditName] = useState('');
+    const [editPhone, setEditPhone] = useState('');
+    const [editAge, setEditAge] = useState('');
+    const [editGender, setEditGender] = useState('Male');
+    const [editCity, setEditCity] = useState('');
+    const [editDiagnosis, setEditDiagnosis] = useState('');
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
+
     const fileInputRef = useRef(null);
     const cameraInputRef = useRef(null);
 
@@ -52,13 +64,90 @@ export default function PatientDetailModal({
         try {
             const res = await axios.get(`/api/patients/${patientId}`);
             if (res.data?.success) {
-                setPatient(res.data.patient);
+                const pt = res.data.patient;
+                setPatient(pt);
+                setEditName(pt.name || '');
+                setEditPhone(pt.phone || '');
+                setEditAge(pt.age || '');
+                setEditGender(pt.gender || 'Male');
+                setEditCity(pt.city || '');
+                setEditDiagnosis(pt.last_diagnosis || '');
             }
         } catch (err) {
             console.error('Error fetching patient:', err);
             setStatusMsg({ type: 'error', text: 'દર્દીની વિગતો લોડ ન થઈ શકી.' });
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    // Save Patient Edit
+    const handleSaveEdit = async (e) => {
+        e.preventDefault();
+        const cleanName = editName.trim();
+        if (!cleanName) {
+            setStatusMsg({ type: 'error', text: 'દર્દીનું નામ દાખલ કરવું ફરજિયાત છે.' });
+            return;
+        }
+
+        const cleanPhone = editPhone.trim();
+        if (cleanPhone && cleanPhone.length !== 10) {
+            setStatusMsg({ type: 'error', text: 'કૃપા કરીને ૧૦ અંકનો સાચો મોબાઈલ નંબર દાખલ કરો.' });
+            return;
+        }
+
+        setIsSavingEdit(true);
+        setStatusMsg({ type: '', text: '' });
+
+        try {
+            const res = await axios.post(`/api/patients/${patientId}`, {
+                name: cleanName,
+                phone: cleanPhone || null,
+                age: editAge ? parseInt(editAge) : null,
+                gender: editGender,
+                city: editCity || null,
+                last_diagnosis: editDiagnosis || 'સામાન્ય તપાસ',
+            });
+
+            if (res.data?.success) {
+                setPatient(res.data.patient);
+                setIsEditing(false);
+                setStatusMsg({ type: 'success', text: '✅ દર્દીની વિગતો સફળતાપૂર્વક અપડેટ થઈ ગઈ!' });
+                if (window.showAppToast) {
+                    window.showAppToast('✅ દર્દીની વિગતો સફળતાપૂર્વક અપડેટ થઈ ગઈ!');
+                }
+                if (window.triggerAppRefresh) {
+                    window.triggerAppRefresh();
+                }
+                if (onPatientUpdated) onPatientUpdated(res.data.patient);
+            }
+        } catch (err) {
+            console.error('Error updating patient:', err);
+            setStatusMsg({ type: 'error', text: err.response?.data?.message || 'દર્દી અપડેટ કરવામાં ક્ષતિ આવી.' });
+        } finally {
+            setIsSavingEdit(false);
+        }
+    };
+
+    // Delete Entire Patient Record
+    const handleDeletePatient = async () => {
+        if (!confirm(`શું તમે ખરેખર "${patient?.name}" દર્દીનો તમામ રેકોર્ડ ડિલીટ કરવા માંગો છો?`)) return;
+
+        try {
+            const res = await axios.delete(`/api/patients/${patientId}`);
+            if (res.data?.success) {
+                if (window.showAppToast) {
+                    window.showAppToast('🗑️ દર્દીનો રેકોર્ડ ડિલીટ થઈ ગયો.');
+                }
+                if (window.triggerAppRefresh) {
+                    window.triggerAppRefresh();
+                }
+                if (onPatientUpdated) onPatientUpdated(null);
+                onClose();
+            }
+        } catch (err) {
+            console.error('Error deleting patient:', err);
+            alert('દર્દી ડિલીટ કરવામાં ક્ષતિ આવી.');
         }
     };
 
@@ -126,7 +215,7 @@ export default function PatientDetailModal({
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
             <div className="bg-white rounded-3xl max-w-xl w-full p-4 sm:p-6 shadow-2xl border border-slate-100 space-y-4 my-6 animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
                 
-                {/* 1. Modal Header with Close Button */}
+                {/* 1. Modal Header with Edit, Delete & Close Button */}
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-shrink-0">
                     <div className="flex items-center space-x-3">
                         <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black text-base shadow-md shadow-emerald-700/20">
@@ -144,13 +233,103 @@ export default function PatientDetailModal({
                         </div>
                     </div>
 
-                    <button
-                        onClick={onClose}
-                        className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center space-x-1">
+                        <button
+                            onClick={() => setIsEditing(!isEditing)}
+                            className={`p-1.5 rounded-xl transition cursor-pointer ${
+                                isEditing ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                            }`}
+                            title="Edit Patient"
+                        >
+                            <Edit2 className="w-4 h-4" />
+                        </button>
+
+                        <button
+                            onClick={handleDeletePatient}
+                            className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                            title="Delete Patient Record"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+
+                        <button
+                            onClick={onClose}
+                            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
+
+                {/* Inline Edit Patient Form */}
+                {isEditing && (
+                    <form onSubmit={handleSaveEdit} className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5 text-xs animate-in fade-in flex-shrink-0">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-1.5 font-bold text-slate-700">
+                            <span>દર્દીની વિગતો સુધારો (Edit Patient)</span>
+                            <button type="button" onClick={() => setIsEditing(false)} className="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer">રદ કરો</button>
+                        </div>
+
+                        <div>
+                            <label className="block text-[11px] font-bold text-slate-500 mb-0.5">દર્દીનું નામ *</label>
+                            <input
+                                type="text"
+                                required
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                className="w-full px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-0.5">મોબાઈલ નંબર</label>
+                                <input
+                                    type="tel"
+                                    value={editPhone}
+                                    onChange={(e) => setEditPhone(e.target.value)}
+                                    placeholder="૧૦ અંક"
+                                    className="w-full px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-0.5">ઉંમર</label>
+                                <input
+                                    type="number"
+                                    value={editAge}
+                                    onChange={(e) => setEditAge(e.target.value)}
+                                    className="w-full px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-[11px] font-bold text-slate-500 mb-0.5">તકલીફ (Diagnosis)</label>
+                            <input
+                                type="text"
+                                value={editDiagnosis}
+                                onChange={(e) => setEditDiagnosis(e.target.value)}
+                                className="w-full px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                            />
+                        </div>
+
+                        <div className="flex justify-end space-x-2 pt-1">
+                            <button
+                                type="button"
+                                onClick={() => setIsEditing(false)}
+                                className="px-3 py-1.5 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                            >
+                                રદ કરો
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={isSavingEdit}
+                                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center space-x-1 shadow-xs cursor-pointer"
+                            >
+                                {isSavingEdit ? 'સેવ થાય છે...' : 'ફેરફાર સેવ કરો'}
+                            </button>
+                        </div>
+                    </form>
+                )}
 
                 {/* Status Toast Message */}
                 {statusMsg.text && (

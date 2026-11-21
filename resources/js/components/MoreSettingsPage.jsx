@@ -61,7 +61,7 @@ export default function MoreSettingsPage({
             desc: 'કમ્પાઉન્ડર અને રિસેપ્શનિસ્ટ એક્સેસ',
             icon: Users,
             color: 'bg-purple-50 text-purple-600',
-            action: () => onNavigate('whitelist')
+            action: () => onNavigate('staff')
         },
         {
             id: 'ai-voice',

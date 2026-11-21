@@ -31,12 +31,14 @@ import PatientDetailModal from './PatientDetailModal';
 export default function DashboardHome({ 
     activeClinic,
     clinics = [],
+    refreshTrigger = 0,
     onNavigate,
     onOpenVoiceCall,
     onOpenScan,
     onOpenNewBill,
     onOpenNewPatient,
-    onOpenAddExpense
+    onOpenAddExpense,
+    onOpenAppointments
 }) {
     const [summary, setSummary] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -52,7 +54,7 @@ export default function DashboardHome({
 
     useEffect(() => {
         fetchDashboardData();
-    }, [activeClinic?.id]);
+    }, [activeClinic?.id, refreshTrigger]);
 
     const fetchDashboardData = async () => {
         setIsLoading(true);
@@ -110,23 +112,18 @@ export default function DashboardHome({
     const clinicName = activeClinic?.name || 'શ્રીરામ ક્લિનિક';
     const qualification = activeClinic?.qualification || 'MBBS';
 
-    const todayPatients = summary?.today?.patients_count ?? 24;
-    const todayIncome = summary?.today?.income ? Number(summary.today.income).toLocaleString('en-IN') : '8,250';
-    const todayExpenses = summary?.today?.expense ? Number(summary.today.expense).toLocaleString('en-IN') : '1,250';
-    const netProfit = summary?.today?.net_profit ? Number(summary.today.net_profit).toLocaleString('en-IN') : '7,000';
-    const monthlyProfit = summary?.month?.net_profit ? Number(summary.month.net_profit).toLocaleString('en-IN') : '1,25,000';
-    const appointmentsCount = summary?.appointments_count ?? 6;
+    // REAL ACCURATE STATS - NO HARDCODED FALLBACK NUMBERS
+    const todayPatients = summary?.today ? (summary.today.patients_count ?? 0) : 0;
+    const todayIncome = summary?.today ? Number(summary.today.income || 0).toLocaleString('en-IN') : '0';
+    const todayExpenses = summary?.today ? Number(summary.today.expense || 0).toLocaleString('en-IN') : '0';
+    const netProfit = summary?.today ? Number(summary.today.net_profit || 0).toLocaleString('en-IN') : '0';
+    const monthlyProfit = summary?.month ? Number(summary.month.net_profit || 0).toLocaleString('en-IN') : '0';
+    const appointmentsCount = summary?.appointments_count ?? 0;
+    const recentPatients = summary?.recent_patients || [];
 
-    const recentPatients = summary?.recent_patients || [
-        { id: 1, name: 'Rakesh Patel', phone: '9876543210', last_visit_date: '21-11-2026', status: 'Paid' },
-        { id: 2, name: 'Hetal Sharma', phone: '9824512345', last_visit_date: '21-11-2026', status: 'Pending' },
-        { id: 3, name: 'Nitesh Parmar', phone: '9574456789', last_visit_date: '20-11-2026', status: 'Paid' },
-        { id: 4, name: 'Pooja Desai', phone: '9891234567', last_visit_date: '19-11-2026', status: 'Paid' },
-        { id: 5, name: 'Jayesh Solanki', phone: '9724567890', last_visit_date: '18-11-2026', status: 'Paid' }
-    ];
-
-    const todayDateStr = "Mon, 21 Nov 2026";
-    const gujaratiTithi = "કારતક સુદ - ૧૦";
+    const now = new Date();
+    const todayDateStr = now.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    const gujaratiTithi = "આજની તારીખ";
 
     return (
         <div className="space-y-4 sm:space-y-6">
@@ -407,98 +404,109 @@ export default function DashboardHome({
                         </button>
                     </div>
 
-                    {/* Mobile View: Clean Card List (Clicking opens details and photos!) */}
-                    <div className="space-y-2 sm:hidden">
-                        {recentPatients.map(pt => (
-                            <div 
-                                key={pt.id} 
-                                onClick={() => handleOpenPatientDetail(pt.id)}
-                                className="p-3 rounded-2xl border border-slate-100 hover:border-emerald-300 transition bg-slate-50/40 flex items-center justify-between cursor-pointer group"
-                            >
-                                <div className="flex items-center space-x-2.5">
-                                    <div className="w-9 h-9 rounded-xl bg-emerald-100/80 text-emerald-800 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition">
-                                        {pt.name.charAt(0)}
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-xs text-slate-900 group-hover:text-emerald-800 transition">{pt.name}</p>
-                                        <p className="text-[10px] text-slate-400">{pt.phone} • {pt.last_visit_date}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
-                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
-                                        pt.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                                    }`}>
-                                        {pt.status}
-                                    </span>
-                                    <a
-                                        href={`tel:${pt.phone}`}
-                                        className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center hover:bg-emerald-100"
-                                        title="Call"
-                                    >
-                                        <Phone className="w-3.5 h-3.5" />
-                                    </a>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Desktop View: Rich Table matching Screen 2 */}
-                    <div className="hidden sm:block overflow-x-auto">
-                        <table className="w-full text-left text-xs">
-                            <thead>
-                                <tr className="text-slate-400 font-bold border-b border-slate-100 text-[11px]">
-                                    <th className="pb-2.5">Patient Name</th>
-                                    <th className="pb-2.5">Mobile</th>
-                                    <th className="pb-2.5">Visit Date</th>
-                                    <th className="pb-2.5">Status</th>
-                                    <th className="pb-2.5 text-right">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
+                    {/* List or Clean Empty State */}
+                    {recentPatients.length === 0 ? (
+                        <div className="py-10 text-center space-y-2 text-slate-400">
+                            <Users className="w-8 h-8 mx-auto text-slate-300 stroke-1" />
+                            <p className="text-xs font-bold text-slate-600">હજુ સુધી કોઈ દર્દીની મુલાકાત નોંધાઈ નથી.</p>
+                            <p className="text-[11px] text-slate-400">નવા દર્દી ઉમેરવા માટે '+ New Patient' બટન પર ક્લિક કરો.</p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Mobile View: Clean Card List (Clicking opens details and photos!) */}
+                            <div className="space-y-2 sm:hidden">
                                 {recentPatients.map(pt => (
-                                    <tr 
+                                    <div 
                                         key={pt.id} 
                                         onClick={() => handleOpenPatientDetail(pt.id)}
-                                        className="hover:bg-slate-50/60 transition cursor-pointer group"
+                                        className="p-3 rounded-2xl border border-slate-100 hover:border-emerald-300 transition bg-slate-50/40 flex items-center justify-between cursor-pointer group"
                                     >
-                                        <td className="py-2.5 font-bold text-slate-800 flex items-center space-x-2.5 group-hover:text-emerald-800 transition">
-                                            <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center justify-center">
+                                        <div className="flex items-center space-x-2.5">
+                                            <div className="w-9 h-9 rounded-xl bg-emerald-100/80 text-emerald-800 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition">
                                                 {pt.name.charAt(0)}
                                             </div>
-                                            <span>{pt.name}</span>
-                                        </td>
-                                        <td className="py-2.5 text-slate-500 font-medium">{pt.phone}</td>
-                                        <td className="py-2.5 text-slate-500 font-medium">{pt.last_visit_date}</td>
-                                        <td className="py-2.5">
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                            <div>
+                                                <p className="font-bold text-xs text-slate-900 group-hover:text-emerald-800 transition">{pt.name}</p>
+                                                <p className="text-[10px] text-slate-400">{pt.phone} • {pt.last_visit_date}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
                                                 pt.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
                                             }`}>
                                                 {pt.status}
                                             </span>
-                                        </td>
-                                        <td className="py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                                            <div className="flex items-center justify-end space-x-1.5">
-                                                <a 
-                                                    href={`tel:${pt.phone}`}
-                                                    className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition"
-                                                    title="Call Patient"
-                                                >
-                                                    <Phone className="w-3.5 h-3.5" />
-                                                </a>
-                                                <button 
-                                                    onClick={() => handleOpenPatientDetail(pt.id)}
-                                                    className="p-1.5 rounded-lg bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 transition cursor-pointer"
-                                                    title="View Details & Prescription Photos"
-                                                >
-                                                    <Eye className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                            <a
+                                                href={`tel:${pt.phone}`}
+                                                className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center hover:bg-emerald-100"
+                                                title="Call"
+                                            >
+                                                <Phone className="w-3.5 h-3.5" />
+                                            </a>
+                                        </div>
+                                    </div>
                                 ))}
-                            </tbody>
-                        </table>
-                    </div>
+                            </div>
+
+                            {/* Desktop View: Rich Table matching Screen 2 */}
+                            <div className="hidden sm:block overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead>
+                                        <tr className="text-slate-400 font-bold border-b border-slate-100 text-[11px]">
+                                            <th className="pb-2.5">Patient Name</th>
+                                            <th className="pb-2.5">Mobile</th>
+                                            <th className="pb-2.5">Visit Date</th>
+                                            <th className="pb-2.5">Status</th>
+                                            <th className="pb-2.5 text-right">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {recentPatients.map(pt => (
+                                            <tr 
+                                                key={pt.id} 
+                                                onClick={() => handleOpenPatientDetail(pt.id)}
+                                                className="hover:bg-slate-50/60 transition cursor-pointer group"
+                                            >
+                                                <td className="py-2.5 font-bold text-slate-800 flex items-center space-x-2.5 group-hover:text-emerald-800 transition">
+                                                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center justify-center">
+                                                        {pt.name.charAt(0)}
+                                                    </div>
+                                                    <span>{pt.name}</span>
+                                                </td>
+                                                <td className="py-2.5 text-slate-500 font-medium">{pt.phone}</td>
+                                                <td className="py-2.5 text-slate-500 font-medium">{pt.last_visit_date}</td>
+                                                <td className="py-2.5">
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                                        pt.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                                                    }`}>
+                                                        {pt.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex items-center justify-end space-x-1.5">
+                                                        <a 
+                                                            href={`tel:${pt.phone}`}
+                                                            className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition"
+                                                            title="Call Patient"
+                                                        >
+                                                            <Phone className="w-3.5 h-3.5" />
+                                                        </a>
+                                                        <button 
+                                                            onClick={() => handleOpenPatientDetail(pt.id)}
+                                                            className="p-1.5 rounded-lg bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 transition cursor-pointer"
+                                                            title="View Details & Prescription Photos"
+                                                        >
+                                                            <Eye className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    )}
 
                 </div>
 

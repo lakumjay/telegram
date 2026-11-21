@@ -26,7 +26,8 @@ export default function DoctorPatientManager({
     onOpenVoiceCall, 
     activeClinicId = 1,
     onBack = null,
-    onOpenNewBill = null
+    onOpenNewBill = null,
+    refreshTrigger = 0
 }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterPeriod, setFilterPeriod] = useState('All'); // 'All' | 'Today' | 'This Week' | 'This Month'
@@ -46,12 +47,13 @@ export default function DoctorPatientManager({
     const [newPatientCity, setNewPatientCity] = useState('');
     const [newPatientDiagnosis, setNewPatientDiagnosis] = useState('');
     const [isSavingNew, setIsSavingNew] = useState(false);
+    const [formError, setFormError] = useState('');
 
     const searchDebounceRef = useRef(null);
 
     useEffect(() => {
         loadPatients();
-    }, [activeClinicId]);
+    }, [activeClinicId, refreshTrigger]);
 
     const loadPatients = async () => {
         setIsLoadingList(true);
@@ -105,31 +107,52 @@ export default function DoctorPatientManager({
 
     const handleCreatePatient = async (e) => {
         e.preventDefault();
-        if (!newPatientName.trim()) return;
+        setFormError('');
+
+        const cleanName = newPatientName.trim();
+        if (!cleanName) {
+            setFormError('દર્દીનું નામ દાખલ કરવું ફરજિયાત છે.');
+            return;
+        }
+
+        const cleanPhone = newPatientPhone.trim();
+        if (cleanPhone && cleanPhone.length !== 10) {
+            setFormError('કૃપા કરીને ૧૦ અંકનો સાચો મોબાઈલ નંબર દાખલ કરો.');
+            return;
+        }
 
         setIsSavingNew(true);
         try {
             const res = await axios.post('/api/patients', {
-                name: newPatientName,
-                phone: newPatientPhone,
-                age: newPatientAge,
+                name: cleanName,
+                phone: cleanPhone || null,
+                age: newPatientAge ? parseInt(newPatientAge) : null,
                 gender: newPatientGender,
-                city: newPatientCity,
-                last_diagnosis: newPatientDiagnosis,
+                city: newPatientCity || null,
+                last_diagnosis: newPatientDiagnosis || 'સામાન્ય તપાસ',
                 clinic_id: activeClinicId
             });
 
             if (res.data?.success) {
+                if (window.showAppToast) {
+                    window.showAppToast(res.data.message || '✅ દર્દી સફળતાપૂર્વક ઉમેરાઈ ગયો!');
+                }
+                if (window.triggerAppRefresh) {
+                    window.triggerAppRefresh();
+                }
+
                 setIsAddModalOpen(false);
                 setNewPatientName('');
                 setNewPatientPhone('');
                 setNewPatientAge('');
                 setNewPatientCity('');
                 setNewPatientDiagnosis('');
+                setFormError('');
                 loadPatients();
             }
         } catch (err) {
             console.error('Error creating patient:', err);
+            setFormError(err.response?.data?.message || 'દર્દી સેવ કરવામાં ક્ષતિ આવી.');
         } finally {
             setIsSavingNew(false);
         }
@@ -149,6 +172,16 @@ export default function DoctorPatientManager({
         if (filterPeriod === 'Today') {
             const todayStr = new Date().toISOString().split('T')[0];
             return p.last_visit_date && p.last_visit_date.startsWith(todayStr);
+        }
+        if (filterPeriod === 'This Week') {
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            const weekAgoStr = weekAgo.toISOString().split('T')[0];
+            return p.last_visit_date && p.last_visit_date >= weekAgoStr;
+        }
+        if (filterPeriod === 'This Month') {
+            const monthStr = new Date().toISOString().slice(0, 7);
+            return p.last_visit_date && p.last_visit_date.startsWith(monthStr);
         }
         return true;
     });
@@ -360,6 +393,13 @@ export default function DoctorPatientManager({
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
+
+                        {formError && (
+                            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs flex items-center space-x-1.5">
+                                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                <span>{formError}</span>
+                            </div>
+                        )}
 
                         <form onSubmit={handleCreatePatient} className="space-y-3 text-xs">
                             <div>

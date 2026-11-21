@@ -133,6 +133,12 @@ export default function AIPrescriptionScanner({
             }
 
             setIsVerifyOpen(false);
+            if (window.showAppToast) {
+                window.showAppToast('✅ પ્રિસ્ક્રિપ્શન અને દર્દી સફળતાપૂર્વક સેવ થઈ ગયા!');
+            }
+            if (window.triggerAppRefresh) {
+                window.triggerAppRefresh();
+            }
             if (onPatientSaved) onPatientSaved();
             if (onBack) onBack();
         } catch (err) {

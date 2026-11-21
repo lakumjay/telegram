@@ -13,11 +13,12 @@ import {
     Users,
     Clock,
     UserX,
-    Filter
+    Filter,
+    ArrowLeft
 } from 'lucide-react';
 import axios from 'axios';
 
-export default function SecurityWhitelist() {
+export default function SecurityWhitelist({ onBack = null }) {
     const [users, setUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [telegramId, setTelegramId] = useState('');
@@ -105,6 +106,14 @@ export default function SecurityWhitelist() {
             {/* Top Security Banner */}
             <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                 <div className="flex items-center space-x-3">
+                    {onBack && (
+                        <button
+                            onClick={onBack}
+                            className="w-9 h-9 rounded-2xl bg-white border border-slate-200/80 hover:bg-slate-50 flex items-center justify-center text-slate-700 transition active:scale-95 cursor-pointer shadow-2xs mr-1"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                        </button>
+                    )}
                     <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/60 flex items-center justify-center flex-shrink-0">
                         <ShieldCheck className="w-5 h-5" />
                     </div>

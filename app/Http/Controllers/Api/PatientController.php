@@ -250,6 +250,64 @@ class PatientController extends Controller
     }
 
     /**
+     * Create / Store New Patient manually
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:30',
+            'age' => 'nullable|integer',
+            'gender' => 'nullable|string|max:20',
+            'city' => 'nullable|string|max:100',
+            'last_diagnosis' => 'nullable|string',
+            'last_medicines' => 'nullable|string',
+            'clinic_id' => 'nullable|integer',
+        ]);
+
+        $clinicId = (int)$request->input('clinic_id', 1);
+        $name = trim($request->input('name'));
+        $nameNormalized = Str::slug(mb_strtolower($name), '');
+        $nameGujarati = $this->isGujarati($name) ? $name : null;
+        $phone = trim($request->input('phone') ?: '');
+
+        // Check if patient exists with same phone in this clinic
+        if (!empty($phone)) {
+            $existing = Patient::where('clinic_id', $clinicId)->where('phone', $phone)->first();
+            if ($existing) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'આ ફોન નંબર વાળો દર્દી પહેલેથી નોંધાયેલ છે.',
+                    'patient' => $existing,
+                    'is_existing' => true,
+                ]);
+            }
+        }
+
+        $patient = Patient::create([
+            'clinic_id' => $clinicId,
+            'name' => $name,
+            'name_normalized' => $nameNormalized,
+            'name_gujarati' => $nameGujarati,
+            'phone' => $phone ?: null,
+            'age' => $request->input('age') ? (int)$request->input('age') : null,
+            'gender' => $request->input('gender') ?: 'Male',
+            'city' => $request->input('city') ?: null,
+            'last_diagnosis' => $request->input('last_diagnosis') ?: 'સામાન્ય તપાસ',
+            'last_medicines' => $request->input('last_medicines') ?: '',
+            'last_summary' => $request->input('last_diagnosis') ?: 'સામાન્ય તપાસ',
+            'last_visit_date' => date('Y-m-d'),
+            'total_visits' => 1,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'દર્દી સફળતાપૂર્વક ઉમેરાઈ ગયો!',
+            'patient' => $patient,
+        ], 201);
+    }
+
+    /**
      * Quick manual edit of patient basic info
      */
     public function update(Request $request, int $id): JsonResponse

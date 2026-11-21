@@ -74,9 +74,10 @@ Route::prefix('settings')->group(function () {
 Route::prefix('patients')->group(function () {
     Route::get('/search', [PatientController::class, 'search'])->middleware('throttle:120,1');
     Route::get('/', [PatientController::class, 'index']);
+    Route::post('/', [PatientController::class, 'store']);
     Route::post('/upload-prescription', [PatientController::class, 'uploadPrescription']);
     Route::get('/{id}', [PatientController::class, 'show']);
-    Route::post('/{id}', [PatientController::class, 'update']);
+    Route::match(['post', 'put'], '/{id}', [PatientController::class, 'update']);
     Route::post('/{id}/upload-photo', [PatientController::class, 'uploadPhoto']);
     Route::delete('/visits/{visitId}', [PatientController::class, 'deleteVisit']);
     Route::delete('/{id}', [PatientController::class, 'destroy']);
@@ -87,10 +88,31 @@ Route::prefix('clinic-accounts')->group(function () {
     Route::get('/clinics', [ClinicAccountsController::class, 'getClinics']);
     Route::post('/clinics/{id}', [ClinicAccountsController::class, 'updateClinicProfile']);
     Route::get('/summary', [ClinicAccountsController::class, 'getFinancialSummary']);
+    
+    // Bills CRUD
+    Route::get('/bills', [ClinicAccountsController::class, 'getBills']);
     Route::post('/bills', [ClinicAccountsController::class, 'storeBill']);
+    Route::get('/bills/{id}', [ClinicAccountsController::class, 'showBill']);
+    Route::post('/bills/{id}', [ClinicAccountsController::class, 'updateBill']);
+    Route::delete('/bills/{id}', [ClinicAccountsController::class, 'deleteBill']);
+
+    // Expenses CRUD
+    Route::get('/expenses', [ClinicAccountsController::class, 'getExpenses']);
     Route::post('/expenses', [ClinicAccountsController::class, 'storeExpense']);
+    Route::post('/expenses/{id}', [ClinicAccountsController::class, 'updateExpense']);
+    Route::delete('/expenses/{id}', [ClinicAccountsController::class, 'deleteExpense']);
+
+    // Appointments CRUD
+    Route::get('/appointments', [ClinicAccountsController::class, 'getAppointments']);
+    Route::post('/appointments', [ClinicAccountsController::class, 'storeAppointment']);
+    Route::post('/appointments/{id}', [ClinicAccountsController::class, 'updateAppointment']);
+    Route::delete('/appointments/{id}', [ClinicAccountsController::class, 'deleteAppointment']);
+
+    // Medicines CRUD
     Route::get('/medicines', [ClinicAccountsController::class, 'getMedicines']);
     Route::post('/medicines', [ClinicAccountsController::class, 'storeMedicine']);
+    Route::post('/medicines/{id}', [ClinicAccountsController::class, 'updateMedicine']);
+    Route::delete('/medicines/{id}', [ClinicAccountsController::class, 'deleteMedicine']);
 });
 
 

@@ -24,17 +24,21 @@ export default function NewBillScreen({
     initialPatient = null
 }) {
     const clinicId = activeClinic?.id || 1;
-    const defaultConsultation = activeClinic?.default_consultation_fee || 500;
+    const defaultConsultation = activeClinic?.default_consultation_fee || 300;
 
-    const [patientName, setPatientName] = useState(initialPatient?.name || 'Hetal Sharma');
-    const [patientPhone, setPatientPhone] = useState(initialPatient?.phone || '9824512345');
+    const [patientName, setPatientName] = useState(initialPatient?.name || '');
+    const [patientPhone, setPatientPhone] = useState(initialPatient?.phone || '');
     const [patientId, setPatientId] = useState(initialPatient?.id || null);
+
+    // Patient suggestions for search
+    const [patientSuggestions, setPatientSuggestions] = useState([]);
+    const [isSearchingPatient, setIsSearchingPatient] = useState(false);
 
     // Charge Breakdown matching Screen 5
     const [consultationFee, setConsultationFee] = useState(defaultConsultation);
-    const [medicineCharges, setMedicineCharges] = useState(650);
-    const [labCharges, setLabCharges] = useState(200);
-    const [otherCharges, setOtherCharges] = useState(100);
+    const [medicineCharges, setMedicineCharges] = useState(0);
+    const [labCharges, setLabCharges] = useState(0);
+    const [otherCharges, setOtherCharges] = useState(0);
     const [discount, setDiscount] = useState(0);
 
     // Payment Methods: Cash, UPI, Card, Other
@@ -54,9 +58,39 @@ export default function NewBillScreen({
         Number(discount || 0)
     ));
 
+    const handlePatientSearch = async (val) => {
+        setPatientName(val);
+        if (val.trim().length > 0) {
+            setIsSearchingPatient(true);
+            try {
+                const res = await axios.get(`/api/patients/search?clinic_id=${clinicId}&query=${encodeURIComponent(val.trim())}`);
+                if (res.data?.success) {
+                    setPatientSuggestions(res.data.patients || []);
+                }
+            } catch(e) {}
+            finally {
+                setIsSearchingPatient(false);
+            }
+        } else {
+            setPatientSuggestions([]);
+        }
+    };
+
+    const handleSelectPatient = (p) => {
+        setPatientName(p.name);
+        setPatientPhone(p.phone || '');
+        setPatientId(p.id);
+        setPatientSuggestions([]);
+    };
+
     const handleGenerateBill = async () => {
         if (!patientName.trim()) {
-            setStatusMessage({ type: 'error', text: 'દર્દીનું નામ દાખલ કરો.' });
+            setStatusMessage({ type: 'error', text: 'દર્દીનું નામ દાખલ કરવું ફરજિયાત છે.' });
+            return;
+        }
+
+        if (patientPhone.trim() && patientPhone.trim().length !== 10) {
+            setStatusMessage({ type: 'error', text: 'કૃપા કરીને ૧૦ અંકનો સાચો મોબાઈલ નંબર દાખલ કરો.' });
             return;
         }
 
@@ -67,7 +101,7 @@ export default function NewBillScreen({
             const res = await axios.post('/api/clinic-accounts/bills', {
                 clinic_id: clinicId,
                 patient_id: patientId,
-                patient_name: patientName,
+                patient_name: patientName.trim(),
                 consultation_fee: consultationFee,
                 medicines_total: medicineCharges,
                 procedure_fee: Number(labCharges) + Number(otherCharges),
@@ -80,6 +114,12 @@ export default function NewBillScreen({
             if (res.data?.success) {
                 setGeneratedInvoice(res.data.bill);
                 setStatusMessage({ type: 'success', text: '✅ બિલ સફળતાપૂર્વક બની ગયું!' });
+                if (window.showAppToast) {
+                    window.showAppToast('✅ બિલ સફળતાપૂર્વક બની ગયું!');
+                }
+                if (window.triggerAppRefresh) {
+                    window.triggerAppRefresh();
+                }
                 if (onBillGenerated) onBillGenerated(res.data.bill);
             }
         } catch (err) {
@@ -144,29 +184,58 @@ export default function NewBillScreen({
                 </div>
             )}
 
-            {/* Selected Patient Card matching Screen 5 */}
-            <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-100/70 text-emerald-800 font-bold text-base flex items-center justify-center">
-                        {patientName ? patientName.charAt(0) : 'P'}
-                    </div>
-                    <div>
-                        <h3 className="font-extrabold text-sm text-slate-900">
-                            {patientName}
-                        </h3>
-                        <p className="text-xs text-slate-400 font-medium flex items-center gap-1 mt-0.5">
-                            <Phone className="w-3 h-3 text-slate-400" /> {patientPhone}
-                        </p>
-                    </div>
+            {/* Patient Selection / Input Card */}
+            <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <span className="font-extrabold text-xs text-slate-700">દર્દીની પસંદગી (Patient Details)</span>
+                    {patientId && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                            નોંધાયેલ દર્દી
+                        </span>
+                    )}
                 </div>
 
-                <button
-                    type="button"
-                    onClick={() => onBack()}
-                    className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-emerald-50 text-emerald-700 border border-slate-200/80 font-bold text-xs transition cursor-pointer"
-                >
-                    View History
-                </button>
+                <div className="space-y-2">
+                    <div className="relative">
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">દર્દીનું નામ *</label>
+                        <input
+                            type="text"
+                            required
+                            value={patientName}
+                            onChange={(e) => handlePatientSearch(e.target.value)}
+                            placeholder="દર્દીનું નામ લખો અથવા શોધો..."
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                        />
+                        {patientSuggestions.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl z-30 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                                {patientSuggestions.map(p => (
+                                    <div
+                                        key={p.id}
+                                        onClick={() => handleSelectPatient(p)}
+                                        className="p-2.5 hover:bg-emerald-50 cursor-pointer flex items-center justify-between text-xs"
+                                    >
+                                        <div>
+                                            <p className="font-bold text-slate-800">{p.name}</p>
+                                            <p className="text-[10px] text-slate-400">{p.phone ? `📞 ${p.phone}` : ''} {p.city ? `• ${p.city}` : ''}</p>
+                                        </div>
+                                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-lg">પસંદ કરો</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">મોબાઈલ નંબર</label>
+                        <input
+                            type="tel"
+                            value={patientPhone}
+                            onChange={(e) => setPatientPhone(e.target.value)}
+                            placeholder="૧૦ અંકનો મોબાઈલ નંબર"
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-xs text-slate-800 focus:outline-none focus:border-emerald-500"
+                        />
+                    </div>
+                </div>
             </div>
 
             {/* Charges Breakdown matching Screen 5 */}
@@ -286,23 +355,50 @@ export default function NewBillScreen({
                 <span>{isSubmitting ? 'બિલ બની રહ્યું છે...' : 'Generate Bill'}</span>
             </button>
 
-            {/* WhatsApp Share option if invoice generated */}
+            {/* WhatsApp Share & Next Action options if invoice generated */}
             {generatedInvoice && (
-                <div className="flex items-center space-x-2 pt-1 animate-in fade-in">
-                    <button
-                        onClick={handleShareWhatsApp}
-                        className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs"
-                    >
-                        <Share2 className="w-4 h-4" />
-                        <span>WhatsApp પર બિલ મોકલો</span>
-                    </button>
-                    <button
-                        onClick={handlePrintInvoice}
-                        className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5"
-                    >
-                        <Printer className="w-4 h-4" />
-                        <span>પ્રિન્ટ</span>
-                    </button>
+                <div className="space-y-2 pt-1 animate-in fade-in">
+                    <div className="flex items-center space-x-2">
+                        <button
+                            onClick={handleShareWhatsApp}
+                            className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs cursor-pointer"
+                        >
+                            <Share2 className="w-4 h-4" />
+                            <span>WhatsApp પર બિલ મોકલો</span>
+                        </button>
+                        <button
+                            onClick={handlePrintInvoice}
+                            className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 cursor-pointer"
+                        >
+                            <Printer className="w-4 h-4" />
+                            <span>પ્રિન્ટ</span>
+                        </button>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                        <button
+                            onClick={() => {
+                                setGeneratedInvoice(null);
+                                setPatientName('');
+                                setPatientPhone('');
+                                setPatientId(null);
+                                setMedicineCharges(0);
+                                setLabCharges(0);
+                                setOtherCharges(0);
+                                setDiscount(0);
+                                setStatusMessage({ type: '', text: '' });
+                            }}
+                            className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                        >
+                            + બીજું નવું બિલ બનાવો
+                        </button>
+                        <button
+                            onClick={onBack}
+                            className="flex-1 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-emerald-700 font-bold text-xs cursor-pointer"
+                        >
+                            બધા બિલની યાદી જુઓ
+                        </button>
+                    </div>
                 </div>
             )}
 

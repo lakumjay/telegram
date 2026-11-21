@@ -10,11 +10,12 @@ import {
     Globe, 
     ShieldAlert, 
     CheckCircle2, 
-    RefreshCw 
+    RefreshCw,
+    ArrowLeft
 } from 'lucide-react';
 import axios from 'axios';
 
-export default function TelegramBotSimulator({ onOpenCall }) {
+export default function TelegramBotSimulator({ onOpenCall, onBack = null }) {
     const [messages, setMessages] = useState([
         {
             id: 1,
@@ -144,6 +145,14 @@ export default function TelegramBotSimulator({ onOpenCall }) {
                 {/* Chat Header */}
                 <div className="bg-slate-900/90 p-4 border-b border-slate-800 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
+                        {onBack && (
+                            <button
+                                onClick={onBack}
+                                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center transition active:scale-95 cursor-pointer shadow-xs mr-0.5"
+                            >
+                                <ArrowLeft className="w-4 h-4" />
+                            </button>
+                        )}
                         <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-400 p-0.5">
                             <div className="w-full h-full bg-slate-950 rounded-full flex items-center justify-center text-cyan-400">
                                 <Bot className="w-5 h-5" />

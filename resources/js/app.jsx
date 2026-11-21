@@ -37,11 +37,19 @@ import {
     Wallet, 
     X,
     Stethoscope,
-    Sparkles
+    Sparkles,
+    CheckCircle2,
+    AlertCircle,
+    Info,
+    Calendar
 } from 'lucide-react';
 
 function App() {
     const [activeTab, setActiveTab] = useState('home'); // Default directly to Home Dashboard matching Screen 1!
+    const [navHistory, setNavHistory] = useState(['home']);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [appToast, setAppToast] = useState(null);
+
     const [clinics, setClinics] = useState([]);
     const [activeClinicId, setActiveClinicId] = useState(1);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -105,6 +113,41 @@ function App() {
         } catch(e) {}
     };
 
+    const navigateTo = (tab) => {
+        triggerHaptic(10);
+        setNavHistory(prev => (prev[prev.length - 1] === tab ? prev : [...prev, tab]));
+        setActiveTab(tab);
+    };
+
+    const handleBack = () => {
+        triggerHaptic(8);
+        setNavHistory(prev => {
+            if (prev.length > 1) {
+                const next = [...prev];
+                next.pop();
+                const target = next[next.length - 1] || 'home';
+                setActiveTab(target);
+                return next;
+            } else {
+                setActiveTab('home');
+                return ['home'];
+            }
+        });
+    };
+
+    useEffect(() => {
+        window.showAppToast = (message, type = 'success') => {
+            setAppToast({ message, type });
+            setTimeout(() => {
+                setAppToast(null);
+            }, 3800);
+        };
+
+        window.triggerAppRefresh = () => {
+            setRefreshTrigger(prev => prev + 1);
+        };
+    }, []);
+
     const handleInstallPWA = async () => {
         triggerHaptic(25);
         if (!deferredPrompt) return;
@@ -133,16 +176,34 @@ function App() {
     };
 
     return (
-        <div className="min-h-screen w-full bg-[#f8fafc] text-slate-900 flex flex-col lg:flex-row selection:bg-emerald-600 selection:text-white">
+        <div className="min-h-screen w-full bg-[#f8fafc] text-slate-900 flex flex-col lg:flex-row selection:bg-emerald-600 selection:text-white relative">
             
+            {/* FLOATING TOP APP TOAST NOTIFICATION (Appears instantly on any Save, Update, Delete) */}
+            {appToast && (
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 max-w-sm w-full px-4 animate-in fade-in slide-in-from-top-4 duration-200">
+                    <div className={`p-3.5 rounded-2xl shadow-xl border flex items-center justify-between space-x-2 ${
+                        appToast.type === 'error'
+                            ? 'bg-rose-600 text-white border-rose-500'
+                            : appToast.type === 'warning'
+                            ? 'bg-amber-500 text-white border-amber-400'
+                            : 'bg-emerald-700 text-white border-emerald-600'
+                    }`}>
+                        <div className="flex items-center space-x-2">
+                            {appToast.type === 'error' ? <AlertCircle className="w-5 h-5 flex-shrink-0" /> : <CheckCircle2 className="w-5 h-5 flex-shrink-0" />}
+                            <span className="text-xs sm:text-sm font-extrabold">{appToast.message}</span>
+                        </div>
+                        <button onClick={() => setAppToast(null)} className="p-1 text-white/80 hover:text-white cursor-pointer">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* 1. DESKTOP SIDEBAR (Visible on 1024px+ screens matching Screen 2) */}
             <div className="hidden lg:block">
                 <DesktopSidebar
                     activeTab={activeTab}
-                    setActiveTab={(tab) => {
-                        triggerHaptic(8);
-                        setActiveTab(tab);
-                    }}
+                    setActiveTab={(tab) => navigateTo(tab)}
                     activeClinic={activeClinic}
                     onLogout={handleLogout}
                 />
@@ -156,8 +217,11 @@ function App() {
                     <MobileHeader
                         clinics={clinics}
                         activeClinicId={activeClinicId}
-                        onSelectClinic={(id) => setActiveClinicId(id)}
-                        onOpenMoreMenu={() => setActiveTab('more')}
+                        onSelectClinic={(id) => {
+                            setActiveClinicId(id);
+                            window.triggerAppRefresh && window.triggerAppRefresh();
+                        }}
+                        onOpenMoreMenu={() => navigateTo('more')}
                         onOpenVoiceCall={() => setIsCallModalOpen(true)}
                         onOpenProfileModal={() => setIsProfileModalOpen(true)}
                         onOpenNotifications={() => setIsNotificationModalOpen(true)}
@@ -169,11 +233,14 @@ function App() {
                     <DesktopTopBar
                         clinics={clinics}
                         activeClinicId={activeClinicId}
-                        onSelectClinic={(id) => setActiveClinicId(id)}
+                        onSelectClinic={(id) => {
+                            setActiveClinicId(id);
+                            window.triggerAppRefresh && window.triggerAppRefresh();
+                        }}
                         onOpenProfileModal={() => setIsProfileModalOpen(true)}
                         onOpenNotifications={() => setIsNotificationModalOpen(true)}
                         onSearch={(q) => {
-                            setActiveTab('patients');
+                            navigateTo('patients');
                         }}
                     />
                 </div>
@@ -186,18 +253,17 @@ function App() {
                         <DashboardHome
                             activeClinic={activeClinic}
                             clinics={clinics}
-                            onNavigate={(tab) => {
-                                triggerHaptic(10);
-                                setActiveTab(tab);
-                            }}
+                            refreshTrigger={refreshTrigger}
+                            onNavigate={(tab) => navigateTo(tab)}
                             onOpenVoiceCall={() => setIsCallModalOpen(true)}
-                            onOpenScan={() => setActiveTab('scan')}
+                            onOpenScan={() => navigateTo('scan')}
                             onOpenNewBill={(pt) => {
                                 setSelectedPatientForBill(pt || null);
-                                setActiveTab('new-bill');
+                                navigateTo('new-bill');
                             }}
-                            onOpenNewPatient={() => setActiveTab('patients')}
-                            onOpenAddExpense={() => setActiveTab('expenses')}
+                            onOpenNewPatient={() => navigateTo('patients')}
+                            onOpenAddExpense={() => navigateTo('expenses')}
+                            onOpenAppointments={() => navigateTo('appointments')}
                         />
                     )}
 
@@ -205,12 +271,13 @@ function App() {
                     {activeTab === 'patients' && (
                         <DoctorPatientManager
                             activeClinicId={activeClinicId}
+                            refreshTrigger={refreshTrigger}
                             onOpenVoiceCall={() => setIsCallModalOpen(true)}
                             onOpenNewBill={(pt) => {
                                 setSelectedPatientForBill(pt || null);
-                                setActiveTab('new-bill');
+                                navigateTo('new-bill');
                             }}
-                            onBack={() => setActiveTab('home')}
+                            onBack={handleBack}
                         />
                     )}
 
@@ -218,8 +285,11 @@ function App() {
                     {activeTab === 'scan' && (
                         <AIPrescriptionScanner
                             activeClinicId={activeClinicId}
-                            onBack={() => setActiveTab('home')}
-                            onPatientSaved={() => setActiveTab('patients')}
+                            onBack={handleBack}
+                            onPatientSaved={() => {
+                                window.triggerAppRefresh && window.triggerAppRefresh();
+                                navigateTo('patients');
+                            }}
                         />
                     )}
 
@@ -227,21 +297,27 @@ function App() {
                     {activeTab === 'new-bill' && (
                         <NewBillScreen
                             activeClinic={activeClinic}
-                            onBack={() => setActiveTab('home')}
+                            onBack={handleBack}
                             initialPatient={selectedPatientForBill}
-                            onBillGenerated={() => setActiveTab('billing')}
+                            onBillGenerated={() => {
+                                window.triggerAppRefresh && window.triggerAppRefresh();
+                                navigateTo('billing');
+                            }}
                         />
                     )}
 
-                    {/* Billing, Stock & Accounts Management */}
-                    {(activeTab === 'billing' || activeTab === 'expenses' || activeTab === 'stock' || activeTab === 'reports') && (
+                    {/* Billing, Expenses, Appointments, Stock & Reports Management */}
+                    {(activeTab === 'billing' || activeTab === 'expenses' || activeTab === 'appointments' || activeTab === 'stock' || activeTab === 'reports') && (
                         <ClinicBillingStockManager
                             activeClinicId={activeClinicId}
                             initialSubTab={
                                 activeTab === 'expenses' ? 'expenses' :
+                                activeTab === 'appointments' ? 'appointments' :
                                 activeTab === 'stock' ? 'stock' :
-                                activeTab === 'reports' ? 'daily' : 'billing'
+                                activeTab === 'reports' ? 'reports' : 'billing'
                             }
+                            onBack={handleBack}
+                            refreshTrigger={refreshTrigger}
                         />
                     )}
 
@@ -249,10 +325,10 @@ function App() {
                     {activeTab === 'more' && (
                         <MoreSettingsPage
                             activeClinic={activeClinic}
-                            onBack={() => setActiveTab('home')}
+                            onBack={handleBack}
                             onOpenProfileModal={() => setIsProfileModalOpen(true)}
                             onOpenNotifications={() => setIsNotificationModalOpen(true)}
-                            onNavigate={(tab) => setActiveTab(tab)}
+                            onNavigate={(tab) => navigateTo(tab)}
                             onLogout={handleLogout}
                             canInstall={canInstall}
                             onInstallPwa={handleInstallPWA}
@@ -265,18 +341,22 @@ function App() {
                             onOpenUpload={() => setIsUploadModalOpen(true)}
                             onOpenCall={() => setIsCallModalOpen(true)}
                             isMyFilesPage={true}
+                            onBack={handleBack}
                         />
                     )}
 
                     {/* Staff & Whitelist */}
                     {activeTab === 'staff' && (
-                        <SecurityWhitelist />
+                        <SecurityWhitelist
+                            onBack={handleBack}
+                        />
                     )}
 
                     {/* Telegram Simulator */}
                     {activeTab === 'simulator' && (
                         <TelegramBotSimulator
                             onOpenCall={() => setIsCallModalOpen(true)}
+                            onBack={handleBack}
                         />
                     )}
 
@@ -288,10 +368,7 @@ function App() {
                 
                 {/* 1. Home */}
                 <button
-                    onClick={() => {
-                        triggerHaptic(10);
-                        setActiveTab('home');
-                    }}
+                    onClick={() => navigateTo('home')}
                     className={`flex flex-col items-center justify-center w-14 py-1 transition active:scale-95 cursor-pointer ${
                         activeTab === 'home' ? 'text-emerald-700 font-extrabold' : 'text-slate-400 font-medium'
                     }`}
@@ -302,10 +379,7 @@ function App() {
 
                 {/* 2. Patients */}
                 <button
-                    onClick={() => {
-                        triggerHaptic(10);
-                        setActiveTab('patients');
-                    }}
+                    onClick={() => navigateTo('patients')}
                     className={`flex flex-col items-center justify-center w-14 py-1 transition active:scale-95 cursor-pointer ${
                         activeTab === 'patients' ? 'text-emerald-700 font-extrabold' : 'text-slate-400 font-medium'
                     }`}
@@ -332,12 +406,9 @@ function App() {
 
                 {/* 4. Billing */}
                 <button
-                    onClick={() => {
-                        triggerHaptic(10);
-                        setActiveTab('billing');
-                    }}
+                    onClick={() => navigateTo('billing')}
                     className={`flex flex-col items-center justify-center w-14 py-1 transition active:scale-95 cursor-pointer ${
-                        activeTab === 'billing' || activeTab === 'new-bill' ? 'text-emerald-700 font-extrabold' : 'text-slate-400 font-medium'
+                        ['billing', 'new-bill', 'expenses', 'appointments', 'stock', 'reports'].includes(activeTab) ? 'text-emerald-700 font-extrabold' : 'text-slate-400 font-medium'
                     }`}
                 >
                     <Receipt className="w-5 h-5 mb-0.5" />
@@ -346,12 +417,9 @@ function App() {
 
                 {/* 5. More */}
                 <button
-                    onClick={() => {
-                        triggerHaptic(10);
-                        setActiveTab('more');
-                    }}
+                    onClick={() => navigateTo('more')}
                     className={`flex flex-col items-center justify-center w-14 py-1 transition active:scale-95 cursor-pointer ${
-                        activeTab === 'more' ? 'text-emerald-700 font-extrabold' : 'text-slate-400 font-medium'
+                        ['more', 'files', 'staff', 'simulator'].includes(activeTab) ? 'text-emerald-700 font-extrabold' : 'text-slate-400 font-medium'
                     }`}
                 >
                     <Sliders className="w-5 h-5 mb-0.5" />
@@ -383,7 +451,7 @@ function App() {
                             <button
                                 onClick={() => {
                                     setIsFabMenuOpen(false);
-                                    setActiveTab('scan');
+                                    navigateTo('scan');
                                 }}
                                 className="p-3.5 rounded-2xl bg-blue-50/70 hover:bg-blue-100/70 border border-blue-100 text-left transition active:scale-95"
                             >
@@ -398,7 +466,7 @@ function App() {
                             <button
                                 onClick={() => {
                                     setIsFabMenuOpen(false);
-                                    setActiveTab('new-bill');
+                                    navigateTo('new-bill');
                                 }}
                                 className="p-3.5 rounded-2xl bg-orange-50/70 hover:bg-orange-100/70 border border-orange-100 text-left transition active:scale-95"
                             >
@@ -413,7 +481,7 @@ function App() {
                             <button
                                 onClick={() => {
                                     setIsFabMenuOpen(false);
-                                    setActiveTab('patients');
+                                    navigateTo('patients');
                                 }}
                                 className="p-3.5 rounded-2xl bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-100 text-left transition active:scale-95"
                             >

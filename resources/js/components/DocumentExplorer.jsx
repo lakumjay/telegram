@@ -26,7 +26,8 @@ import {
     ShieldCheck,
     Layers,
     Edit3,
-    FolderPlus
+    FolderPlus,
+    ArrowLeft
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -36,7 +37,8 @@ export default function DocumentExplorer({
     initialCompanyId = '',
     initialDocType = '',
     initialSearch = '',
-    isMyFilesPage = true
+    isMyFilesPage = true,
+    onBack = null
 }) {
     const [documents, setDocuments] = useState([]);
     const [companies, setCompanies] = useState([]);
@@ -342,6 +344,14 @@ export default function DocumentExplorer({
             <div className="bg-white border border-slate-200/80 rounded-xl p-3 sm:p-4 shadow-2xs space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-slate-100">
                     <div className="flex items-center space-x-2.5">
+                        {onBack && (
+                            <button
+                                onClick={onBack}
+                                className="w-8 h-8 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 flex items-center justify-center text-slate-700 transition active:scale-95 cursor-pointer shadow-2xs mr-1"
+                            >
+                                <ArrowLeft className="w-4 h-4" />
+                            </button>
+                        )}
                         <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
                             📁
                         </div>

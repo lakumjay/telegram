@@ -10,7 +10,8 @@ import {
     ShieldCheck, 
     Settings, 
     LogOut,
-    Stethoscope
+    Stethoscope,
+    Calendar
 } from 'lucide-react';
 
 export default function DesktopSidebar({ 
@@ -26,6 +27,7 @@ export default function DesktopSidebar({
     const navItems = [
         { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'patients', label: 'Patients', icon: Users },
+        { id: 'appointments', label: 'Appointments', icon: Calendar },
         { id: 'billing', label: 'Billing', icon: Receipt },
         { id: 'expenses', label: 'Expenses', icon: Wallet },
         { id: 'stock', label: 'Stock', icon: Pill },
