@@ -14,6 +14,7 @@ import DoctorPatientManager from './components/DoctorPatientManager';
 import ClinicBillingStockManager from './components/ClinicBillingStockManager';
 import MobileHeader from './components/MobileHeader';
 import MoreSettingsDrawer from './components/MoreSettingsDrawer';
+import DoctorProfileModal from './components/DoctorProfileModal';
 import axios from 'axios';
 import { 
     PhoneCall, 
@@ -40,6 +41,7 @@ function App() {
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isMoreDrawerOpen, setIsMoreDrawerOpen] = useState(false);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     const [clinics, setClinics] = useState([]);
     const [activeClinicId, setActiveClinicId] = useState(1);
     const [stats, setStats] = useState(null);
@@ -164,6 +166,7 @@ function App() {
                 onSelectClinic={(id) => setActiveClinicId(id)}
                 onOpenMoreMenu={() => setIsMoreDrawerOpen(true)}
                 onOpenVoiceCall={() => setIsCallModalOpen(true)}
+                onOpenProfileModal={() => setIsProfileModalOpen(true)}
             />
 
             {/* Desktop Navbar for larger screens */}
@@ -326,6 +329,15 @@ function App() {
             </footer>
 
             {/* Modals & Drawers */}
+            <DoctorProfileModal
+                isOpen={isProfileModalOpen}
+                onClose={() => setIsProfileModalOpen(false)}
+                clinic={clinics.find(c => c.id === activeClinicId) || clinics[0]}
+                onUpdated={(updatedClinic) => {
+                    setClinics(prev => prev.map(c => c.id === updatedClinic.id ? updatedClinic : c));
+                }}
+            />
+
             <MoreSettingsDrawer
                 isOpen={isMoreDrawerOpen}
                 onClose={() => setIsMoreDrawerOpen(false)}
@@ -336,6 +348,7 @@ function App() {
                 onInstallPwa={handleInstallPWA}
                 canInstall={canInstall}
                 onLogout={handleLogout}
+                onOpenProfileModal={() => setIsProfileModalOpen(true)}
             />
 
             <VoiceCallModal

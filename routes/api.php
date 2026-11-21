@@ -83,6 +83,7 @@ Route::prefix('patients')->group(function () {
 // 8. Multi-Clinic Accounts, Daily Billing, Medicine Stock & Expenses
 Route::prefix('clinic-accounts')->group(function () {
     Route::get('/clinics', [ClinicAccountsController::class, 'getClinics']);
+    Route::post('/clinics/{id}', [ClinicAccountsController::class, 'updateClinicProfile']);
     Route::get('/summary', [ClinicAccountsController::class, 'getFinancialSummary']);
     Route::post('/bills', [ClinicAccountsController::class, 'storeBill']);
     Route::post('/expenses', [ClinicAccountsController::class, 'storeExpense']);

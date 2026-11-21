@@ -28,6 +28,57 @@ class ClinicAccountsController extends Controller
     }
 
     /**
+     * Update Clinic & Doctor Profile (Custom Logo, Doctor Name, Fees, Specialization)
+     */
+    public function updateClinicProfile(Request $request, int $id): JsonResponse
+    {
+        $clinic = Clinic::findOrFail($id);
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'doctor_name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:30',
+            'email' => 'nullable|email|max:100',
+            'city' => 'nullable|string|max:100',
+            'clinic_address' => 'nullable|string',
+            'specialization' => 'nullable|string|max:255',
+            'qualification' => 'nullable|string|max:255',
+            'registration_number' => 'nullable|string|max:100',
+            'default_consultation_fee' => 'nullable|numeric',
+            'ai_assistant_name' => 'nullable|string|max:50',
+            'logo' => 'nullable|file|mimes:jpg,jpeg,png,webp,svg|max:10240',
+        ]);
+
+        $data = $request->only([
+            'name',
+            'doctor_name',
+            'phone',
+            'email',
+            'city',
+            'clinic_address',
+            'specialization',
+            'qualification',
+            'registration_number',
+            'default_consultation_fee',
+            'ai_assistant_name',
+        ]);
+
+        if ($request->hasFile('logo')) {
+            $logoFile = $request->file('logo');
+            $logoPath = $logoFile->storeAs('clinic_logos', 'logo_' . $clinic->id . '_' . time() . '.' . $logoFile->getClientOriginalExtension(), 'public');
+            $data['logo_url'] = '/storage/' . $logoPath;
+        }
+
+        $clinic->update($data);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ડૉક્ટર અને ક્લિનિક પ્રોફાઇલ સફળતાપૂર્વક અપડેટ થઈ ગઈ!',
+            'clinic' => $clinic,
+        ]);
+    }
+
+    /**
      * Get Daily and Monthly Income, Expenses, Bills and Profit Summary
      */
     public function getFinancialSummary(Request $request): JsonResponse

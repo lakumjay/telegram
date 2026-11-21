@@ -11,10 +11,15 @@ class Clinic extends Model
 
     protected $fillable = [
         'name',
+        'logo_url',
         'doctor_name',
         'phone',
+        'email',
         'city',
+        'clinic_address',
         'specialization',
+        'qualification',
+        'registration_number',
         'default_consultation_fee',
         'ai_assistant_name',
         'voice_name',

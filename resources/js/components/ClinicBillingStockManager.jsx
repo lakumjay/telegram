@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import CustomDatePicker from './CustomDatePicker';
 import { 
     IndianRupee, 
     TrendingUp, 
@@ -177,24 +178,27 @@ export default function ClinicBillingStockManager({ activeClinicId = 1 }) {
     return (
         <div className="space-y-4 max-w-lg mx-auto pb-24 px-1 sm:px-0">
             
-            {/* 1. Date Selector Bar (Auto fetch income & expense according to chosen date) */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-2xs flex items-center justify-between gap-2">
+            {/* 1. Date Selector Bar (Custom Interactive Calendar with Gujarati Months) */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-3 shadow-2xs flex items-center justify-between gap-2">
                 <div className="flex items-center space-x-2">
-                    <Calendar className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span className="text-xs font-bold text-slate-700">તારીખ મુજબ હિસાબ:</span>
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                        <Calendar className="w-4 h-4" />
+                    </div>
+                    <div>
+                        <span className="text-xs font-bold text-slate-800 block leading-tight">તારીખ મુજબ હિસાબ</span>
+                        <span className="text-[10px] text-slate-400 font-medium">Auto-fetched date accounts</span>
+                    </div>
                 </div>
                 
-                <div className="flex items-center space-x-1.5">
-                    <input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                <div className="flex items-center space-x-2">
+                    <CustomDatePicker
+                        selectedDate={selectedDate}
+                        onChange={(newDate) => setSelectedDate(newDate)}
                     />
                     {!isToday && (
                         <button
                             onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-                            className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-2 py-1 rounded-lg"
+                            className="text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1.5 rounded-xl border border-emerald-200 cursor-pointer"
                         >
                             આજે
                         </button>

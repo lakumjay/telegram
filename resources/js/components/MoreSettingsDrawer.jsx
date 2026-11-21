@@ -23,15 +23,18 @@ export default function MoreSettingsDrawer({
     onNavigate,
     onInstallPwa,
     canInstall,
-    onLogout
+    onLogout,
+    onOpenProfileModal
 }) {
     if (!isOpen) return null;
+
+    const activeClinic = clinics.find(c => c.id === activeClinicId) || clinics[0];
 
     return (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex justify-end animate-in fade-in duration-150">
             <div className="bg-white w-full max-w-xs h-full p-5 shadow-2xl flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-200">
                 
-                <div className="space-y-5">
+                <div className="space-y-4">
                     {/* Drawer Header */}
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                         <div className="flex items-center space-x-2">
@@ -51,6 +54,32 @@ export default function MoreSettingsDrawer({
                         >
                             <X className="w-4 h-4" />
                         </button>
+                    </div>
+
+                    {/* Customize Clinic Profile Button Card */}
+                    <div 
+                        onClick={() => {
+                            onOpenProfileModal();
+                            onClose();
+                        }}
+                        className="p-3 rounded-2xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 transition cursor-pointer flex items-center justify-between group"
+                    >
+                        <div className="flex items-center space-x-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-emerald-700 font-bold overflow-hidden">
+                                {activeClinic?.logo_url ? (
+                                    <img src={activeClinic.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                                ) : (
+                                    <User className="w-4 h-4" />
+                                )}
+                            </div>
+                            <div>
+                                <p className="font-bold text-xs text-slate-900 group-hover:text-emerald-800">
+                                    Edit Doctor Profile
+                                </p>
+                                <p className="text-[10px] text-slate-400">નામ, લોગો, ડિગ્રી અને ફી બદલો</p>
+                            </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition" />
                     </div>
 
                     {/* Install App Banner inside drawer */}
