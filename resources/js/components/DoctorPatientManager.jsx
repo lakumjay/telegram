@@ -109,13 +109,15 @@ export default function DoctorPatientManager({ onOpenVoiceCall }) {
         }
     };
 
-    const handleFileChange = (e) => {
+    // 1-Click Instant Photo Upload: As soon as doctor selects/clicks photo, immediately send to AI OCR
+    const handleFileChange = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         setPrescriptionFile(file);
         setErrorMessage('');
         setOcrSuccessData(null);
+        setIsProcessingOcr(true);
 
         // Preview image
         const reader = new FileReader();
@@ -123,6 +125,36 @@ export default function DoctorPatientManager({ onOpenVoiceCall }) {
             setSelectedImagePreview(event.target.result);
         };
         reader.readAsDataURL(file);
+
+        // Direct Instant Auto-Upload (No manual typing required by doctor!)
+        const formData = new FormData();
+        formData.append('photo', file);
+
+        try {
+            const res = await axios.post('/api/patients/upload-prescription', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            if (res.data?.success) {
+                setOcrSuccessData(res.data);
+                setSelectedPatient(res.data.patient);
+                loadRecentPatients(); // refresh directory
+                // Auto close modal after brief 1.5s success feedback so doctor doesn't have to click anything
+                setTimeout(() => {
+                    setIsUploadModalOpen(false);
+                    setPrescriptionFile(null);
+                    setSelectedImagePreview(null);
+                    setOcrSuccessData(null);
+                }, 1800);
+            } else {
+                setErrorMessage(res.data?.message || 'અપલોડમાં ક્ષતિ આવી.');
+            }
+        } catch (err) {
+            console.error('Direct Upload Error:', err);
+            setErrorMessage(err.response?.data?.message || 'સર્વર એરર: ફોટો પ્રોસેસ ન થઈ શક્યો.');
+        } finally {
+            setIsProcessingOcr(false);
+        }
     };
 
     const handleUploadPrescription = async (e) => {
@@ -520,119 +552,86 @@ export default function DoctorPatientManager({ onOpenVoiceCall }) {
                             </div>
                         )}
 
-                        {ocrSuccessData && (
-                            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs space-y-1">
-                                <div className="flex items-center space-x-1.5 font-bold">
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                    <span>AI એ સફળતાપૂર્વક વિગત વાંચી લીધી!</span>
+                        {ocrSuccessData ? (
+                            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs space-y-2 animate-in zoom-in-95">
+                                <div className="flex items-center space-x-2 font-bold text-sm text-emerald-800">
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                                    <span>AI એ સફળતાપૂર્વક તમામ વિગત વાંચી લીધી!</span>
                                 </div>
-                                <p><strong>દર્દી:</strong> {ocrSuccessData.patient?.name} ({ocrSuccessData.patient?.city || 'City N/A'})</p>
-                                <p><strong>રોગ/તકલીફ:</strong> {ocrSuccessData.extracted?.diagnosis}</p>
-                                <p><strong>દવાઓ:</strong> {ocrSuccessData.extracted?.medicines}</p>
+                                <div className="bg-white/80 rounded-xl p-3 border border-emerald-100 space-y-1">
+                                    <p><strong>👤 દર્દીનું નામ:</strong> {ocrSuccessData.patient?.name} {ocrSuccessData.patient?.city ? `(${ocrSuccessData.patient?.city})` : ''}</p>
+                                    <p><strong>🩺 રોગ / તકલીફ:</strong> <span className="text-amber-800 font-semibold">{ocrSuccessData.extracted?.diagnosis || 'સામાન્ય તપાસ'}</span></p>
+                                    {ocrSuccessData.extracted?.medicines && (
+                                        <p><strong>💊 લખેલી દવાઓ:</strong> {ocrSuccessData.extracted?.medicines}</p>
+                                    )}
+                                </div>
+                                <p className="text-[11px] text-emerald-700 italic text-center">રેકોર્ડ સેવ થઈ ગયો છે! મોડલ આપમેળે બંધ થઈ રહ્યું છે...</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {/* Large 1-Tap Camera / Photo Dropzone */}
+                                <div 
+                                    onClick={() => !isProcessingOcr && fileInputRef.current?.click()}
+                                    className={`border-3 border-dashed rounded-3xl p-6 sm:p-8 text-center cursor-pointer transition flex flex-col items-center justify-center ${
+                                        isProcessingOcr 
+                                            ? 'border-emerald-500 bg-emerald-50/50 cursor-wait' 
+                                            : selectedImagePreview 
+                                                ? 'border-emerald-500 bg-emerald-50/20' 
+                                                : 'border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/10 bg-slate-50'
+                                    }`}
+                                >
+                                    <input
+                                        type="file"
+                                        ref={fileInputRef}
+                                        onChange={handleFileChange}
+                                        accept="image/*,application/pdf"
+                                        className="hidden"
+                                    />
+
+                                    {isProcessingOcr ? (
+                                        <div className="py-6 space-y-3">
+                                            <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+                                                <RefreshCw className="w-8 h-8 animate-spin" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-800">
+                                                    Gemini AI વિઝન પેજ વાંચી રહ્યું છે...
+                                                </p>
+                                                <p className="text-xs text-slate-500 mt-1">
+                                                    દર્દીનું નામ, તકલીફ અને દવાઓ ઓટોમેટિક ફેચ થઈ રહી છે
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : selectedImagePreview ? (
+                                        <div className="space-y-2">
+                                            <img 
+                                                src={selectedImagePreview} 
+                                                alt="Prescription preview" 
+                                                className="max-h-56 rounded-xl shadow-xs mx-auto object-contain border border-slate-200"
+                                            />
+                                            <p className="text-xs text-emerald-700 font-semibold">ફોટો પ્રોસેસ થઈ રહ્યો છે...</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3 py-4">
+                                            <div className="w-16 h-16 rounded-2xl bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-600/30">
+                                                <Camera className="w-8 h-8" />
+                                            </div>
+                                            <div>
+                                                <p className="text-base font-bold text-slate-900">
+                                                    પેજનો ફોટો પાડો અથવા સિલેક્ટ કરો
+                                                </p>
+                                                <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+                                                    ડૉક્ટરે કશું ટાઈપ કરવાની જરૂર નથી. ફોટો સિલેક્ટ કરતાં જ AI આપમેળે બધું વાંચીને સેવ કરી લેશે!
+                                                </p>
+                                            </div>
+                                            <span className="inline-block px-3 py-1 bg-slate-200/80 text-slate-700 text-[11px] font-bold rounded-full">
+                                                ⚡ 100% Automatic 1-Tap Upload
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
-
-                        <form onSubmit={handleUploadPrescription} className="space-y-3.5">
-                            {/* Photo Picker */}
-                            <div 
-                                onClick={() => fileInputRef.current?.click()}
-                                className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition flex flex-col items-center justify-center ${
-                                    selectedImagePreview ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-300 hover:border-emerald-500 bg-slate-50'
-                                }`}
-                            >
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleFileChange}
-                                    accept="image/*,application/pdf"
-                                    className="hidden"
-                                />
-
-                                {selectedImagePreview ? (
-                                    <div className="space-y-2">
-                                        <img 
-                                            src={selectedImagePreview} 
-                                            alt="Prescription preview" 
-                                            className="max-h-48 rounded-lg shadow-xs mx-auto object-contain"
-                                        />
-                                        <p className="text-xs text-emerald-700 font-semibold">ફોટો બદલવા માટે ક્લિક કરો</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-1.5 py-4">
-                                        <Camera className="w-8 h-8 text-slate-400 mx-auto" />
-                                        <p className="text-xs font-semibold text-slate-700">
-                                            પેજનો ફોટો પાડો અથવા ગેલરીમાંથી પસંદ કરો
-                                        </p>
-                                        <p className="text-[10px] text-slate-400">
-                                            PNG, JPG, WEBP અથવા PDF (Max 20MB)
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Optional Manual Fields */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                <div>
-                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                                        દર્દીનું નામ (વૈકલ્પિક - AI જાતે વાંચશે)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={patientNameInput}
-                                        onChange={(e) => setPatientNameInput(e.target.value)}
-                                        placeholder="દા.ત. Jay Lakum"
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-emerald-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                                        મોબાઇલ નંબર (વૈકલ્પિક)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={phoneInput}
-                                        onChange={(e) => setPhoneInput(e.target.value)}
-                                        placeholder="9898xxxxxx"
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-emerald-500"
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                                    ગામ / સરનામું (વૈકલ્પિક)
-                                </label>
-                                <input
-                                    type="text"
-                                    value={cityInput}
-                                    onChange={(e) => setCityInput(e.target.value)}
-                                    placeholder="દા.ત. બોટાદ, અમદાવાદ"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs focus:outline-none focus:border-emerald-500"
-                                />
-                            </div>
-
-                            <button
-                                type="submit"
-                                disabled={isProcessingOcr || !prescriptionFile}
-                                className={`w-full py-2.5 rounded-xl text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-xs transition cursor-pointer ${
-                                    isProcessingOcr || !prescriptionFile
-                                        ? 'bg-slate-300 cursor-not-allowed'
-                                        : 'bg-emerald-600 hover:bg-emerald-700'
-                                }`}
-                            >
-                                {isProcessingOcr ? (
-                                    <>
-                                        <RefreshCw className="w-4 h-4 animate-spin" />
-                                        <span>AI પેજ વાંચી રહ્યું છે (Gemini Vision OCR)...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Upload className="w-4 h-4" />
-                                        <span>Upload & Auto-Extract Details</span>
-                                    </>
-                                )}
-                            </button>
-                        </form>
                     </div>
                 </div>
             )}
