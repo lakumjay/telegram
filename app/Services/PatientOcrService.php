@@ -24,24 +24,32 @@ class PatientOcrService
             
             // System prompt tailored for medical prescription recognition (handwritten / English / Gujarati / Hindi)
             $prompt = <<<EOT
-You are an expert Medical AI Assistant analyzing a handwritten or printed clinic doctor's prescription or patient case sheet page.
-The doctor writes clinic header, case number/OPD number, patient name, date, address/village, age, gender, symptoms/complaints, diagnosis, and prescribed medicines in English, Gujarati or Hindi.
+You are an expert Indian Medical OCR Assistant analyzing a handwritten or printed clinic doctor's prescription or patient case sheet.
+Doctors in Gujarat frequently write in a mix of Gujarati script and English medical cursive handwriting:
+- Patient Name: often handwritten in Gujarati script (e.g. 'એકતાબેન દુધરેજીયા' -> Ektaben Dudhrejiya, 'કમલેશભાઈ ડાભી') or English. ALWAYS capture both English and Gujarati name.
+- Address / City / Religion / Occupation: often in Gujarati (e.g. 'ધંધુકા', 'બોટાદ', 'ઘરકામ', 'હિન્દુ').
+- Date: written as DD/MM/YY or DD/MM/YYYY (e.g. '12/03/20' -> '2020-03-12', '08/12/22' -> '2022-12-08'). ALWAYS convert 2-digit years to valid YYYY-MM-DD.
+- OPD / Case No: written at top right or OPD No (e.g. '157', '187').
+- Age & Sex: e.g. '18 / Female', '40 / Male'.
+- Present Complaints & Symptoms: medical shorthand in English (e.g. 'White Patch on Right side upper lip since 1 month, No H/O pain, Itching, Discharge').
+- Medicines (Rx): list of remedies/medicines with dosage & frequency (e.g. 'AFS 30 x TDS, Nit Acid 200 (2) weekly, W.S Ointment' or 'Tab. Bilast 20mg OD').
 
-Analyze the image carefully, read the handwritten and printed text, and output ONLY a valid JSON object with the following fields:
+Analyze the image carefully, read every Gujarati word and English medical handwriting accurately. Output ONLY a valid JSON object:
 {
-  "patient_name": "Full name of the patient (e.g. Kamleshbhai Dabhi, Jay Lakum or રમેશ પટેલ). Never return 'અજ્ઞાત દર્દી' if a name or label is visible.",
-  "patient_name_gujarati": "Name in Gujarati script if present or transliterated (e.g. કમલેશભાઈ ડાભી)",
-  "opd_number": "Case No or OPD number written at top (e.g. 187)",
-  "age": 40, // integer number or null
-  "gender": "Male", // "Male", "Female", or null
-  "city": "Patient city/village if mentioned (e.g. Botad)",
-  "address": "Full address or village name if written",
+  "patient_name": "Full English name (e.g. Ektaben Dudhrejiya or Kamleshbhai Dabhi)",
+  "patient_name_gujarati": "Full Gujarati name (e.g. એકતાબેન દુધરેજીયા or કમલેશભાઈ ડાભી)",
+  "opd_number": "OPD or Case number (e.g. 157 or 187)",
+  "age": 18, // integer number or null
+  "gender": "Female", // "Male", "Female", or null
+  "city": "Patient city/village (e.g. ધંધુકા / Dhandhuka or બોટાદ / Botad)",
+  "address": "Full address or village if written",
   "phone": "Phone number if written or null",
-  "visit_date": "YYYY-MM-DD", // Date of prescription if visible, otherwise null
-  "diagnosis": "Short primary illness/complaint/symptom (e.g., White patch on right toe, તાવ, શરદી, ચામડીની તકલીફ)",
-  "medicines": "Summary list of medicines written with dosage (e.g., Paracetamol 650 TDS, Azithromycin 500 OD)",
-  "symptoms": "Detailed symptoms and complaints mentioned (e.g., White patch on right toe for 10 months, itching)",
-  "summary": "Brief 1-line doctor reminder summary in Gujarati (e.g., કમલેશભાઈ ડાભી - જમણા પગના અંગૂઠા પર સફેદ ડાઘ (૧૦ મહિનાથી))",
+  "visit_date": "YYYY-MM-DD", // Exact date from case paper, e.g. 2020-03-12 or 2022-12-08
+  "diagnosis": "Short English primary complaint/symptom (e.g., White Patch on Right side upper lip)",
+  "diagnosis_gujarati": "Short Gujarati explanation of complaints (e.g., ઉપલા હોઠની જમણી બાજુ સફેદ ડાઘ (૧ મહિનાથી))",
+  "medicines": "List of prescribed medicines/remedies with dosage (e.g., AFS 30 TDS, Nit Acid 200 weekly, W.S Ointment)",
+  "symptoms": "Detailed symptoms and complaints mentioned",
+  "summary": "Brief 1-line doctor reminder summary in Gujarati (e.g., એકતાબેન દુધરેજીયા - હોઠ પર સફેદ ડાઘ (૧ મહિનો) - દવા: AFS 30, Nit Acid, W.S મલમ)",
   "raw_text": "Full extracted readable text from the page"
 }
 

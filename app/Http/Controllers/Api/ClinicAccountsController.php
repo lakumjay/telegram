@@ -419,6 +419,65 @@ class ClinicAccountsController extends Controller
             }
             $monthNetProfit = $monthIncome - $monthExpenseTotal;
 
+            // Week-wise breakdown for the selected month
+            $weekBreakdown = [];
+            $daysInMonth = (int)date('t', strtotime("{$month}-01"));
+            $ranges = [
+                ['label' => 'અઠવાડિયું ૧ (૧ થી ૭ તારીખ)', 'start' => "{$month}-01", 'end' => "{$month}-07"],
+                ['label' => 'અઠવાડિયું ૨ (૮ થી ૧૪ તારીખ)', 'start' => "{$month}-08", 'end' => "{$month}-14"],
+                ['label' => 'અઠવાડિયું ૩ (૧૫ થી ૨૧ તારીખ)', 'start' => "{$month}-15", 'end' => "{$month}-21"],
+                ['label' => 'અઠવાડિયું ૪+ (૨૨ થી આખર)', 'start' => "{$month}-22", 'end' => "{$month}-" . sprintf('%02d', $daysInMonth)],
+            ];
+
+            foreach ($ranges as $idx => $r) {
+                $wBills = $monthBills->filter(function($b) use ($r) {
+                    $d = substr($b->bill_date, 0, 10);
+                    return $d >= $r['start'] && $d <= $r['end'];
+                });
+                $wExpenses = $monthExpenses->filter(function($ex) use ($r) {
+                    $d = substr($ex->expense_date, 0, 10);
+                    return $d >= $r['start'] && $d <= $r['end'];
+                });
+                $wIncome = (float)$wBills->sum('total_amount');
+                $wExpense = (float)$wExpenses->sum('amount');
+                $wPatients = $wBills->count();
+
+                $weekBreakdown[] = [
+                    'week' => $idx + 1,
+                    'label' => $r['label'],
+                    'start' => $r['start'],
+                    'end' => $r['end'],
+                    'income' => $wIncome,
+                    'expense' => $wExpense,
+                    'net_profit' => $wIncome - $wExpense,
+                    'patients_count' => $wPatients,
+                ];
+            }
+
+            // Available months list for dropdown
+            $availableMonths = collect([$month, date('Y-m')]);
+            if (Schema::hasTable('clinic_bills')) {
+                $bMonths = ClinicBill::where('clinic_id', $clinicId)
+                    ->selectRaw("DISTINCT SUBSTRING(bill_date, 1, 7) as m")
+                    ->pluck('m');
+                $availableMonths = $availableMonths->merge($bMonths);
+            }
+            if (Schema::hasTable('patients')) {
+                $pMonths = Patient::where('clinic_id', $clinicId)
+                    ->whereNotNull('last_visit_date')
+                    ->selectRaw("DISTINCT SUBSTRING(last_visit_date, 1, 7) as m")
+                    ->pluck('m');
+                $availableMonths = $availableMonths->merge($pMonths);
+            }
+            if (Schema::hasTable('patient_visits')) {
+                $vMonths = PatientVisit::where('clinic_id', $clinicId)
+                    ->whereNotNull('visit_date')
+                    ->selectRaw("DISTINCT SUBSTRING(visit_date, 1, 7) as m")
+                    ->pluck('m');
+                $availableMonths = $availableMonths->merge($vMonths);
+            }
+            $availableMonths = $availableMonths->filter()->unique()->sortDesc()->values();
+
             // 3. Appointments for selected date
             $todayAppointmentsCount = 0;
             if (Schema::hasTable('clinic_appointments')) {
@@ -506,6 +565,8 @@ class ClinicAccountsController extends Controller
                     'net_profit' => $monthNetProfit,
                     'patients_count' => $monthPatientsCount,
                 ],
+                'week_breakdown' => $weekBreakdown,
+                'available_months' => $availableMonths,
                 'low_stock_count' => $lowStockCount,
             ]);
         } catch (\Throwable $e) {

@@ -497,7 +497,9 @@ export default function DashboardHome({
                                             </div>
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                                    <p className="font-bold text-xs text-slate-900 group-hover:text-emerald-800 transition truncate">{pt.name}</p>
+                                                    <p className="font-bold text-xs text-slate-900 group-hover:text-emerald-800 transition truncate">
+                                                        {pt.name} {pt.name_gujarati && pt.name_gujarati !== pt.name ? `(${pt.name_gujarati})` : ''}
+                                                    </p>
                                                     {pt.opd_number && (
                                                         <span className="text-[10px] bg-emerald-50 text-emerald-800 font-extrabold px-1.5 py-0.5 rounded border border-emerald-200">
                                                             #{pt.opd_number}
@@ -568,7 +570,9 @@ export default function DashboardHome({
                                                         {pt.name.charAt(0)}
                                                     </div>
                                                     <div>
-                                                        <span className="font-bold text-slate-900 block group-hover:text-emerald-800">{pt.name}</span>
+                                                        <span className="font-bold text-slate-900 block group-hover:text-emerald-800">
+                                                            {pt.name} {pt.name_gujarati && pt.name_gujarati !== pt.name ? `(${pt.name_gujarati})` : ''}
+                                                        </span>
                                                         {pt.phone && <span className="text-[10px] text-slate-400 font-normal">{pt.phone}</span>}
                                                     </div>
                                                 </td>

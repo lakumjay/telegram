@@ -46,6 +46,7 @@ export default function ClinicBillingStockManager({
     };
 
     const [selectedDate, setSelectedDate] = useState(() => getLocalDateString());
+    const [selectedMonth, setSelectedMonth] = useState(() => getLocalDateString().substring(0, 7));
 
     const [summary, setSummary] = useState(null);
     const [medicines, setMedicines] = useState([]);
@@ -114,16 +115,16 @@ export default function ClinicBillingStockManager({
         }
     }, [initialSubTab]);
 
-    // Reload financial summary & lists automatically whenever selectedDate, activeClinicId, or refreshTrigger changes
+    // Reload financial summary & lists automatically whenever selectedDate, selectedMonth, activeClinicId, or refreshTrigger changes
     useEffect(() => {
         loadData();
-    }, [activeClinicId, selectedDate, refreshTrigger]);
+    }, [activeClinicId, selectedDate, selectedMonth, refreshTrigger]);
 
     const loadData = async () => {
         setIsLoading(true);
         try {
             const [summaryRes, medsRes, apptsRes] = await Promise.all([
-                axios.get(`/api/clinic-accounts/summary?clinic_id=${activeClinicId}&date=${selectedDate}`),
+                axios.get(`/api/clinic-accounts/summary?clinic_id=${activeClinicId}&date=${selectedDate}&month=${selectedMonth}`),
                 axios.get(`/api/clinic-accounts/medicines?clinic_id=${activeClinicId}`),
                 axios.get(`/api/clinic-accounts/appointments?clinic_id=${activeClinicId}&date=${selectedDate}`)
             ]);
@@ -995,35 +996,157 @@ export default function ClinicBillingStockManager({
 
             {/* ================= VIEW 5: REPORTS ================= */}
             {activeSubTab === 'reports' && (
-                <div className="space-y-3">
+                <div className="space-y-4">
+                    {/* Month Filter Selector */}
                     <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-3">
-                        <h3 className="font-extrabold text-xs text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">
-                            દૈનિક & માસિક રિપોર્ટ (Financial Report)
-                        </h3>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                            <div>
+                                <h3 className="font-extrabold text-sm text-slate-800">
+                                    માસિક & સાપ્તાહિક રિપોર્ટ (Month & Week Analytics)
+                                </h3>
+                                <p className="text-[11px] text-slate-400">
+                                    મહિના મુજબ આવક, ખર્ચ, નફો અને દર્દીઓની વિગતવાર યાદી
+                                </p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <label className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                                    <Calendar className="w-3.5 h-3.5 text-emerald-600" /> મહિનો પસંદ કરો:
+                                </label>
+                                <select
+                                    value={selectedMonth}
+                                    onChange={(e) => setSelectedMonth(e.target.value)}
+                                    className="px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50 text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                                >
+                                    {(summary?.available_months && summary.available_months.length > 0
+                                        ? summary.available_months
+                                        : [selectedMonth]
+                                    ).map((m) => {
+                                        const [yr, mo] = m.split('-');
+                                        const monthNames = [
+                                            'જાન્યુઆરી', 'ફેબ્રુઆરી', 'માર્ચ', 'એપ્રિલ', 'મે', 'જૂન',
+                                            'જુલાઈ', 'ઓગસ્ટ', 'સપ્ટેમ્બર', 'ઓક્ટોબર', 'નવેમ્બર', 'ડિસેમ્બર'
+                                        ];
+                                        const gujMonth = monthNames[parseInt(mo, 10) - 1] || mo;
+                                        return (
+                                            <option key={m} value={m}>
+                                                {gujMonth} {yr} ({m})
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+                        </div>
 
+                        {/* Selected Month KPI Cards */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
+                            <div className="p-3 rounded-2xl bg-emerald-50/60 border border-emerald-100 space-y-1">
+                                <p className="text-[11px] font-bold text-emerald-700">કુલ દર્દીઓ ({selectedMonth})</p>
+                                <p className="text-xl font-black text-emerald-900">{month.patients_count || 0}</p>
+                                <p className="text-[10px] text-emerald-600 font-medium">દર્દી તપાસણી</p>
+                            </div>
+
+                            <div className="p-3 rounded-2xl bg-blue-50/60 border border-blue-100 space-y-1">
+                                <p className="text-[11px] font-bold text-blue-700">કુલ આવક</p>
+                                <p className="text-xl font-black text-blue-900">₹{Number(month.income || 0).toLocaleString('en-IN')}</p>
+                                <p className="text-[10px] text-blue-600 font-medium">કન્સલ્ટેશન + દવા</p>
+                            </div>
+
+                            <div className="p-3 rounded-2xl bg-rose-50/60 border border-rose-100 space-y-1">
+                                <p className="text-[11px] font-bold text-rose-700">કુલ ખર્ચ</p>
+                                <p className="text-xl font-black text-rose-800">₹{Number(month.expense || 0).toLocaleString('en-IN')}</p>
+                                <p className="text-[10px] text-rose-600 font-medium">ક્લિનિક ખર્ચ</p>
+                            </div>
+
+                            <div className="p-3 rounded-2xl bg-amber-50/60 border border-amber-100 space-y-1">
+                                <p className="text-[11px] font-bold text-amber-700">ચોખ્ખો નફો (Net Profit)</p>
+                                <p className={`text-xl font-black ${(month.net_profit || 0) >= 0 ? 'text-emerald-800' : 'text-rose-700'}`}>
+                                    ₹{Number(month.net_profit || 0).toLocaleString('en-IN')}
+                                </p>
+                                <p className="text-[10px] text-amber-600 font-medium">આવક - ખર્ચ</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Week-wise Breakdown Table / Card */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                            <div>
+                                <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">
+                                    સાપ્તાહિક વિગતવાર રિપોર્ટ (Week-wise Breakdown)
+                                </h4>
+                                <p className="text-[11px] text-slate-400">
+                                    પસંદ કરેલ મહિનાનું અઠવાડિયા વાઇઝ વિશ્લેષણ
+                                </p>
+                            </div>
+                            <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-[11px]">
+                                {selectedMonth}
+                            </span>
+                        </div>
+
+                        {summary?.week_breakdown && summary.week_breakdown.length > 0 ? (
+                            <div className="space-y-2.5">
+                                {summary.week_breakdown.map((w) => (
+                                    <div
+                                        key={w.week}
+                                        className="p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
+                                    >
+                                        <div className="space-y-0.5">
+                                            <div className="flex items-center space-x-2">
+                                                <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] font-bold flex items-center justify-center">
+                                                    {w.week}
+                                                </span>
+                                                <span className="font-extrabold text-xs text-slate-800">
+                                                    {w.label}
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] text-slate-400 pl-7">
+                                                તારીખ: {w.start} થી {w.end} • દર્દીઓ: <strong className="text-slate-700">{w.patients_count}</strong>
+                                            </p>
+                                        </div>
+
+                                        <div className="flex items-center space-x-3 text-right self-end sm:self-auto pl-7 sm:pl-0">
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 block font-bold">આવક</span>
+                                                <span className="text-xs font-black text-emerald-700">
+                                                    ₹{Number(w.income || 0).toLocaleString('en-IN')}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] text-slate-400 block font-bold">ખર્ચ</span>
+                                                <span className="text-xs font-black text-rose-600">
+                                                    ₹{Number(w.expense || 0).toLocaleString('en-IN')}
+                                                </span>
+                                            </div>
+                                            <div className="min-w-[70px]">
+                                                <span className="text-[10px] text-slate-400 block font-bold">નફો</span>
+                                                <span className={`text-xs font-black ${(w.net_profit || 0) >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
+                                                    ₹{Number(w.net_profit || 0).toLocaleString('en-IN')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-xs text-slate-400 text-center py-4">આ મહિનાનો કોઈ રેકોર્ડ મળ્યો નથી.</p>
+                        )}
+                    </div>
+
+                    {/* Today's Quick Snapshot */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-2">
+                        <h4 className="font-extrabold text-xs text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">
+                            આજનો દૈનિક સારાંશ (Today's Snapshot - {selectedDate})
+                        </h4>
                         <div className="grid grid-cols-2 gap-3 text-xs">
-                            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+                            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
                                 <p className="text-[11px] font-bold text-slate-400">આજની કુલ આવક</p>
                                 <p className="text-lg font-black text-slate-900">₹{Number(today.income || 0).toLocaleString('en-IN')}</p>
                                 <p className="text-[10px] text-slate-400">{today.patients_count || 0} દર્દીઓ</p>
                             </div>
-
-                            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+                            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
                                 <p className="text-[11px] font-bold text-slate-400">આજનો કુલ ખર્ચ</p>
                                 <p className="text-lg font-black text-rose-600">₹{Number(today.expense || 0).toLocaleString('en-IN')}</p>
                                 <p className="text-[10px] text-slate-400">{today.expenses?.length || 0} ખર્ચ એન્ટ્રી</p>
-                            </div>
-
-                            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                                <p className="text-[11px] font-bold text-slate-400">ચાલુ મહિનાની આવક</p>
-                                <p className="text-lg font-black text-emerald-700">₹{Number(month.income || 0).toLocaleString('en-IN')}</p>
-                                <p className="text-[10px] text-slate-400">{month.patients_count || 0} દર્દીઓ</p>
-                            </div>
-
-                            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                                <p className="text-[11px] font-bold text-slate-400">ચાલુ મહિનાનો ચોખ્ખો નફો</p>
-                                <p className="text-lg font-black text-slate-900">₹{Number(month.net_profit || 0).toLocaleString('en-IN')}</p>
-                                <p className="text-[10px] text-slate-400">ખર્ચ બાદ</p>
                             </div>
                         </div>
                     </div>

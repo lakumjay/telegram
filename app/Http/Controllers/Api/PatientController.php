@@ -87,8 +87,9 @@ class PatientController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $clinicId = (int)$request->query('clinic_id', 1);
-        $perPage = (int)$request->query('per_page', 15);
+        $rawClinicId = $request->query('clinic_id');
+        $clinicId = (!empty($rawClinicId) && is_numeric($rawClinicId) && (int)$rawClinicId > 0) ? (int)$rawClinicId : 1;
+        $perPage = (int)$request->query('per_page', 50);
         $search = trim((string)$request->query('search', ''));
 
         $query = Patient::query()
@@ -170,11 +171,11 @@ class PatientController extends Controller
         $gender = $extracted['gender'] ?? null;
         $visitDate = $request->input('visit_date') ?: ($extracted['visit_date'] ?? date('Y-m-d'));
 
-        $diagnosis = $extracted['diagnosis'] ?: 'સામાન્ય તપાસ';
+        $diagnosis = !empty($extracted['diagnosis_gujarati']) ? $extracted['diagnosis_gujarati'] : ($extracted['diagnosis'] ?: 'સામાન્ય તપાસ');
         $medicines = $extracted['medicines'] ?: '';
         $symptoms = $extracted['symptoms'] ?: '';
         
-        // Smart summary for suggestion: e.g. "તાવ અને માથાનો દુખાવો (દવા: Paracetamol, Azithro)"
+        // Smart summary for suggestion: e.g. "એકતાબેન દુધરેજીયા - હોઠ પર સફેદ ડાઘ (૧ મહિનો)"
         $summary = $extracted['summary'] ?: ($diagnosis . ($medicines ? " (દવા: " . Str::limit($medicines, 45) . ")" : ""));
 
         $clinicId = (int)$request->input('clinic_id', 1);
@@ -540,7 +541,7 @@ class PatientController extends Controller
                     'city' => $extracted['city'] ?: $patient->city,
                     'address' => $extracted['address'] ?: $patient->address,
                     'phone' => $extracted['phone'] ?: $patient->phone,
-                    'last_diagnosis' => $extracted['diagnosis'] ?: $patient->last_diagnosis,
+                    'last_diagnosis' => !empty($extracted['diagnosis_gujarati']) ? $extracted['diagnosis_gujarati'] : ($extracted['diagnosis'] ?: $patient->last_diagnosis),
                     'last_medicines' => $extracted['medicines'] ?: $patient->last_medicines,
                     'last_summary' => $extracted['summary'] ?: $patient->last_summary,
                     'last_visit_date' => $extracted['visit_date'] ?: $patient->last_visit_date,

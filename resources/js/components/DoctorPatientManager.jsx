@@ -95,9 +95,19 @@ export default function DoctorPatientManager({
     const loadPatients = async () => {
         setIsLoadingList(true);
         try {
-            const res = await axios.get(`/api/patients?clinic_id=${activeClinicId}`);
+            const cid = (activeClinicId && Number(activeClinicId) > 0) ? activeClinicId : (localStorage.getItem('superadmin_active_clinic_id') || 1);
+            const res = await axios.get(`/api/patients?clinic_id=${cid}&per_page=200`);
             if (res.data?.success) {
-                setPatientList(res.data.data.data || []);
+                const raw = res.data.data;
+                let items = [];
+                if (Array.isArray(raw)) {
+                    items = raw;
+                } else if (raw && Array.isArray(raw.data)) {
+                    items = raw.data;
+                } else if (Array.isArray(res.data?.patients)) {
+                    items = res.data.patients;
+                }
+                setPatientList(items);
             }
         } catch (err) {
             console.error('Failed to load patients:', err);
@@ -423,11 +433,11 @@ export default function DoctorPatientManager({
                                 <div className="space-y-0.5 min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                         <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight">
-                                            {patient.name}
+                                            {patient.name} {patient.name_gujarati && patient.name_gujarati !== patient.name ? `(${patient.name_gujarati})` : ''}
                                         </h4>
                                         {patient.opd_number && (
-                                            <span className="text-[10px] bg-slate-100 text-slate-800 font-extrabold px-1.5 py-0.5 rounded border border-slate-200">
-                                                #{patient.opd_number}
+                                            <span className="text-[10px] bg-emerald-50 text-emerald-800 font-extrabold px-1.5 py-0.5 rounded border border-emerald-200">
+                                                OPD #{patient.opd_number}
                                             </span>
                                         )}
                                     </div>
