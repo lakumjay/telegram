@@ -27,6 +27,7 @@ class PatientController extends Controller
      */
     public function search(Request $request): JsonResponse
     {
+        $clinicId = (int)$request->query('clinic_id', 1);
         $q = trim((string)$request->query('query', ''));
 
         if (mb_strlen($q) < 1) {
@@ -39,7 +40,7 @@ class PatientController extends Controller
         $cleanQ = mb_strtolower($q);
         $cleanNormalized = Str::slug($cleanQ, '');
 
-        // Query indexed columns with LIMIT 12 for instant suggestion popup
+        // Query indexed columns with LIMIT 12 for instant suggestion popup scoped to clinic
         $patients = Patient::query()
             ->where(function ($sub) use ($cleanQ, $cleanNormalized) {
                 $sub->where('name', 'LIKE', "{$cleanQ}%")
@@ -50,6 +51,7 @@ class PatientController extends Controller
                     ->orWhere('city', 'LIKE', "{$cleanQ}%")
                     ->orWhere('last_diagnosis', 'LIKE', "%{$cleanQ}%");
             })
+            ->where('clinic_id', $clinicId)
             ->select([
                 'id',
                 'name',
@@ -81,10 +83,14 @@ class PatientController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $clinicId = (int)$request->query('clinic_id', 1);
         $perPage = (int)$request->query('per_page', 15);
         $search = trim((string)$request->query('search', ''));
 
-        $query = Patient::query()->withCount('visits')->latest('last_visit_date');
+        $query = Patient::query()
+            ->where('clinic_id', $clinicId)
+            ->withCount('visits')
+            ->latest('last_visit_date');
 
         if (!empty($search)) {
             $query->where(function ($sub) use ($search) {
@@ -163,14 +169,19 @@ class PatientController extends Controller
         // Smart summary for suggestion: e.g. "તાવ અને માથાનો દુખાવો (દવા: Paracetamol, Azithro)"
         $summary = $extracted['summary'] ?: ($diagnosis . ($medicines ? " (દવા: " . Str::limit($medicines, 45) . ")" : ""));
 
-        // Match existing patient by phone OR close name+city
+        $clinicId = (int)$request->input('clinic_id', 1);
+
+        // Match existing patient by phone OR close name+city within the same clinic
         $patient = null;
         if (!empty($phone)) {
-            $patient = Patient::where('phone', $phone)->first();
+            $patient = Patient::where('clinic_id', $clinicId)->where('phone', $phone)->first();
         }
         if (!$patient && !empty($finalName) && $finalName !== 'અજ્ઞાત દર્દી') {
-            $patient = Patient::where('name', $finalName)
-                ->orWhere('name_normalized', $normalizedName)
+            $patient = Patient::where('clinic_id', $clinicId)
+                ->where(function($q) use ($finalName, $normalizedName) {
+                    $q->where('name', $finalName)
+                      ->orWhere('name_normalized', $normalizedName);
+                })
                 ->first();
         }
 
@@ -178,6 +189,7 @@ class PatientController extends Controller
         try {
             if (!$patient) {
                 $patient = Patient::create([
+                    'clinic_id' => $clinicId,
                     'name' => $finalName,
                     'name_normalized' => $normalizedName,
                     'name_gujarati' => $finalGujarati,
@@ -207,6 +219,7 @@ class PatientController extends Controller
 
             // Save Visit Record
             $visit = PatientVisit::create([
+                'clinic_id' => $clinicId,
                 'patient_id' => $patient->id,
                 'visit_date' => $visitDate,
                 'photo_path' => '/storage/' . $storedPath,

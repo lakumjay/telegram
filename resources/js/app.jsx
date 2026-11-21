@@ -192,7 +192,7 @@ function App() {
 
                 {/* 2. Multi-Clinic Accounts, Billing, Stock & Expenses */}
                 {activeTab === 'billing' && (
-                    <ClinicBillingStockManager />
+                    <ClinicBillingStockManager activeClinicId={activeClinicId} />
                 )}
 
                 {/* 3. Home Dashboard View */}
