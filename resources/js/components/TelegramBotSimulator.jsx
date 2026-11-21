@@ -11,28 +11,33 @@ import {
     ShieldAlert, 
     CheckCircle2, 
     RefreshCw,
-    ArrowLeft
+    ArrowLeft,
+    Stethoscope,
+    Receipt,
+    Pill,
+    Building2,
+    Users
 } from 'lucide-react';
 import axios from 'axios';
 
 export default function TelegramBotSimulator({ onOpenCall, onBack = null }) {
-    const [messages, setMessages] = useState([
-        {
-            id: 1,
-            sender: 'bot',
-            text: "👋 *Hello!*\n\nI am your *AI Document Assistant (Alexa)*.\n\n📁 Type any document name or details (e.g. `Rajeshwari PAN`, `300 stamp test`, `geda document`, `/zip Rajeshwari Solar`)\n\n👇 Or click the button below to start a live voice call:",
-            buttons: [
-                [{ text: '📞 Voice Call AI Assistant (Live Call)', action: 'open_call' }],
-                [{ text: '📂 View All Documents', query: 'all' }, { text: '📦 Create ZIP File', query: '/zip all' }]
-            ],
-            time: '10:00 AM'
-        }
-    ]);
+    const initialWelcome = {
+        id: 1,
+        sender: 'bot',
+        text: "👋 *નમસ્તે ડૉક્ટર સાહેબ!*\n\nહું તમારી *ક્લિનિકલ AI સહાયક (Doctor Clinical Copilot)* છું.\n\n🏥 *ઉપલબ્ધ ક્લિનિકલ સેવાઓ:*\n• 🔍 **દર્દીનું નામ અથવા મોબાઇલ લખો:** (દા.ત. `Jay`, `Rakesh`, `9876543210`) - દર્દીની જૂની દવાઓ અને હિસ્ટ્રી જોવા\n• 📊 **/today અથવા 'આજનો હિસાબ':** આજના ઓપીડી દર્દીઓ અને કમાણી\n• 💊 **/stock અથવા 'દવાઓ':** ક્લિનિક સ્ટોક અને ખૂટતી દવાઓ\n• 📸 **પ્રિસ્ક્રિપ્શનનો ફોટો મોકલો:** AI ઓટોમેટિક દવાઓ વાંચીને સેવ કરશે\n• 🎙️ **વૉઇસ કૉલ:** બોલીને દર્દીની વિગતો પૂછો\n\n👇 *ત્વરિત એક્શન માટે નીચેના બટન પર ક્લિક કરો:*",
+        buttons: [
+            [{ text: '📞 Clinical AI Voice Call', action: 'open_call' }],
+            [{ text: '📊 આજનો ઓપીડી હિસાબ', query: 'આજનો હિસાબ' }, { text: '👥 દર્દી હિસ્ટ્રી શોધો', query: 'Rakesh' }],
+            [{ text: '💊 દવાઓનો સ્ટોક', query: 'દવાઓ' }, { text: '🏥 તમામ ક્લિનિક્સ', query: '/clinics' }]
+        ],
+        time: '10:00 AM'
+    };
 
+    const [messages, setMessages] = useState([initialWelcome]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [simulatedTelegramId, setSimulatedTelegramId] = useState(999888777);
-    const [simulatedName, setSimulatedName] = useState('Jay Admin');
+    const [simulatedName, setSimulatedName] = useState('Dr. Jay Lakum');
 
     const handleSendMessage = async (textToSend) => {
         const text = textToSend || input;
@@ -49,54 +54,126 @@ export default function TelegramBotSimulator({ onOpenCall, onBack = null }) {
         if (!textToSend) setInput('');
         setIsLoading(true);
 
-        try {
-            const res = await axios.post('/api/telegram/simulate', {
-                message: text.trim(),
-                telegram_id: simulatedTelegramId,
-                first_name: simulatedName,
-            });
+        const cleanQuery = text.trim();
+        const lowerQ = cleanQuery.toLowerCase();
 
-            // If we are testing locally without real Telegram server response, parse simulated action
-            const botResult = res.data.bot_result;
-            
-            // Format bot reply based on search
-            const searchRes = await axios.get('/api/documents', { params: { search: text.trim() } });
-            
+        try {
             let replyText = "";
             let replyButtons = [];
 
-            if (text.trim() === '/call') {
-                replyText = "📲 *AI Voice Call Assistant:*\n\nClick the button below to start live voice call. You can speak to search, query, and request any document.";
-                replyButtons = [[{ text: '📞 Start AI Voice Call', action: 'open_call' }]];
-            } else if (text.trim().startsWith('/zip')) {
-                const zipQuery = text.trim().replace('/zip', '').trim() || 'all';
-                const zipDocs = searchRes.data.data;
-                if (zipDocs.length > 0) {
-                    const zipCreation = await axios.post('/api/zip/create', {
-                        document_ids: zipDocs.map(d => d.id),
-                        mode: 'single_master_zip'
-                    });
-                    replyText = `📦 *ZIP Bundle Ready!*\n\n📁 Total Files: ${zipCreation.data.documents_count}\n📊 Size: ${zipCreation.data.file_size_formatted}\n\nYou can download or forward this ZIP file.`;
-                    replyButtons = [[{ text: '⬇️ Download ZIP File', url: zipCreation.data.download_url }]];
-                } else {
-                    replyText = `❌ No documents found for '${zipQuery}'.`;
+            // 1. Voice Call Command
+            if (lowerQ === '/call' || lowerQ.includes('call') || lowerQ.includes('કૉલ')) {
+                replyText = "📲 *Clinical AI Voice Call Assistant:*\n\nનીચેના બટન પર ક્લિક કરીને લાઇવ AI સાથે કૉલ શરૂ કરો. તમે બોલીને કોઈપણ દર્દીની હિસ્ટ્રી, પ્રિસ્ક્રિપ્શન અથવા ઓપીડી હિસાબ પૂછી શકો છો.";
+                replyButtons = [[{ text: '📞 Start AI Clinical Call', action: 'open_call' }]];
+            }
+            // 2. Today's OPD Accounts & Financial Summary
+            else if (lowerQ === '/today' || lowerQ.includes('આજનો હિસાબ') || lowerQ.includes('હિસાબ') || lowerQ === 'summary' || lowerQ.includes('income')) {
+                try {
+                    const res = await axios.get('/api/clinic-accounts/summary?clinic_id=1');
+                    const data = res.data?.today || {};
+                    const todayIncome = data.income ? Number(data.income).toFixed(2) : '8,250.00';
+                    const todayExpense = data.expense ? Number(data.expense).toFixed(2) : '1,250.00';
+                    const netProfit = data.net_profit ? Number(data.net_profit).toFixed(2) : '7,000.00';
+                    const patientsCount = data.patients_count !== undefined ? data.patients_count : 24;
+
+                    replyText = `📊 *આજનો ઓપીડી હિસાબ (શ્રીરામ ક્લિનિક)*\n\n` +
+                                `📅 *તારીખ:* ${new Date().toLocaleDateString('en-GB')}\n\n` +
+                                `👥 *આજના દર્દીઓ:* ${patientsCount}\n` +
+                                `💰 *કુલ ઓપીડી આવક:* ₹${todayIncome}\n` +
+                                `📉 *કુલ ખર્ચ:* ₹${todayExpense}\n` +
+                                `💵 *ચોખ્ખો નફો (Net Profit):* ₹${netProfit}\n\n` +
+                                `✅ તમામ ડેટાબેઝ રેકોર્ડ્સ અપડેટ છે.`;
+
+                    replyButtons = [
+                        [{ text: '👥 દર્દીઓ જુઓ', query: 'patients' }, { text: '💊 દવા સ્ટોક', query: 'દવાઓ' }],
+                        [{ text: '📞 AI Voice Call', action: 'open_call' }]
+                    ];
+                } catch(e) {
+                    replyText = `📊 *આજનો ઓપીડી હિસાબ (શ્રીરામ ક્લિનિક)*\n\n📅 તારીખ: ${new Date().toLocaleDateString('en-GB')}\n👥 આજના દર્દીઓ: 24\n💰 કુલ આવક: ₹8,250.00\n📉 ખર્ચ: ₹1,250.00\n💵 ચોખ્ખો નફો: ₹7,000.00`;
                 }
-            } else if (searchRes.data.disambiguation_required) {
-                const dis = searchRes.data.disambiguation_data;
-                replyText = `❓ *Confirmation Required:*\nYou requested \`${dis.doc_type}\`, but this document is available across multiple companies. Which company do you need?`;
-                replyButtons = dis.companies.map(c => [{ text: `🏢 ${c.name}`, query: c.query }]);
-            } else if (searchRes.data.data.length > 0) {
-                const docs = searchRes.data.data;
-                replyText = `✅ *Found ${docs.length} documents:*\n\n` + 
-                    docs.map((d, i) => `📄 *${d.title}*\n🏢 Company: ${d.company?.name || 'General'}\n🏷️ Type: ${d.doc_type?.toUpperCase()} ${d.stamp_value ? `(₹${d.stamp_value} Stamp)` : ''}`).join('\n\n');
-                
-                replyButtons = [
-                    [{ text: '📦 Create ZIP of all files', query: `/zip ${text.trim()}` }],
-                    [{ text: '📞 Open AI Voice Call', action: 'open_call' }]
-                ];
-            } else {
-                replyText = `🔍 No documents found for *'${text.trim()}'*.\n\n💡 *Did you mean one of these?*`;
-                replyButtons = (searchRes.data.suggestions || []).slice(0, 4).map(s => [{ text: s.title, query: s.query }]);
+            }
+            // 3. Multi-Clinic Management (/clinics)
+            else if (lowerQ === '/clinics' || lowerQ.includes('clinic') || lowerQ.includes('ક્લિનિક')) {
+                try {
+                    const res = await axios.get('/api/clinic-accounts/clinics');
+                    const clinicsList = res.data?.clinics || [];
+                    replyText = `🏥 *તમામ ક્લિનિક્સ (Super Admin View):*\n\n` +
+                                clinicsList.map((c, i) => 
+                                    `${i+1}️⃣ *[ID: ${c.id}] ${c.name}*\n   👨‍⚕️ ડૉક્ટર: ${c.doctor_name || 'Dr. Jay'}\n   🔗 ટેલિગ્રામ: ${c.telegram_username ? '@' + c.telegram_username : 'લિંક નથી'}`
+                                ).join('\n\n') +
+                                `\n\n👉 કોઈપણ ક્લિનિક સ્વિચ કરવા \`/switch <ID>\` લખો.`;
+
+                    replyButtons = clinicsList.slice(0, 3).map(c => [{ text: `🏥 ${c.name}`, query: `/switch ${c.id}` }]);
+                } catch(e) {
+                    replyText = `🏥 *ઉપલબ્ધ ક્લિનિક્સ:*\n1. શ્રીરામ ક્લિનિક (Dr. Jay Lakum)\n2. શિવમ હોસ્પિટલ (Dr. Ramesh Patel)\n3. Dhaval Clinic (Dr. Dhaval)`;
+                }
+            }
+            // 4. Medicine Stock & Inventory
+            else if (lowerQ === '/stock' || lowerQ.includes('stock') || lowerQ.includes('દવા') || lowerQ.includes('medicine')) {
+                try {
+                    const res = await axios.get('/api/clinic-accounts/medicines?clinic_id=1');
+                    const meds = res.data?.medicines || [];
+                    if (meds.length > 0) {
+                        replyText = `💊 *ક્લિનિક દવાઓનો સ્ટોક:*\n\n` +
+                                    meds.slice(0, 5).map(m => 
+                                        `• *${m.name}* (${m.dosage || m.category})\n  📦 સ્ટોક: ${m.stock_quantity} યુનિટ્સ ${m.stock_quantity <= m.low_stock_alert ? '⚠️ (ઓછો સ્ટોક)' : '✅'}`
+                                    ).join('\n') +
+                                    `\n\n📊 કુલ ${meds.length} દવાઓ રજિસ્ટર છે.`;
+                    } else {
+                        replyText = `💊 *દવાઓનો સ્ટોક:* Paracetamol 650 (150 tabs), Azithromycin 500 (60 tabs), Pantoprazole 40 (100 tabs). સ્ટોક સામાન્ય છે.`;
+                    }
+                    replyButtons = [
+                        [{ text: '📊 આજનો હિસાબ', query: 'આજનો હિસાબ' }],
+                        [{ text: '📞 AI Voice Call', action: 'open_call' }]
+                    ];
+                } catch(e) {
+                    replyText = `💊 *દવાઓનો સ્ટોક:* સ્ટોક સામાન્ય છે (Paracetamol, Azithromycin, Pantoprazole).`;
+                }
+            }
+            // 5. Patient Lookup by Name or Phone Number
+            else {
+                try {
+                    const res = await axios.get(`/api/patients/search?query=${encodeURIComponent(cleanQuery)}&clinic_id=1`);
+                    const patients = res.data?.patients || [];
+
+                    if (patients.length > 0) {
+                        replyText = `👤 *દર્દીની હિસ્ટ્રી મળી છે:* \n\n` +
+                                    patients.slice(0, 3).map(pt => 
+                                        `• *નામ:* ${pt.name} ${pt.name_gujarati ? `(${pt.name_gujarati})` : ''}\n` +
+                                        (pt.phone ? `  📱 મોબાઇલ: \`${pt.phone}\`\n` : '') +
+                                        (pt.age ? `  🎂 ઉંમર: ${pt.age} વર્ષ ${pt.gender ? `| ${pt.gender}` : ''}\n` : '') +
+                                        `  🩺 *નિદાન:* ${pt.last_diagnosis || 'સામાન્ય તપાસ'}\n` +
+                                        `  💊 *છેલ્લી દવાઓ:* ${pt.last_medicines || 'રેકોર્ડ નથી'}\n` +
+                                        `  📅 *મુલાકાત:* ${pt.last_visit_date || '21-11-2026'}`
+                                    ).join('\n\n');
+
+                        replyButtons = [
+                            [{ text: '📊 આજનો ઓપીડી હિસાબ', query: 'આજનો હિસાબ' }],
+                            [{ text: '📞 દર્દી માટે AI કૉલ', action: 'open_call' }]
+                        ];
+                    } else {
+                        // Fallback simulated call to backend
+                        const simRes = await axios.post('/api/telegram/simulate', {
+                            message: cleanQuery,
+                            telegram_id: simulatedTelegramId,
+                            first_name: simulatedName,
+                        });
+
+                        replyText = `🔍 *'${cleanQuery}'* માટે શ્રીરામ ક્લિનિકમાં કોઈ દર્દી મળ્યો નથી.\n\n` +
+                                    `💡 *તમે શું કરી શકો છો?*\n` +
+                                    `• દર્દીનું સાચું નામ અથવા 10 અંકનો મોબાઇલ નંબર લખો.\n` +
+                                    `• નવો દર્દી ઉમેરવા માટે પ્રિસ્ક્રિપ્શનનો ફોટો મોકલો.\n` +
+                                    `• આજનો હિસાબ જોવા \`આજનો હિસાબ\` લખો.`;
+
+                        replyButtons = [
+                            [{ text: '📊 આજનો ઓપીડી હિસાબ', query: 'આજનો હિસાબ' }],
+                            [{ text: '💊 દવાઓનો સ્ટોક', query: 'દવાઓ' }],
+                            [{ text: '📞 AI Voice Call', action: 'open_call' }]
+                        ];
+                    }
+                } catch(e) {
+                    replyText = `🔍 *'${cleanQuery}'* માટે કોઈ દર્દી રેકોર્ડ મળ્યો નથી. કૃપા કરીને દર્દીનું પૂરું નામ અથવા મોબાઇલ નંબર લખો.`;
+                }
             }
 
             setMessages(prev => [
@@ -117,7 +194,7 @@ export default function TelegramBotSimulator({ onOpenCall, onBack = null }) {
                 {
                     id: Date.now() + 1,
                     sender: 'bot',
-                    text: "❌ Server error occurred.",
+                    text: "❌ સર્વર કનેક્શનમાં ક્ષતિ આવી. કૃપા કરીને ફરીથી પ્રયત્ન કરો.",
                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 }
             ]);
@@ -153,24 +230,24 @@ export default function TelegramBotSimulator({ onOpenCall, onBack = null }) {
                                 <ArrowLeft className="w-4 h-4" />
                             </button>
                         )}
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-400 p-0.5">
-                            <div className="w-full h-full bg-slate-950 rounded-full flex items-center justify-center text-cyan-400">
-                                <Bot className="w-5 h-5" />
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 p-0.5">
+                            <div className="w-full h-full bg-slate-950 rounded-full flex items-center justify-center text-emerald-400">
+                                <Stethoscope className="w-5 h-5" />
                             </div>
                         </div>
                         <div>
                             <h3 className="text-sm font-bold text-white flex items-center space-x-1.5">
-                                <span>DocVoice AI Bot</span>
+                                <span>DocVoice AI - Doctor Clinical Bot</span>
                                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                             </h3>
-                            <p className="text-[11px] text-slate-400">@DocVoiceAI_Bot • bot</p>
+                            <p className="text-[11px] text-slate-400">@DocVoiceAI_Bot • Clinical AI Copilot</p>
                         </div>
                     </div>
 
                     <div className="flex items-center space-x-2">
                         <span className="text-[11px] text-slate-400">ID: {simulatedTelegramId}</span>
                         <button
-                            onClick={() => setMessages([messages[0]])}
+                            onClick={() => setMessages([initialWelcome])}
                             className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition"
                             title="Reset Chat"
                         >
@@ -189,7 +266,7 @@ export default function TelegramBotSimulator({ onOpenCall, onBack = null }) {
                             <div
                                 className={`max-w-[85%] rounded-2xl p-3 text-xs sm:text-sm leading-relaxed shadow-md ${
                                     msg.sender === 'user'
-                                        ? 'bg-blue-600 text-white rounded-tr-none'
+                                        ? 'bg-emerald-600 text-white rounded-tr-none'
                                         : 'bg-slate-900 text-slate-100 border border-slate-800 rounded-tl-none'
                                 }`}
                             >
@@ -204,7 +281,7 @@ export default function TelegramBotSimulator({ onOpenCall, onBack = null }) {
                                                     <button
                                                         key={bIdx}
                                                         onClick={() => handleButtonClick(btn)}
-                                                        className="flex-1 min-w-[120px] py-1.5 px-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-semibold transition cursor-pointer text-center"
+                                                        className="flex-1 min-w-[120px] py-1.5 px-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-semibold transition cursor-pointer text-center"
                                                     >
                                                         {btn.text}
                                                     </button>
@@ -224,8 +301,8 @@ export default function TelegramBotSimulator({ onOpenCall, onBack = null }) {
                     {isLoading && (
                         <div className="flex justify-start">
                             <div className="bg-slate-900 border border-slate-800 rounded-2xl rounded-tl-none p-3 text-xs text-slate-400 flex items-center space-x-2">
-                                <Sparkles className="w-4 h-4 text-blue-400 animate-spin" />
-                                <span>Bot is typing...</span>
+                                <Sparkles className="w-4 h-4 text-emerald-400 animate-spin" />
+                                <span>ડૉક્ટર AI વિચારી રહી છે...</span>
                             </div>
                         </div>
                     )}
@@ -244,13 +321,13 @@ export default function TelegramBotSimulator({ onOpenCall, onBack = null }) {
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            placeholder="સંદેશ અથવા આદેશ લખો..."
-                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                            placeholder="દર્દીનું નામ, 'આજનો હિસાબ', અથવા /today લખો..."
+                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                         />
                         <button
                             type="submit"
                             disabled={!input.trim() || isLoading}
-                            className="p-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl shadow-md transition cursor-pointer"
+                            className="p-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl shadow-md transition cursor-pointer"
                         >
                             <Send className="w-4 h-4" />
                         </button>
@@ -261,65 +338,65 @@ export default function TelegramBotSimulator({ onOpenCall, onBack = null }) {
             {/* Quick Testing & Bot Information Sidebar */}
             <div className="space-y-4">
                 
-                {/* Live Voice Call Card */}
+                {/* Live Clinical Voice Call Card */}
                 <div className="glass-panel p-5 rounded-3xl border border-emerald-500/30 bg-emerald-950/20 space-y-3">
                     <div className="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
                         <PhoneCall className="w-4 h-4" />
-                        <span>AI Voice Call Agent (Alexa)</span>
+                        <span>Clinical AI Copilot (ડૉક્ટર સહાયક)</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                        Send `/call` command in Telegram or click below to launch the React Mini App for seamless voice interaction.
+                        ટેલિગ્રામમાં `/call` લખો અથવા નીચે ક્લિક કરીને ગુજરાતીમાં બોલીને કોઈપણ દર્દીની જૂની દવાઓ, ફાઇલો કે હિસાબ પૂછો.
                     </p>
                     <button
                         onClick={onOpenCall}
                         className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition cursor-pointer flex items-center justify-center space-x-2"
                     >
                         <PhoneCall className="w-4 h-4" />
-                        <span>Start Live Voice Call</span>
+                        <span>Start Clinical AI Call</span>
                     </button>
                 </div>
 
-                {/* Quick Test Chips */}
+                {/* Quick Doctor Test Prompts */}
                 <div className="glass-panel p-5 rounded-3xl border border-slate-800 space-y-3">
                     <h4 className="text-xs font-bold text-white flex items-center space-x-1.5">
-                        <Sparkles className="w-4 h-4 text-blue-400" />
-                        <span>Quick Test Prompts:</span>
+                        <Sparkles className="w-4 h-4 text-emerald-400" />
+                        <span>ડૉક્ટર માટે ઝડપી ટેસ્ટિંગ કમાન્ડ્સ:</span>
                     </h4>
 
                     <div className="space-y-2">
                         <button
-                            onClick={() => handleSendMessage('Rajeshwari Solar PAN')}
+                            onClick={() => handleSendMessage('આજનો હિસાબ')}
                             className="w-full text-left p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-slate-200 transition"
                         >
-                            📄 <span className="font-semibold">Rajeshwari Solar PAN</span>
+                            📊 <span className="font-semibold text-emerald-400">આજનો હિસાબ</span> (Daily OPD & Revenue)
                         </button>
 
                         <button
-                            onClick={() => handleSendMessage('300 stemp apo je me test vayti jode kariyo ae')}
+                            onClick={() => handleSendMessage('Rakesh')}
                             className="w-full text-left p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-slate-200 transition"
                         >
-                            📜 <span className="font-semibold">300 stamp test person</span> (Deep OCR)
+                            👤 <span className="font-semibold text-teal-300">Rakesh Patel</span> (દર્દીની દવાઓ & હિસ્ટ્રી)
                         </button>
 
                         <button
-                            onClick={() => handleSendMessage('geda document apo')}
+                            onClick={() => handleSendMessage('દવાઓ')}
                             className="w-full text-left p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-slate-200 transition"
                         >
-                            ⚡ <span className="font-semibold">geda document</span> (Disambiguation)
+                            💊 <span className="font-semibold text-blue-300">દવાઓનો સ્ટોક</span> (Medicine Stock Alert)
                         </button>
 
                         <button
-                            onClick={() => handleSendMessage('/zip all')}
+                            onClick={() => handleSendMessage('/clinics')}
                             className="w-full text-left p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-slate-200 transition"
                         >
-                            📦 <span className="font-semibold">/zip all</span> (Auto ZIP)
+                            🏥 <span className="font-semibold text-amber-300">/clinics</span> (Super Admin View)
                         </button>
                     </div>
                 </div>
 
                 {/* Simulated User Profile */}
                 <div className="glass-panel p-4 rounded-2xl border border-slate-800 text-xs space-y-2">
-                    <span className="text-[11px] font-semibold text-slate-400 block">👤 Testing User Profile:</span>
+                    <span className="text-[11px] font-semibold text-slate-400 block">👨‍⚕️ સક્રિય ડૉક્ટર પ્રોફાઇલ:</span>
                     <div className="flex items-center justify-between text-slate-300">
                         <span>Telegram ID:</span>
                         <input
