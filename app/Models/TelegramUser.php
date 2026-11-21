@@ -9,6 +9,7 @@ class TelegramUser extends Model
 {
     protected $fillable = [
         'telegram_id',
+        'clinic_id',
         'first_name',
         'last_name',
         'username',
@@ -24,7 +25,13 @@ class TelegramUser extends Model
         'is_authorized' => 'boolean',
         'session_state' => 'array',
         'last_interaction_at' => 'datetime',
+        'clinic_id' => 'integer',
     ];
+
+    public function clinic()
+    {
+        return $this->belongsTo(Clinic::class);
+    }
 
     public function voiceCallLogs(): HasMany
     {

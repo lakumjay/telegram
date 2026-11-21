@@ -90,6 +90,7 @@ Route::prefix('clinic-accounts')->group(function () {
     Route::post('/clinics/{id}', [ClinicAccountsController::class, 'updateClinicProfile']);
     Route::delete('/clinics/{id}', [ClinicAccountsController::class, 'deleteClinic']);
     Route::get('/summary', [ClinicAccountsController::class, 'getFinancialSummary']);
+    Route::get('/financial', [ClinicAccountsController::class, 'getFinancialSummary']);
     
     // Bills CRUD
     Route::get('/bills', [ClinicAccountsController::class, 'getBills']);

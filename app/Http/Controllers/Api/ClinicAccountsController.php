@@ -12,6 +12,8 @@ use App\Models\Patient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ClinicAccountsController extends Controller
@@ -202,95 +204,162 @@ class ClinicAccountsController extends Controller
         $date = $request->query('date', date('Y-m-d'));
         $month = $request->query('month', date('Y-m'));
 
-        // 1. Selected Date's Summary
-        $todayBills = ClinicBill::where('clinic_id', $clinicId)
-            ->whereDate('bill_date', $date)
-            ->orderBy('id', 'desc')
-            ->get();
-        $todayIncome = (float)$todayBills->sum('total_amount');
-        $todayPatientsCount = $todayBills->count();
+        try {
+            // 1. Selected Date's Summary
+            $todayBills = collect();
+            $todayIncome = 0.0;
+            $todayPatientsCount = 0;
+            if (Schema::hasTable('clinic_bills')) {
+                $todayBills = ClinicBill::where('clinic_id', $clinicId)
+                    ->whereDate('bill_date', $date)
+                    ->orderBy('id', 'desc')
+                    ->get();
+                $todayIncome = (float)$todayBills->sum('total_amount');
+                $todayPatientsCount = $todayBills->count();
+            }
 
-        $todayExpenses = ClinicExpense::where('clinic_id', $clinicId)
-            ->whereDate('expense_date', $date)
-            ->orderBy('id', 'desc')
-            ->get();
-        $todayExpenseTotal = (float)$todayExpenses->sum('amount');
-        $todayNetProfit = $todayIncome - $todayExpenseTotal;
+            $todayExpenses = collect();
+            $todayExpenseTotal = 0.0;
+            if (Schema::hasTable('clinic_expenses')) {
+                $todayExpenses = ClinicExpense::where('clinic_id', $clinicId)
+                    ->whereDate('expense_date', $date)
+                    ->orderBy('id', 'desc')
+                    ->get();
+                $todayExpenseTotal = (float)$todayExpenses->sum('amount');
+            }
+            $todayNetProfit = $todayIncome - $todayExpenseTotal;
 
-        // 2. This Month's Summary
-        $monthBills = ClinicBill::where('clinic_id', $clinicId)
-            ->where('bill_date', 'LIKE', "{$month}%")
-            ->get();
-        $monthIncome = (float)$monthBills->sum('total_amount');
-        $monthPatientsCount = $monthBills->count();
+            // 2. This Month's Summary
+            $monthBills = collect();
+            $monthIncome = 0.0;
+            $monthPatientsCount = 0;
+            if (Schema::hasTable('clinic_bills')) {
+                $monthBills = ClinicBill::where('clinic_id', $clinicId)
+                    ->where('bill_date', 'LIKE', "{$month}%")
+                    ->get();
+                $monthIncome = (float)$monthBills->sum('total_amount');
+                $monthPatientsCount = $monthBills->count();
+            }
 
-        $monthExpenses = ClinicExpense::where('clinic_id', $clinicId)
-            ->where('expense_date', 'LIKE', "{$month}%")
-            ->get();
-        $monthExpenseTotal = (float)$monthExpenses->sum('amount');
-        $monthNetProfit = $monthIncome - $monthExpenseTotal;
+            $monthExpenses = collect();
+            $monthExpenseTotal = 0.0;
+            if (Schema::hasTable('clinic_expenses')) {
+                $monthExpenses = ClinicExpense::where('clinic_id', $clinicId)
+                    ->where('expense_date', 'LIKE', "{$month}%")
+                    ->get();
+                $monthExpenseTotal = (float)$monthExpenses->sum('amount');
+            }
+            $monthNetProfit = $monthIncome - $monthExpenseTotal;
 
-        // 3. Appointments for selected date
-        $todayAppointmentsCount = ClinicAppointment::where('clinic_id', $clinicId)
-            ->whereDate('appointment_date', $date)
-            ->count();
+            // 3. Appointments for selected date
+            $todayAppointmentsCount = 0;
+            if (Schema::hasTable('clinic_appointments')) {
+                $todayAppointmentsCount = ClinicAppointment::where('clinic_id', $clinicId)
+                    ->whereDate('appointment_date', $date)
+                    ->count();
+            }
 
-        // 4. Low stock medicines count
-        $lowStockCount = ClinicMedicine::where('clinic_id', $clinicId)
-            ->whereRaw('stock_quantity <= low_stock_alert')
-            ->count();
+            // 4. Low stock medicines count
+            $lowStockCount = 0;
+            if (Schema::hasTable('clinic_medicines')) {
+                $lowStockCount = ClinicMedicine::where('clinic_id', $clinicId)
+                    ->whereRaw('stock_quantity <= low_stock_alert')
+                    ->count();
+            }
 
-        // 5. Total Clinic Patients & Recent Patients with payment status
-        $totalPatientsCount = Patient::where('clinic_id', $clinicId)->count();
-        $recentPatients = Patient::where('clinic_id', $clinicId)
-            ->orderBy('last_visit_date', 'desc')
-            ->orderBy('id', 'desc')
-            ->take(8)
-            ->get()
-            ->map(function ($patient) use ($clinicId) {
-                $lastBill = ClinicBill::where('clinic_id', $clinicId)
-                    ->where(function ($q) use ($patient) {
-                        $q->where('patient_id', $patient->id)
-                          ->orWhere('patient_name', $patient->name);
-                    })
-                    ->latest('id')
-                    ->first();
+            // 5. Total Clinic Patients & Recent Patients with payment status
+            $totalPatientsCount = 0;
+            $recentPatients = collect();
+            if (Schema::hasTable('patients')) {
+                $totalPatientsCount = Patient::where('clinic_id', $clinicId)->count();
+                $recentPatients = Patient::where('clinic_id', $clinicId)
+                    ->orderBy('last_visit_date', 'desc')
+                    ->orderBy('id', 'desc')
+                    ->take(8)
+                    ->get()
+                    ->map(function ($patient) use ($clinicId) {
+                        $lastBill = null;
+                        if (Schema::hasTable('clinic_bills')) {
+                            $lastBill = ClinicBill::where('clinic_id', $clinicId)
+                                ->where(function ($q) use ($patient) {
+                                    $q->where('patient_id', $patient->id)
+                                      ->orWhere('patient_name', $patient->name);
+                                })
+                                ->latest('id')
+                                ->first();
+                        }
 
-                return [
-                    'id' => $patient->id,
-                    'name' => $patient->name,
-                    'phone' => $patient->phone,
-                    'last_visit_date' => $patient->last_visit_date ? $patient->last_visit_date->format('d-m-Y') : date('d-m-Y'),
-                    'last_diagnosis' => $patient->last_diagnosis,
-                    'status' => $lastBill ? ($lastBill->payment_status ?: 'Paid') : 'Paid',
-                    'amount' => $lastBill ? (float)$lastBill->total_amount : 300.0,
-                ];
-            });
+                        $visitDateStr = date('d-m-Y');
+                        if (!empty($patient->last_visit_date)) {
+                            $visitDateStr = is_string($patient->last_visit_date) 
+                                ? date('d-m-Y', strtotime($patient->last_visit_date))
+                                : $patient->last_visit_date->format('d-m-Y');
+                        }
 
-        return response()->json([
-            'success' => true,
-            'clinic_id' => $clinicId,
-            'total_patients_count' => $totalPatientsCount,
-            'appointments_count' => $todayAppointmentsCount,
-            'recent_patients' => $recentPatients,
-            'today' => [
-                'date' => $date,
-                'income' => $todayIncome,
-                'expense' => $todayExpenseTotal,
-                'net_profit' => $todayNetProfit,
-                'patients_count' => $todayPatientsCount,
-                'bills' => $todayBills,
-                'expenses' => $todayExpenses,
-            ],
-            'month' => [
-                'month' => $month,
-                'income' => $monthIncome,
-                'expense' => $monthExpenseTotal,
-                'net_profit' => $monthNetProfit,
-                'patients_count' => $monthPatientsCount,
-            ],
-            'low_stock_count' => $lowStockCount,
-        ]);
+                        return [
+                            'id' => $patient->id,
+                            'name' => $patient->name,
+                            'phone' => $patient->phone,
+                            'last_visit_date' => $visitDateStr,
+                            'last_diagnosis' => $patient->last_diagnosis,
+                            'status' => $lastBill ? ($lastBill->payment_status ?: 'Paid') : 'Paid',
+                            'amount' => $lastBill ? (float)$lastBill->total_amount : 300.0,
+                        ];
+                    });
+            }
+
+            return response()->json([
+                'success' => true,
+                'clinic_id' => $clinicId,
+                'total_patients_count' => $totalPatientsCount,
+                'appointments_count' => $todayAppointmentsCount,
+                'recent_patients' => $recentPatients,
+                'today' => [
+                    'date' => $date,
+                    'income' => $todayIncome,
+                    'expense' => $todayExpenseTotal,
+                    'net_profit' => $todayNetProfit,
+                    'patients_count' => $todayPatientsCount,
+                    'bills' => $todayBills,
+                    'expenses' => $todayExpenses,
+                ],
+                'month' => [
+                    'month' => $month,
+                    'income' => $monthIncome,
+                    'expense' => $monthExpenseTotal,
+                    'net_profit' => $monthNetProfit,
+                    'patients_count' => $monthPatientsCount,
+                ],
+                'low_stock_count' => $lowStockCount,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('getFinancialSummary error: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json([
+                'success' => true,
+                'clinic_id' => $clinicId,
+                'total_patients_count' => 0,
+                'appointments_count' => 0,
+                'recent_patients' => [],
+                'today' => [
+                    'date' => $date,
+                    'income' => 0.0,
+                    'expense' => 0.0,
+                    'net_profit' => 0.0,
+                    'patients_count' => 0,
+                    'bills' => [],
+                    'expenses' => [],
+                ],
+                'month' => [
+                    'month' => $month,
+                    'income' => 0.0,
+                    'expense' => 0.0,
+                    'net_profit' => 0.0,
+                    'patients_count' => 0,
+                ],
+                'low_stock_count' => 0,
+                'warning' => 'Fallback defaults returned: ' . $e->getMessage(),
+            ]);
+        }
     }
 
     /**

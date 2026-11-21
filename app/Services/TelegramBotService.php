@@ -2,10 +2,17 @@
 
 namespace App\Services;
 
+use App\Models\Clinic;
+use App\Models\ClinicBill;
+use App\Models\ClinicExpense;
 use App\Models\Company;
 use App\Models\Document;
+use App\Models\Patient;
+use App\Models\PatientVisit;
 use App\Models\SystemSetting;
 use App\Models\TelegramUser;
+use App\Services\PatientOcrService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -18,15 +25,18 @@ class TelegramBotService
     protected DeepSearchService $searchService;
     protected ZipService $zipService;
     protected AiVoiceAgentService $voiceAgentService;
+    protected PatientOcrService $patientOcrService;
 
     public function __construct(
         DeepSearchService $searchService,
         ZipService $zipService,
-        AiVoiceAgentService $voiceAgentService
+        AiVoiceAgentService $voiceAgentService,
+        PatientOcrService $patientOcrService
     ) {
         $this->searchService = $searchService;
         $this->zipService = $zipService;
         $this->voiceAgentService = $voiceAgentService;
+        $this->patientOcrService = $patientOcrService;
 
         $token = SystemSetting::get('telegram_bot_token', env('TELEGRAM_BOT_TOKEN', ''));
         $this->botToken = (string) $token;
@@ -57,27 +67,35 @@ class TelegramBotService
 
         // 1. Security Check: Authenticate user & Whitelist
         $user = $this->getOrCreateUser($from);
+        $clinic = $this->resolveUserClinic($user);
+        $isSuperAdmin = ($user->role === 'admin' || $user->telegram_id == 999888777);
 
         $whitelistActive = SystemSetting::get('whitelist_enabled', true);
-        if ($whitelistActive && !$user->is_authorized) {
+        if ($whitelistActive && !$user->is_authorized && !$isSuperAdmin) {
             $text = trim($message['text'] ?? '');
             if (str_starts_with($text, '/pin ') || str_starts_with($text, '/start pin_')) {
                 return $this->verifyUserPin($user, $chatId, $text);
             }
 
-            $this->sendMessage($chatId, "⛔ *Access Denied!*\n\nતમે આ બોટ વાપરવા માટે અધિકૃત (Authorized) નથી.\n\n👤 *તમારું Telegram ID:* `{$telegramId}`\n🔐 એડમિન પોર્ટલમાંથી આ ID ને Allow કરાવો અથવા `/pin <તમારો_પીન>` દાખલ કરો.");
+            $userHandle = $user->username ? "@{$user->username}" : "No Username";
+            $this->sendMessage($chatId, "⛔ *Access Denied!*\n\nતમે આ ક્લિનિક બોટ વાપરવા માટે અધિકૃત (Authorized) નથી.\n\n👤 *તમારું Telegram ID:* `{$telegramId}`\n🔗 *યુઝરનેમ:* `{$userHandle}`\n\n🔐 ફક્ત અધિકૃત ડૉક્ટર્સ જ ઉપયોગ કરી શકે છે. એડમિન ડૉ. જય લાકુમનો સંપર્ક કરો અથવા તમારા ડેશબોર્ડમાં ટેલિગ્રામ યુઝરનેમ સેટ કરાવો.");
             return ['status' => 'unauthorized'];
         }
 
         // Update interaction timestamp
         $user->update(['last_interaction_at' => now()]);
 
-        // 2. Handle Voice Notes / Audio Messages
+        // 2. Handle Photo / Prescription Image Upload (Gemini Vision OCR & Auto Clinic Isolation)
+        if (isset($message['photo'])) {
+            return $this->handlePrescriptionPhoto($message, $user, $chatId);
+        }
+
+        // 3. Handle Voice Notes / Audio Messages
         if (isset($message['voice']) || isset($message['audio'])) {
             return $this->handleVoiceMessage($message, $user, $chatId);
         }
 
-        // 3. Handle Text Messages & Commands
+        // 4. Handle Text Messages & Commands
         $text = trim($message['text'] ?? '');
 
         // Check for 1, 2, 3, 4 numbered selection from previous suggestions
@@ -99,6 +117,18 @@ class TelegramBotService
             return $this->handleStartCommand($chatId, $user);
         }
 
+        if ($text === '/today' || $text === 'આજનો હિસાબ' || $text === 'હિસાબ' || strtolower($text) === 'summary') {
+            return $this->handleTodayAccounts($chatId, $user);
+        }
+
+        if ($text === '/clinics') {
+            return $this->handleClinicsCommand($chatId, $user);
+        }
+
+        if (str_starts_with($text, '/switch')) {
+            return $this->handleSwitchClinicCommand($chatId, $user, $text);
+        }
+
         if ($text === '/call') {
             return $this->handleCallCommand($chatId);
         }
@@ -112,8 +142,39 @@ class TelegramBotService
             return $this->handleHelpCommand($chatId);
         }
 
-        // 4. Default: Intelligent Document Deep Search
+        // 5. Default: Intelligent Patient Lookup (Scoped strictly to clinic) or Document Search
         return $this->handleSearchMessage($chatId, $text, $user);
+    }
+
+    /**
+     * Resolve which clinic a Telegram user belongs to
+     */
+    public function resolveUserClinic(TelegramUser $user): ?Clinic
+    {
+        // 1. Explicit clinic assignment
+        if (!empty($user->clinic_id)) {
+            $c = Clinic::find($user->clinic_id);
+            if ($c) return $c;
+        }
+
+        // 2. Match by Telegram Username
+        if (!empty($user->username)) {
+            $cleanUser = ltrim($user->username, '@');
+            $c = Clinic::where('telegram_username', $cleanUser)->first();
+            if ($c) {
+                $user->update(['clinic_id' => $c->id, 'is_authorized' => true, 'role' => 'doctor']);
+                return $c;
+            }
+        }
+
+        // 3. Super Admin default session clinic
+        if ($user->role === 'admin' || $user->telegram_id == 999888777) {
+            $session = (array) $user->session_state;
+            $activeId = $session['active_clinic_id'] ?? 1;
+            return Clinic::find($activeId) ?: Clinic::first();
+        }
+
+        return null;
     }
 
     /**
@@ -121,10 +182,23 @@ class TelegramBotService
      */
     protected function handleStartCommand(int $chatId, TelegramUser $user): array
     {
+        $clinic = $this->resolveUserClinic($user);
+        $clinicName = $clinic ? $clinic->name : 'શ્રીરામ ક્લિનિક';
+        $docName = $clinic ? $clinic->doctor_name : 'Dr. Jay Lakum';
+
         $appUrl = config('app.url');
         $miniAppUrl = "{$appUrl}/miniapp?user_id={$user->telegram_id}";
 
-        $welcomeText = "👋 *નમસ્તે {$user->first_name}!* \n\nહું તમારી *AI Document Assistant (ધ્વનિ)* છું.\n\n📁 *તમે શું કરી શકો છો?*\n• કોઈપણ દસ્તાવેજનું નામ લખો (દા.ત. `Rajeshwari Solar PAN`, `Sunrise GST`)\n• ફાઇલની અંદરની વિગત લખો (દા.ત. `₹300 વાળો સ્ટેમ્પ પેપર ટેસ્ટ વ્યક્તિ`)\n• વૉઇસ નોટ (Voice Note) રેકોર્ડ કરીને મોકલો\n• એકસાથે મલ્ટીપલ કંપનીના ડોક્યુમેન્ટ્સ માંગો\n\n👇 *નીચે આપેલા બટન પર ક્લિક કરીને લાઇવ કૉલ શરૂ કરો:*";
+        $welcomeText = "👋 *નમસ્તે {$user->first_name}!* \n\n"
+                     . "🏥 *{$clinicName}*\n"
+                     . "👨‍⚕️ *ડૉક્ટર:* {$docName}\n\n"
+                     . "હું તમારી *AI ક્લિનિકલ સહાયક* છું.\n\n"
+                     . "📁 *તમે શું કરી શકો છો?*\n"
+                     . "• 📸 **પ્રિસ્ક્રિપ્શનનો ફોટો મોકલો:** AI ઓટોમેટિક દવાઓ અને દર્દી તમારા ક્લિનિકમાં સેવ કરશે.\n"
+                     . "• 🔍 **દર્દીનું નામ લખો:** (દા.ત. `Jay`, `Rakesh`) દર્દીની છેલ્લી દવા અને હિસ્ટ્રી જોવા.\n"
+                     . "• 📊 **/today અથવા 'આજનો હિસાબ':** આજના ઓપીડી દર્દીઓ અને કમાણી.\n"
+                     . "• 🎙️ **વૉઇસ નોટ મોકલો:** બોલીને કોઈપણ દર્દીની વિગત પૂછો.\n\n"
+                     . "👇 *લાઇવ કૉલ શરૂ કરવા નીચે બટન દબાવો:*";
 
         $keyboard = [
             'inline_keyboard' => [
@@ -132,14 +206,233 @@ class TelegramBotService
                     ['text' => '📞 Voice Call AI Assistant (Live Call)', 'web_app' => ['url' => $miniAppUrl]],
                 ],
                 [
-                    ['text' => '📂 બધા દસ્તાવેજો જુઓ', 'callback_data' => 'view_all_companies'],
-                    ['text' => '📦 ZIP ફાઇલ બનાવો', 'callback_data' => 'make_zip_guide'],
+                    ['text' => '📊 આજનો ઓપીડી હિસાબ', 'callback_data' => 'clinic_today_accounts'],
+                    ['text' => '📂 દર્દી રેકોર્ડ્સ ગાઇડ', 'callback_data' => 'clinic_patients_guide'],
                 ]
             ]
         ];
 
         $this->sendMessage($chatId, $welcomeText, $keyboard);
         return ['status' => 'start_sent'];
+    }
+
+    /**
+     * Handle Today's OPD & Financial Summary strictly for user's clinic
+     */
+    protected function handleTodayAccounts(int $chatId, TelegramUser $user): array
+    {
+        $clinic = $this->resolveUserClinic($user);
+        if (!$clinic) {
+            $this->sendMessage($chatId, "❌ ક્લિનિક વિગત મળી નથી.");
+            return ['status' => 'no_clinic'];
+        }
+
+        $today = date('Y-m-d');
+        $todayBills = ClinicBill::where('clinic_id', $clinic->id)->whereDate('bill_date', $today)->get();
+        $todayIncome = (float)$todayBills->sum('total_amount');
+        $todayPatients = $todayBills->count();
+
+        $todayExpenses = ClinicExpense::where('clinic_id', $clinic->id)->whereDate('expense_date', $today)->sum('amount');
+        $netProfit = $todayIncome - (float)$todayExpenses;
+
+        $msg = "📊 *આજનો ઓપીડી હિસાબ*\n\n"
+             . "🏥 *ક્લિનિક:* {$clinic->name}\n"
+             . "👨‍⚕️ *ડૉક્ટર:* {$clinic->doctor_name}\n"
+             . "📅 *તારીખ:* " . date('d-m-Y') . "\n\n"
+             . "👥 *આજના કુલ દર્દીઓ:* {$todayPatients}\n"
+             . "💰 *કુલ ઓપીડી આવક:* ₹" . number_format($todayIncome, 2) . "\n"
+             . "📉 *કુલ ખર્ચ:* ₹" . number_format($todayExpenses, 2) . "\n"
+             . "💵 *ચોખ્ખો નફો (Net Profit):* ₹" . number_format($netProfit, 2);
+
+        $this->sendMessage($chatId, $msg);
+        return ['status' => 'today_accounts_sent'];
+    }
+
+    /**
+     * Handle Super Admin Clinics List
+     */
+    protected function handleClinicsCommand(int $chatId, TelegramUser $user): array
+    {
+        if ($user->role !== 'admin' && $user->telegram_id != 999888777) {
+            $this->sendMessage($chatId, "⛔ આ કમાન્ડ ફક્ત Super Admin (Dr. Jay Lakum) માટે જ છે.");
+            return ['status' => 'forbidden'];
+        }
+
+        $clinics = Clinic::all();
+        $msg = "🏥 *તમામ ક્લિનિક્સ મેનેજમેન્ટ (Super Admin View):*\n\n";
+        foreach ($clinics as $c) {
+            $ptCount = Patient::where('clinic_id', $c->id)->count();
+            $tgUser = $c->telegram_username ? "@{$c->telegram_username}" : "લિંક નથી";
+            $msg .= "• *[ID: {$c->id}] {$c->name}*\n"
+                  . "  👨‍⚕️ ડૉક્ટર: {$c->doctor_name}\n"
+                  . "  👥 દર્દીઓ: {$ptCount}\n"
+                  . "  🔗 ટેલિગ્રામ: {$tgUser}\n\n";
+        }
+        $msg .= "👉 કોઈપણ ક્લિનિક સ્વિચ કરવા `/switch <ID>` લખો.";
+
+        $this->sendMessage($chatId, $msg);
+        return ['status' => 'clinics_sent'];
+    }
+
+    /**
+     * Handle Switch Clinic for Super Admin
+     */
+    protected function handleSwitchClinicCommand(int $chatId, TelegramUser $user, string $text): array
+    {
+        if ($user->role !== 'admin' && $user->telegram_id != 999888777) {
+            $this->sendMessage($chatId, "⛔ આ કમાન્ડ ફક્ત Super Admin માટે જ છે.");
+            return ['status' => 'forbidden'];
+        }
+
+        $targetId = (int) trim(str_replace('/switch', '', $text));
+        $targetClinic = Clinic::find($targetId);
+        if (!$targetClinic) {
+            $this->sendMessage($chatId, "❌ અમાન્ય ક્લિનિક ID.");
+            return ['status' => 'invalid_id'];
+        }
+
+        $session = (array) $user->session_state;
+        $session['active_clinic_id'] = $targetClinic->id;
+        $user->update(['session_state' => $session]);
+
+        $this->sendMessage($chatId, "🔄 *ક્લિનિક સફળતાપૂર્વક સ્વિચ થયું!*\n\n🏥 હવે સક્રિય ક્લિનિક: *{$targetClinic->name}* ({$targetClinic->doctor_name})");
+        return ['status' => 'switched'];
+    }
+
+    /**
+     * Handle Prescription Photo Upload via Telegram (Full OCR + Auto Save in Clinic)
+     */
+    protected function handlePrescriptionPhoto(array $message, TelegramUser $user, int $chatId): array
+    {
+        $clinic = $this->resolveUserClinic($user);
+        if (!$clinic) {
+            $this->sendMessage($chatId, "⛔ *ક્ષતિ:* તમારું એકાઉન્ટ કોઈ ક્લિનિક સાથે જોડાયેલ નથી. એડમિન ડૉ. જય લાકુમનો સંપર્ક કરો.");
+            return ['status' => 'no_clinic'];
+        }
+
+        $this->sendMessage($chatId, "📸 *પ્રિસ્ક્રિપ્શન મળ્યું છે!* \n🤖 Google Gemini AI વડે વાંચી રહી છું, કૃપા કરીને થોડી સેકન્ડ રાહ જુઓ...");
+
+        $photos = $message['photo'] ?? [];
+        if (empty($photos)) {
+            $this->sendMessage($chatId, "❌ ફોટો મળી શક્યો નહીં.");
+            return ['status' => 'no_photo'];
+        }
+        $bestPhoto = end($photos); // highest resolution photo
+        $fileId = $bestPhoto['file_id'];
+
+        try {
+            $fileRes = Http::get("{$this->apiUrl}/getFile", ['file_id' => $fileId]);
+            if (!$fileRes->successful()) {
+                $this->sendMessage($chatId, "❌ ફોટો ડાઉનલોડ કરવામાં ભૂલ આવી.");
+                return ['status' => 'download_failed'];
+            }
+
+            $filePathOnTelegram = $fileRes->json()['result']['file_path'] ?? '';
+            $downloadUrl = "https://api.telegram.org/file/bot{$this->botToken}/{$filePathOnTelegram}";
+            $imageBytes = Http::get($downloadUrl)->body();
+
+            $filename = 'rx_tg_' . date('Ymd_His') . '_' . Str::random(6) . '.jpg';
+            Storage::disk('public')->put('prescriptions/' . $filename, $imageBytes);
+            $fullPath = storage_path('app/public/prescriptions/' . $filename);
+
+            // Run AI OCR
+            $extracted = $this->patientOcrService->analyzePrescription($fullPath, 'image/jpeg');
+
+            $finalName = trim($extracted['patient_name'] ?? 'અજ્ઞાત દર્દી');
+            if (empty($finalName) || $finalName === 'અજ્ઞાત દર્દી') {
+                $finalName = 'દર્દી ' . date('d/m H:i');
+            }
+            $finalGujarati = trim($extracted['patient_name_gujarati'] ?? $finalName);
+            $normalizedName = Str::slug(mb_strtolower($finalName), '');
+
+            $phone = trim($extracted['phone'] ?? null);
+            $city = trim($extracted['city'] ?? $clinic->city ?? null);
+            $age = !empty($extracted['age']) ? (int)$extracted['age'] : null;
+            $gender = $extracted['gender'] ?? null;
+            $visitDate = $extracted['visit_date'] ?? date('Y-m-d');
+
+            $diagnosis = $extracted['diagnosis'] ?: 'ઓપીડી તપાસ';
+            $medicines = $extracted['medicines'] ?: 'જરૂર મુજબ દવાઓ';
+            $symptoms = $extracted['symptoms'] ?: '';
+            $summary = $extracted['summary'] ?: ($diagnosis . ($medicines ? " ({$medicines})" : ""));
+
+            // Match or create patient in this clinic
+            $patient = null;
+            if (!empty($phone)) {
+                $patient = Patient::where('clinic_id', $clinic->id)->where('phone', $phone)->first();
+            }
+            if (!$patient && !empty($finalName)) {
+                $patient = Patient::where('clinic_id', $clinic->id)
+                    ->where(function($q) use ($finalName, $normalizedName) {
+                        $q->where('name', $finalName)
+                          ->orWhere('name_normalized', $normalizedName);
+                    })->first();
+            }
+
+            DB::beginTransaction();
+            if (!$patient) {
+                $patient = Patient::create([
+                    'clinic_id' => $clinic->id,
+                    'name' => $finalName,
+                    'name_normalized' => $normalizedName,
+                    'name_gujarati' => $finalGujarati,
+                    'phone' => $phone,
+                    'age' => $age,
+                    'gender' => $gender,
+                    'city' => $city,
+                    'last_diagnosis' => $diagnosis,
+                    'last_medicines' => $medicines,
+                    'last_summary' => $summary,
+                    'last_visit_date' => $visitDate,
+                    'total_visits' => 1,
+                ]);
+            } else {
+                $patient->update([
+                    'age' => $age ?: $patient->age,
+                    'gender' => $gender ?: $patient->gender,
+                    'city' => $city ?: $patient->city,
+                    'phone' => $phone ?: $patient->phone,
+                    'last_diagnosis' => $diagnosis,
+                    'last_medicines' => $medicines,
+                    'last_summary' => $summary,
+                    'last_visit_date' => $visitDate,
+                    'total_visits' => $patient->total_visits + 1,
+                ]);
+            }
+
+            // Create visit
+            PatientVisit::create([
+                'clinic_id' => $clinic->id,
+                'patient_id' => $patient->id,
+                'visit_date' => $visitDate,
+                'photo_path' => '/storage/prescriptions/' . $filename,
+                'diagnosis' => $diagnosis,
+                'medicines' => $medicines,
+                'symptoms' => $symptoms,
+                'notes' => 'Telegram Upload',
+                'raw_ocr_text' => $extracted['raw_text'] ?? null,
+                'extracted_data' => $extracted,
+            ]);
+
+            DB::commit();
+
+            $reply = "✅ *પ્રિસ્ક્રિપ્શન સફળતાપૂર્વક સ્કેન થયું!*\n\n"
+                   . "🏥 *ક્લિનિક:* {$clinic->name}\n"
+                   . "👤 *દર્દીનું નામ:* {$patient->name}\n"
+                   . ($patient->phone ? "📱 *મોબાઇલ:* `{$patient->phone}`\n" : "")
+                   . ($patient->age ? "🎂 *ઉંમર:* {$patient->age} વર્ષ\n" : "")
+                   . "🩺 *નિદાન:* {$diagnosis}\n"
+                   . "💊 *લખેલ દવાઓ:* {$medicines}\n\n"
+                   . "💾 આ દર્દી તમારા પોર્ટલ ડેશબોર્ડમાં સેવ થઈ ગયો છે.";
+
+            $this->sendMessage($chatId, $reply);
+            return ['status' => 'prescription_saved', 'patient_id' => $patient->id];
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Telegram prescription save error: ' . $e->getMessage());
+            $this->sendMessage($chatId, "❌ પ્રિસ્ક્રિપ્શન વાંચવામાં ક્ષતિ આવી: " . $e->getMessage());
+            return ['status' => 'ocr_error'];
+        }
     }
 
     /**
@@ -212,13 +505,47 @@ class TelegramBotService
     }
 
     /**
-     * Handle text search query
+     * Handle text search query (Scoped strictly to user's clinic)
      */
     protected function handleSearchMessage(int $chatId, string $query, TelegramUser $user): array
     {
+        $clinic = $this->resolveUserClinic($user);
+        $clinicId = $clinic ? $clinic->id : 1;
+
+        // 1. Patient Lookup: Strictly scoped to this doctor's clinic!
+        $patientMatches = Patient::where('clinic_id', $clinicId)
+            ->where(function ($q) use ($query) {
+                $q->where('name', 'LIKE', "%{$query}%")
+                  ->orWhere('name_gujarati', 'LIKE', "%{$query}%")
+                  ->orWhere('phone', 'LIKE', "%{$query}%")
+                  ->orWhere('last_diagnosis', 'LIKE', "%{$query}%")
+                  ->orWhere('last_medicines', 'LIKE', "%{$query}%");
+            })
+            ->take(3)
+            ->get();
+
+        if ($patientMatches->isNotEmpty()) {
+            $clinicTitle = $clinic ? $clinic->name : 'ક્લિનિક';
+            $resText = "👤 *દર્દીની હિસ્ટ્રી ({$clinicTitle}):*\n\n";
+            foreach ($patientMatches as $pt) {
+                $vDate = $pt->last_visit_date 
+                    ? (is_string($pt->last_visit_date) ? date('d-m-Y', strtotime($pt->last_visit_date)) : $pt->last_visit_date->format('d-m-Y'))
+                    : date('d-m-Y');
+
+                $resText .= "• *નામ:* {$pt->name}" . ($pt->name_gujarati ? " ({$pt->name_gujarati})" : "") . "\n"
+                          . ($pt->phone ? "  📱 મોબાઇલ: `{$pt->phone}`\n" : "")
+                          . ($pt->age ? "  🎂 ઉંમર: {$pt->age} વર્ષ" . ($pt->gender ? " | {$pt->gender}" : "") . "\n" : "")
+                          . "  🩺 *નિદાન:* " . ($pt->last_diagnosis ?: 'સામાન્ય તપાસ') . "\n"
+                          . "  💊 *દવાઓ:* " . ($pt->last_medicines ?: 'રેકોર્ડ નથી') . "\n"
+                          . "  📅 *મુલાકાત:* {$vDate}\n\n";
+            }
+            $this->sendMessage($chatId, $resText);
+            return ['status' => 'patient_found'];
+        }
+
         $result = $this->searchService->search($query);
 
-        // 1. Check for Disambiguation (e.g. GST or PAN present in multiple companies)
+        // 2. Check for Disambiguation (e.g. GST or PAN present in multiple companies)
         if ($result['disambiguation_required']) {
             $disData = $result['disambiguation_data'];
             $numberedDocs = [];
@@ -255,14 +582,14 @@ class TelegramBotService
         $docs = $result['documents'];
 
         if ($docs->isEmpty()) {
-            $msg = "🔍 *'{$query}'* માટે કોઈ દસ્તાવેજ મળ્યો નથી.\n\n💡 *શું તમે આમાંથી કંઈક શોધી રહ્યા છો?*";
-            $buttons = [];
-            foreach ($result['suggestions'] as $sug) {
-                $buttons[] = [['text' => $sug['title'], 'callback_data' => 'sug_' . urlencode(substr($sug['query'], 0, 30))]];
-            }
-            $keyboard = !empty($buttons) ? ['inline_keyboard' => array_chunk($buttons, 2)[0] ?? []] : null;
+            $clinicTitle = $clinic ? $clinic->name : 'તમારા ક્લિનિક';
+            $msg = "🔍 *'{$query}'* માટે {$clinicTitle} માં કોઈ દર્દી મળ્યો નથી.\n\n"
+                 . "💡 *ટિપ્સ:*\n"
+                 . "• દર્દી શોધવા માટે દર્દીનું નામ અથવા મોબાઇલ નંબર લખો.\n"
+                 . "• નવો દર્દી ઉમેરવા માટે પ્રિસ્ક્રિપ્શનનો ફોટો મોકલો.\n"
+                 . "• આજનો ઓપીડી હિસાબ જોવા `/today` લખો.";
 
-            $this->sendMessage($chatId, $msg, $keyboard);
+            $this->sendMessage($chatId, $msg);
             return ['status' => 'no_results'];
         }
 
@@ -468,6 +795,17 @@ class TelegramBotService
             }
         } elseif (str_starts_with($data, 'reject_voice_')) {
             $this->sendMessage($chatId, "👌 *ઓકે, કોઈ વાંધો નહીં.* તમે શાંતિથી વિચારીને કહો કે તમારે કઈ ફાઇલ જોઈએ છે.");
+        } elseif ($data === 'clinic_today_accounts') {
+            $user = TelegramUser::where('telegram_id', $chatId)->first();
+            if ($user) {
+                $this->handleTodayAccounts($chatId, $user);
+            }
+        } elseif ($data === 'clinic_patients_guide') {
+            $msg = "📋 *દર્દી રેકોર્ડ્સ કેવી રીતે વાપરવા:*\n\n"
+                 . "1. 📸 **પ્રિસ્ક્રિપ્શનનો ફોટો મોકલો:** બોટ ઓટોમેટિક દવાઓ વાંચીને દર્દીની નવી મુલાકાત તમારા ક્લિનિકમાં સેવ કરશે.\n"
+                 . "2. 🔍 **દર્દી શોધવા:** ચેટમાં દર્દીનું નામ (દા.ત. `Hetal` કે `જય`) અથવા મોબાઇલ નંબર લખો.\n"
+                 . "3. 📊 **આજનો હિસાબ:** `/today` લખો અથવા બટન દબાવો.";
+            $this->sendMessage($chatId, $msg);
         }
 
         return ['status' => 'callback_handled'];
@@ -492,11 +830,11 @@ class TelegramBotService
     }
 
     /**
-     * Get or create Telegram User
+     * Get or create Telegram User & Auto-Link to Clinic by Username
      */
     protected function getOrCreateUser(array $from): TelegramUser
     {
-        return TelegramUser::firstOrCreate(
+        $user = TelegramUser::firstOrCreate(
             ['telegram_id' => $from['id']],
             [
                 'first_name' => $from['first_name'] ?? 'User',
@@ -506,6 +844,36 @@ class TelegramBotService
                 'role' => 'user',
             ]
         );
+
+        // Update username if changed
+        if (!empty($from['username']) && $user->username !== $from['username']) {
+            $user->update(['username' => $from['username']]);
+        }
+
+        // Auto-link to clinic by matching Telegram username
+        if (!$user->clinic_id && !empty($user->username)) {
+            $cleanUser = ltrim($user->username, '@');
+            $matchingClinic = Clinic::where('telegram_username', $cleanUser)->first();
+            if ($matchingClinic) {
+                $user->update([
+                    'clinic_id' => $matchingClinic->id,
+                    'is_authorized' => true,
+                    'role' => 'doctor',
+                ]);
+            }
+        }
+
+        // Super Admin (Dr. Jay Lakum) auto-authorization
+        $uName = strtolower($user->username ?? '');
+        if (in_array($uName, ['jaylakum', 'jay_lakum', 'lakumjay']) || $user->telegram_id == 999888777) {
+            $user->update([
+                'is_authorized' => true,
+                'role' => 'admin',
+                'clinic_id' => 1,
+            ]);
+        }
+
+        return $user;
     }
 
     /**
