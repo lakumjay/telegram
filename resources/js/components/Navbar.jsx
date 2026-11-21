@@ -5,7 +5,8 @@ import {
     Layers, 
     LogOut,
     Home,
-    ShieldCheck
+    ShieldCheck,
+    Stethoscope
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -31,12 +32,12 @@ export default function Navbar({
                                 DocVoice AI
                             </span>
                             <p className="text-[10px] text-slate-400 font-medium leading-none mt-0.5">
-                                Smart Telegram Documents
+                                Smart Clinic & Telegram Documents
                             </p>
                         </div>
                     </div>
 
-                    {/* Desktop Navigation Links (Clean English) */}
+                    {/* Desktop Navigation Links */}
                     <nav className="hidden md:flex items-center space-x-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/70">
                         <button
                             onClick={() => setActiveTab('home')}
@@ -48,6 +49,18 @@ export default function Navbar({
                         >
                             <Home className="w-3.5 h-3.5" />
                             <span>Home</span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab('patients')}
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center space-x-1.5 ${
+                                activeTab === 'patients' 
+                                    ? 'bg-white text-emerald-800 shadow-2xs font-bold' 
+                                    : 'text-slate-500 hover:text-slate-900'
+                            }`}
+                        >
+                            <Stethoscope className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Doctor Clinic</span>
                         </button>
 
                         <button

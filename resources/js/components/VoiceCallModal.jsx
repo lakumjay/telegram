@@ -366,6 +366,57 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
             return;
         }
 
+        if (call.name === 'get_patient_history') {
+            const patientName = call.args?.patient_name;
+            const context = call.args?.context || '';
+            console.log(`[ToolCall] Gemini invoked get_patient_history: patient="${patientName}", context="${context}"`);
+            setLastToolEvent(`🩺 દર્દી રેકોર્ડ શોધી રહી છું: "${patientName}"...`);
+
+            try {
+                const res = await axios.post('/api/voice/patient-history', {
+                    patient_name: patientName,
+                    context: context
+                });
+                const payload = res.data;
+                console.log('[Patient History Result]', payload);
+
+                if (payload.status === 'multiple_found') {
+                    setLastToolEvent(`👥 ૨ સરખા નામ મળ્યા: વિગત પૂછી રહી છું...`);
+                } else if (payload.status === 'success') {
+                    setLastToolEvent(`✅ ${payload.patient?.name} નો રેકોર્ડ મળી ગયો!`);
+                }
+
+                if (sessionRef.current) {
+                    sessionRef.current.sendToolResponse({
+                        functionResponses: [{
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                                output: payload
+                            }
+                        }]
+                    });
+                }
+            } catch (err) {
+                console.error('[Patient History Error]', err);
+                if (sessionRef.current) {
+                    sessionRef.current.sendToolResponse({
+                        functionResponses: [{
+                            id: call.id,
+                            name: call.name,
+                            response: {
+                                output: {
+                                    status: "error",
+                                    message: "દર્દીનો રેકોર્ડ શોધવામાં ક્ષતિ આવી."
+                                }
+                            }
+                        }]
+                    });
+                }
+            }
+            return;
+        }
+
         if (call.name === 'get_document') {
             const docType = call.args?.document_type;
             console.log(`[ToolCall] Gemini invoked get_document: ${docType}`);
@@ -705,6 +756,24 @@ export default function VoiceCallModal({ isOpen, onClose, telegramUserId = 99988
                                             }
                                         },
                                         required: ['document_type']
+                                    }
+                                },
+                                {
+                                    name: 'get_patient_history',
+                                    description: 'Look up doctor clinic patient medical records, previous prescription, illness/symptoms, and medicines by patient name.',
+                                    parameters: {
+                                        type: 'OBJECT',
+                                        properties: {
+                                            patient_name: {
+                                                type: 'STRING',
+                                                description: 'Name of the patient (e.g. Jay, Ramesh, Jay Lakum, Jay Patel).'
+                                            },
+                                            context: {
+                                                type: 'STRING',
+                                                description: 'Optional distinction context if known (e.g. fever, cough, city).'
+                                            }
+                                        },
+                                        required: ['patient_name']
                                     }
                                 }
                             ]

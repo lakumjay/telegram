@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\CompanyController;
 use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\TelegramUserController;
 use App\Http\Controllers\Api\TelegramWebhookController;
@@ -41,6 +42,7 @@ Route::prefix('voice')->group(function () {
     Route::post('/query-content', [VoiceAgentController::class, 'queryDocumentContent'])->middleware('throttle:30,1');
     Route::post('/analyze-risk', [VoiceAgentController::class, 'analyzeDocumentRisk'])->middleware('throttle:15,1');
     Route::post('/draft-document', [VoiceAgentController::class, 'draftDocument'])->middleware('throttle:10,1');
+    Route::post('/patient-history', [VoiceAgentController::class, 'getPatientHistory'])->middleware('throttle:30,1');
 });
 
 // 4. ZIP Archive API
@@ -65,3 +67,14 @@ Route::prefix('settings')->group(function () {
     Route::get('/', [SettingController::class, 'index']);
     Route::post('/', [SettingController::class, 'update']);
 });
+
+// 7. Doctor & Clinic Patients API (Ultra-Fast Search & OCR Records)
+Route::prefix('patients')->group(function () {
+    Route::get('/search', [PatientController::class, 'search'])->middleware('throttle:120,1');
+    Route::get('/', [PatientController::class, 'index']);
+    Route::post('/upload-prescription', [PatientController::class, 'uploadPrescription']);
+    Route::get('/{id}', [PatientController::class, 'show']);
+    Route::post('/{id}', [PatientController::class, 'update']);
+    Route::delete('/{id}', [PatientController::class, 'destroy']);
+});
+

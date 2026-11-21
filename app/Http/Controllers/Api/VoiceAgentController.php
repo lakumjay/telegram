@@ -562,6 +562,89 @@ EOT;
     }
 
     /**
+     * Tool Call Endpoint: get_patient_history
+     * Retrieve patient medical history, previous visit details, diagnosis & prescribed medicines.
+     * Supports duplicate name differentiation (e.g. Jay Lakum vs Jay Patel with fever/cough context).
+     */
+    public function getPatientHistory(Request $request): JsonResponse
+    {
+        $request->validate([
+            'patient_name' => 'required|string',
+            'context' => 'nullable|string', // e.g. "તાવ" or "ઉધરસ" or city
+        ]);
+
+        $name = trim($request->input('patient_name'));
+        $context = trim($request->input('context', ''));
+        $cleanNormalized = \Illuminate\Support\Str::slug(mb_strtolower($name), '');
+
+        $query = \App\Models\Patient::with(['visits' => function($q) {
+            $q->orderBy('visit_date', 'desc')->limit(5);
+        }]);
+
+        $query->where(function ($sub) use ($name, $cleanNormalized) {
+            $sub->where('name', 'LIKE', "{$name}%")
+                ->orWhere('name', 'LIKE', "%{$name}%")
+                ->orWhere('name_gujarati', 'LIKE', "%{$name}%")
+                ->orWhere('name_normalized', 'LIKE', "%{$cleanNormalized}%")
+                ->orWhere('phone', 'LIKE', "{$name}%");
+        });
+
+        $matchedPatients = $query->get();
+
+        if ($matchedPatients->isEmpty()) {
+            return response()->json([
+                'status' => 'not_found',
+                'count' => 0,
+                'message' => "માફ કરજો ડૉક્ટર સાહેબ, '{$name}' નામના કોઈ દર્દીનો રેકોર્ડ મળ્યો નથી."
+            ]);
+        }
+
+        // If multiple patients with same name found
+        if ($matchedPatients->count() > 1) {
+            // Check if context differentiates them (e.g. fever or cough or city)
+            if (!empty($context)) {
+                $filtered = $matchedPatients->filter(function($p) use ($context) {
+                    return str_contains(mb_strtolower($p->last_diagnosis . ' ' . $p->city . ' ' . $p->last_medicines), mb_strtolower($context));
+                });
+                if ($filtered->count() === 1) {
+                    $p = $filtered->first();
+                    return response()->json([
+                        'status' => 'success',
+                        'count' => 1,
+                        'patient' => $p,
+                        'speech_summary' => "હા ડૉક્ટર સાહેબ! {$p->name} ({$p->city}, ઉંમર {$p->age}) ની વિગત મળી ગઈ છે. છેલ્લે {$p->last_visit_date?->format('d M')} ના રોજ તેમને {$p->last_diagnosis} માટે દવા આપી હતી: {$p->last_medicines}."
+                    ]);
+                }
+            }
+
+            // Return choice options to let AI ask doctor
+            $options = $matchedPatients->map(function($p, $idx) {
+                return ($idx + 1) . ") {$p->name} ({$p->city}, ઉંમર {$p->age}): છેલ્લે '{$p->last_diagnosis}' ની દવા ({$p->last_medicines}) આપી હતી.";
+            })->implode(" | ");
+
+            return response()->json([
+                'status' => 'multiple_found',
+                'count' => $matchedPatients->count(),
+                'patients' => $matchedPatients,
+                'message' => "ડૉક્ટર સાહેબ, '{$name}' નામના {$matchedPatients->count()} દર્દીઓ છે: {$options}. તમારે કોની વિગત જોઈએ છે?",
+                'clarification_prompt' => "There are {$matchedPatients->count()} patients named {$name}. Prompt the doctor to specify whether they mean the one treated for '{$matchedPatients[0]->last_diagnosis}' or '{$matchedPatients[1]->last_diagnosis}'."
+            ]);
+        }
+
+        $p = $matchedPatients->first();
+        $visitInfo = $p->visits->first();
+        $historyText = "હા ડૉક્ટર સાહેબ! {$p->name} ({$p->city}, ઉંમર {$p->age}) નો રેકોર્ડ મળી ગયો છે. છેલ્લી મુલાકાત: {$p->last_visit_date?->format('d/m/Y')}. તેમને {$p->last_diagnosis} હતું અને આપેલી દવાઓ: {$p->last_medicines} હતી. કુલ {$p->total_visits} વખત મુલાકાત લીધેલ છે.";
+
+        return response()->json([
+            'status' => 'success',
+            'count' => 1,
+            'patient' => $p,
+            'speech_summary' => $historyText,
+            'message' => $historyText
+        ]);
+    }
+
+    /**
      * Tool Call Endpoint: get_document
      * Whitelist strictly: gst, pan, stamp.
      * Identifies user ONLY from validated Telegram initData (or fallback authorized user).
@@ -730,7 +813,12 @@ EOT;
    - જ્યારે યુઝર "હા મોકલો" કહે, ત્યારે જ `get_document` ટૂલ ચલાવીને ટેલિગ્રામમાં ફાઈલ મોકલવી.
 ૭. **મલ્ટિપલ કંપની:**
    - જો ફક્ત "GST આપો" કહે, તો પૂછવું: "રાજેશ્વરી સોલાર કે સનરાઇઝ ગ્રીન, કઈ કંપનીનું જોઈએ છે?".
-૮. દેશી શૈલીમાં મીઠો અને સાચો ઉત્તર આપવો (જેમ કે: "હા ભાઈ", "એક જ મિનિટ હોં", "હું જોઈને કહું").
+૮. **ડૉક્ટર પેશન્ટ હિસ્ટ્રી (Doctor Patient & Prescription Lookup):**
+   - જો યુઝર કે ડૉક્ટર કોઈ દર્દીની માહિતી પૂછે (જેમ કે "જયની ફાઇલ આપો", "રમેશભાઈને છેલ્લે કઈ દવા આપી તી?", "પેશન્ટ હિસ્ટ્રી બતાવો"):
+   - તમારે તરત જ `get_patient_history` ટૂલ વાપરવું!
+   - **જો એક જ નામના ૨ દર્દીઓ મળે (દા.ત. બે જય):** તો ડૉક્ટરને સ્પષ્ટ પૂછવું કે "સર, જય નામના બે દર્દી છે – એક જેમને છેલ્લે તાવની દવા આપી હતી અને બીજા જેમને ઉધરસની દવા આપી હતી, તમારે કોની વિગત જોઈએ છે?".
+   - ડૉક્ટર જે દર્દીની વાત કરે તેની છેલ્લી મુલાકાત, રોગ/તકલીફ અને આપેલી દવાઓની વિગત દેશી ગુજરાતીમાં બોલીને સમજાવી દેવી.
+૯. દેશી શૈલીમાં મીઠો અને સાચો ઉત્તર આપવો (જેમ કે: "હા ભાઈ", "એક જ મિનિટ હોં", "હું જોઈને કહું").
 EOT;
 
         $masterKey = env('GEMINI_API_KEY');

@@ -6,13 +6,17 @@ import {
     Building2, 
     ShieldCheck, 
     ChevronRight,
-    ArrowUpRight
+    ArrowUpRight,
+    Stethoscope,
+    Activity,
+    Plus
 } from 'lucide-react';
 
 export default function DashboardHome({ 
     stats, 
     companies, 
-    onNavigateToFiles 
+    onNavigateToFiles,
+    onNavigateToPatients 
 }) {
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -69,7 +73,37 @@ export default function DashboardHome({
                 </form>
             </div>
 
-            {/* 3. Small, Compact 2 Stats Cards (in English) */}
+            {/* 3. Doctor Clinic & Patient Records Quick Banner */}
+            <div 
+                onClick={onNavigateToPatients}
+                className="p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-xs flex items-center justify-between cursor-pointer hover:shadow-md transition group"
+            >
+                <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center text-white">
+                        <Stethoscope className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <div className="flex items-center space-x-2">
+                            <span className="font-bold text-sm tracking-tight">
+                                Doctor Clinic & Patient Records
+                            </span>
+                            <span className="bg-white/20 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                                New
+                            </span>
+                        </div>
+                        <p className="text-[11px] text-emerald-100">
+                            પેજનો ફોટો પાડો, પેશન્ટનું નામ, તકલીફ (તાવ/ઉધરસ) અને દવા આપમેળે સ્કેન કરો
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center space-x-1 text-xs font-bold text-white bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg transition">
+                    <span>Open Clinic</span>
+                    <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition" />
+                </div>
+            </div>
+
+            {/* 4. Small, Compact 2 Stats Cards (in English) */}
             <div className="grid grid-cols-2 gap-3">
                 {/* Total Documents Card */}
                 <div 

@@ -10,6 +10,7 @@ import DocumentUploadModal from './components/DocumentUploadModal';
 import SettingsModal from './components/SettingsModal';
 import LoginScreen from './components/LoginScreen';
 import WelcomeTourModal from './components/WelcomeTourModal';
+import DoctorPatientManager from './components/DoctorPatientManager';
 import axios from 'axios';
 import { 
     PhoneCall, 
@@ -23,7 +24,8 @@ import {
     MessageSquare,
     Sliders,
     LogOut,
-    UploadCloud
+    UploadCloud,
+    Stethoscope
 } from 'lucide-react';
 
 function App() {
@@ -156,10 +158,18 @@ function App() {
                         onOpenCall={() => setIsCallModalOpen(true)}
                         onOpenUpload={handleOpenUpload}
                         onNavigateToFiles={handleNavigateToFiles}
+                        onNavigateToPatients={() => setActiveTab('patients')}
                     />
                 )}
 
-                {/* 2. My Files View (Dedicated Document Explorer) */}
+                {/* 2. Doctor Clinic Patient Records (New Feature) */}
+                {activeTab === 'patients' && (
+                    <DoctorPatientManager
+                        onOpenVoiceCall={() => setIsCallModalOpen(true)}
+                    />
+                )}
+
+                {/* 3. My Files View (Dedicated Document Explorer) */}
                 {activeTab === 'files' && (
                     <DocumentExplorer
                         onOpenUpload={handleOpenUpload}
@@ -201,18 +211,18 @@ function App() {
                     <span>Home</span>
                 </button>
 
-                {/* 2. My Files Tab */}
+                {/* 2. Clinic Tab */}
                 <button
                     onClick={() => {
                         triggerHaptic(10);
-                        handleNavigateToFiles({});
+                        setActiveTab('patients');
                     }}
                     className={`flex flex-col items-center py-1 text-[11px] font-semibold transition active:scale-90 ${
-                        activeTab === 'files' ? 'text-emerald-700 font-bold' : 'text-slate-400'
+                        activeTab === 'patients' ? 'text-emerald-700 font-bold' : 'text-slate-400'
                     }`}
                 >
-                    <Layers className="w-5 h-5 mb-0.5" />
-                    <span>My Files</span>
+                    <Stethoscope className="w-5 h-5 mb-0.5" />
+                    <span>Clinic</span>
                 </button>
 
                 {/* 3. Central AI Call Dial */}
