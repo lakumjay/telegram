@@ -76,6 +76,7 @@ Route::prefix('patients')->group(function () {
     Route::get('/', [PatientController::class, 'index']);
     Route::post('/', [PatientController::class, 'store']);
     Route::post('/upload-prescription', [PatientController::class, 'uploadPrescription']);
+    Route::post('/rescan-ocr', [PatientController::class, 'rescanOcr']);
     Route::get('/{id}', [PatientController::class, 'show']);
     Route::match(['post', 'put'], '/{id}', [PatientController::class, 'update']);
     Route::post('/{id}/upload-photo', [PatientController::class, 'uploadPhoto']);

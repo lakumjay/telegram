@@ -49,6 +49,32 @@ export default function DashboardHome({
     const [isSearching, setIsSearching] = useState(false);
     const [selectedPatientId, setSelectedPatientId] = useState(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [isRescanning, setIsRescanning] = useState(false);
+
+    const handleAutoRescan = async () => {
+        setIsRescanning(true);
+        try {
+            const clinicId = activeClinic?.id || 1;
+            const res = await axios.post('/api/patients/rescan-ocr', {
+                clinic_id: clinicId
+            });
+            if (res.data?.success) {
+                if (window.showAppToast) {
+                    window.showAppToast(res.data.message || '✅ જૂના કેસ પેપર્સ સફળતાપૂર્વક સ્કેન થઈ ગયા!');
+                }
+                fetchDashboardData();
+                if (window.triggerAppRefresh) {
+                    window.triggerAppRefresh();
+                }
+            }
+        } catch (err) {
+            if (window.showAppToast) {
+                window.showAppToast('❌ ફરી સ્કેન કરવામાં ક્ષતિ આવી.');
+            }
+        } finally {
+            setIsRescanning(false);
+        }
+    };
 
     const searchDebounceRef = useRef(null);
 
@@ -430,6 +456,15 @@ export default function DashboardHome({
                             <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                                 {recentPatients.length} Recent
                             </span>
+                            <button 
+                                onClick={handleAutoRescan}
+                                disabled={isRescanning}
+                                className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-1 transition cursor-pointer disabled:opacity-60 ml-1.5"
+                                title="જૂના પ્રિસ્ક્રિપ્શન કેસ પેપર AI વડે ફરી સ્કેન કરો"
+                            >
+                                <RefreshCw className={`w-3 h-3 ${isRescanning ? 'animate-spin' : ''}`} />
+                                <span>{isRescanning ? 'સ્કેન થાય છે...' : 'Auto Re-scan'}</span>
+                            </button>
                         </div>
                         <button 
                             onClick={() => onNavigate('patients')}
@@ -464,7 +499,7 @@ export default function DashboardHome({
                                                 <div className="flex items-center gap-1.5 flex-wrap">
                                                     <p className="font-bold text-xs text-slate-900 group-hover:text-emerald-800 transition truncate">{pt.name}</p>
                                                     {pt.opd_number && (
-                                                        <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded border border-emerald-100">
+                                                        <span className="text-[10px] bg-emerald-50 text-emerald-800 font-extrabold px-1.5 py-0.5 rounded border border-emerald-200">
                                                             #{pt.opd_number}
                                                         </span>
                                                     )}
@@ -478,8 +513,13 @@ export default function DashboardHome({
                                                     ].filter(Boolean).join(' • ')}
                                                 </p>
                                                 {(pt.last_diagnosis || pt.last_summary) && (
-                                                    <p className="text-[10px] text-emerald-700 font-semibold truncate max-w-[200px] mt-0.5">
+                                                    <p className="text-[10px] text-emerald-700 font-bold truncate max-w-[220px] mt-0.5">
                                                         🩺 {pt.last_diagnosis || pt.last_summary}
+                                                    </p>
+                                                )}
+                                                {pt.last_medicines && (
+                                                    <p className="text-[10px] text-slate-500 font-medium truncate max-w-[220px]">
+                                                        💊 {pt.last_medicines}
                                                     </p>
                                                 )}
                                             </div>
@@ -510,7 +550,7 @@ export default function DashboardHome({
                                             <th className="pb-2.5">દર્દીનું નામ (Patient)</th>
                                             <th className="pb-2.5">ઓપીડી / ઉંમર (OPD / Age)</th>
                                             <th className="pb-2.5">ગામ / શહેર (City)</th>
-                                            <th className="pb-2.5">તકલીફ / નિદાન (Diagnosis)</th>
+                                            <th className="pb-2.5">તકલીફ / નિદાન (Diagnosis & Rx)</th>
                                             <th className="pb-2.5">મુલાકાત તારીખ</th>
                                             <th className="pb-2.5">સ્ટેટસ</th>
                                             <th className="pb-2.5 text-right">વિગત</th>
@@ -533,26 +573,31 @@ export default function DashboardHome({
                                                     </div>
                                                 </td>
                                                 <td className="py-2.5 text-slate-600 font-medium">
-                                                    <div className="flex items-center gap-1.5">
-                                                        {pt.opd_number ? (
-                                                            <span className="bg-slate-100 text-slate-800 font-extrabold text-[10px] px-1.5 py-0.5 rounded border border-slate-200">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        {pt.opd_number && (
+                                                            <span className="bg-emerald-50 text-emerald-800 font-extrabold text-[10px] px-1.5 py-0.5 rounded border border-emerald-200">
                                                                 #{pt.opd_number}
                                                             </span>
-                                                        ) : <span className="text-slate-400 text-[11px]">-</span>}
-                                                        {pt.age && (
-                                                            <span className="text-[11px] text-slate-500 font-semibold">
+                                                        )}
+                                                        {pt.age ? (
+                                                            <span className="text-[11px] text-slate-700 font-bold">
                                                                 {pt.age} yrs {pt.gender ? `(${pt.gender.toLowerCase().startsWith('m') ? 'M' : 'F'})` : ''}
                                                             </span>
-                                                        )}
+                                                        ) : (!pt.opd_number && <span className="text-slate-400 text-[11px]">-</span>)}
                                                     </div>
                                                 </td>
                                                 <td className="py-2.5 text-slate-600 font-medium">
-                                                    <span className="text-[11px]">{pt.city || pt.address || '-'}</span>
+                                                    <span className="text-[11px] font-semibold">{pt.city || pt.address || '-'}</span>
                                                 </td>
-                                                <td className="py-2.5 text-slate-600 font-medium max-w-[160px]">
-                                                    <span className="text-[11px] bg-emerald-50/80 text-emerald-800 px-2 py-0.5 rounded font-medium truncate block" title={pt.last_diagnosis || pt.last_summary || ''}>
-                                                        {pt.last_diagnosis || pt.last_summary || 'સામાન્ય તપાસ'}
+                                                <td className="py-2.5 text-slate-600 font-medium max-w-[240px]">
+                                                    <span className="text-[11px] bg-emerald-50/80 text-emerald-800 px-2 py-0.5 rounded font-bold truncate block" title={pt.last_diagnosis || pt.last_summary || ''}>
+                                                        🩺 {pt.last_diagnosis || pt.last_summary || 'સામાન્ય તપાસ'}
                                                     </span>
+                                                    {pt.last_medicines && (
+                                                        <span className="text-[10px] text-slate-500 font-medium truncate block mt-0.5" title={pt.last_medicines}>
+                                                            💊 {pt.last_medicines}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="py-2.5 text-slate-500 font-medium text-[11px]">{pt.last_visit_date || '-'}</td>
                                                 <td className="py-2.5">

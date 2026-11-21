@@ -54,6 +54,31 @@ export default function DoctorPatientManager({
     const [newPatientDiagnosis, setNewPatientDiagnosis] = useState('');
     const [isSavingNew, setIsSavingNew] = useState(false);
     const [formError, setFormError] = useState('');
+    const [isRescanning, setIsRescanning] = useState(false);
+
+    const handleAutoRescan = async () => {
+        setIsRescanning(true);
+        try {
+            const res = await axios.post('/api/patients/rescan-ocr', {
+                clinic_id: activeClinicId
+            });
+            if (res.data?.success) {
+                if (window.showAppToast) {
+                    window.showAppToast(res.data.message || '✅ જૂના કેસ પેપર્સ સફળતાપૂર્વક સ્કેન થઈ ગયા!');
+                }
+                loadPatients();
+                if (window.triggerAppRefresh) {
+                    window.triggerAppRefresh();
+                }
+            }
+        } catch (err) {
+            if (window.showAppToast) {
+                window.showAppToast('❌ ફરી સ્કેન કરવામાં ક્ષતિ આવી.');
+            }
+        } finally {
+            setIsRescanning(false);
+        }
+    };
 
     const searchDebounceRef = useRef(null);
 
@@ -273,6 +298,16 @@ export default function DoctorPatientManager({
 
                 <div className="flex items-center space-x-2">
                     <button
+                        onClick={handleAutoRescan}
+                        disabled={isRescanning}
+                        className="px-2.5 py-1.5 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs flex items-center space-x-1.5 transition active:scale-95 cursor-pointer disabled:opacity-60 shadow-2xs"
+                        title="જૂના પ્રિસ્ક્રિપ્શન કેસ પેપર AI વડે ફરી સ્કેન કરો"
+                    >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isRescanning ? 'animate-spin' : ''}`} />
+                        <span className="hidden sm:inline">{isRescanning ? 'સ્કેન થાય છે...' : 'Auto Re-scan'}</span>
+                    </button>
+
+                    <button
                         onClick={() => setIsAddModalOpen(true)}
                         className="w-9 h-9 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-xs transition active:scale-95 cursor-pointer"
                         title="Add Patient"
@@ -409,8 +444,13 @@ export default function DoctorPatientManager({
                                             મુલાકાત: <span className="text-emerald-700">{formatVisitDate(patient.last_visit_date)}</span>
                                         </p>
                                         {(patient.last_diagnosis || patient.last_summary) && (
-                                            <span className="text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded font-medium truncate max-w-[240px]">
+                                            <span className="text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded font-bold truncate max-w-[240px]" title={patient.last_diagnosis || patient.last_summary}>
                                                 🩺 {patient.last_diagnosis || patient.last_summary}
+                                            </span>
+                                        )}
+                                        {patient.last_medicines && (
+                                            <span className="text-[10px] text-slate-500 font-medium truncate max-w-[240px]" title={patient.last_medicines}>
+                                                💊 {patient.last_medicines}
                                             </span>
                                         )}
                                     </div>

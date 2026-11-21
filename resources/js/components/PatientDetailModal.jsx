@@ -598,6 +598,14 @@ export default function PatientDetailModal({
                                                     </div>
                                                 )}
 
+                                                {/* Symptoms / Complaints */}
+                                                {visit.symptoms && (
+                                                    <div className="p-2 rounded-xl bg-amber-50/70 border border-amber-100 text-xs text-amber-900">
+                                                        <span className="font-bold">લક્ષણો / તકલીફ: </span>
+                                                        <span>{visit.symptoms}</span>
+                                                    </div>
+                                                )}
+
                                                 {/* Medicines for this visit */}
                                                 {visit.medicines && (
                                                     <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700">

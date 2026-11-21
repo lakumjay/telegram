@@ -481,6 +481,136 @@ class PatientController extends Controller
         ]);
     }
 
+    /**
+     * Auto re-scan old patient records with Gemini 3 Flash in the background
+     */
+    public function rescanOcr(Request $request): JsonResponse
+    {
+        $clinicId = $request->input('clinic_id');
+        $force = (bool)$request->input('force', true);
+
+        $query = PatientVisit::query()->with('patient');
+        if (!empty($clinicId)) {
+            $query->where('clinic_id', (int)$clinicId);
+        }
+
+        $visits = $query->get();
+        $updatedCount = 0;
+        $updatedPatients = [];
+
+        foreach ($visits as $visit) {
+            $patient = $visit->patient;
+
+            $rawPath = $visit->photo_path;
+            if (empty($rawPath)) continue;
+
+            $cleanPath = ltrim(str_replace('/storage/', '', $rawPath), '/');
+            $fullPath = storage_path('app/public/' . $cleanPath);
+
+            if (!file_exists($fullPath)) {
+                $fullPath = public_path(ltrim($rawPath, '/'));
+            }
+
+            if (!file_exists($fullPath)) continue;
+
+            $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+            $mime = ($ext === 'png') ? 'image/png' : 'image/jpeg';
+
+            $extracted = $this->ocrService->analyzePrescription($fullPath, $mime);
+            if (empty($extracted['patient_name']) || $extracted['patient_name'] === 'અજ્ઞાત દર્દી') {
+                continue;
+            }
+
+            $visit->update([
+                'diagnosis' => $extracted['diagnosis'] ?: $visit->diagnosis,
+                'medicines' => $extracted['medicines'] ?: $visit->medicines,
+                'symptoms' => $extracted['symptoms'] ?: $visit->symptoms,
+                'raw_ocr_text' => $extracted['raw_text'] ?? $visit->raw_ocr_text,
+                'extracted_data' => $extracted,
+            ]);
+
+            if ($patient) {
+                $patient->update([
+                    'name' => $extracted['patient_name'] ?: $patient->name,
+                    'name_normalized' => Str::slug(mb_strtolower($extracted['patient_name'] ?: $patient->name), ''),
+                    'name_gujarati' => $extracted['patient_name_gujarati'] ?: $patient->name_gujarati,
+                    'opd_number' => $extracted['opd_number'] ?: $patient->opd_number,
+                    'age' => !empty($extracted['age']) ? (int)$extracted['age'] : $patient->age,
+                    'gender' => $extracted['gender'] ?: $patient->gender,
+                    'city' => $extracted['city'] ?: $patient->city,
+                    'address' => $extracted['address'] ?: $patient->address,
+                    'phone' => $extracted['phone'] ?: $patient->phone,
+                    'last_diagnosis' => $extracted['diagnosis'] ?: $patient->last_diagnosis,
+                    'last_medicines' => $extracted['medicines'] ?: $patient->last_medicines,
+                    'last_summary' => $extracted['summary'] ?: $patient->last_summary,
+                    'last_visit_date' => $extracted['visit_date'] ?: $patient->last_visit_date,
+                ]);
+                $updatedPatients[] = $patient->fresh();
+                $updatedCount++;
+            }
+        }
+
+        // Also check standalone files in storage/app/public/prescriptions
+        $prescriptionDir = storage_path('app/public/prescriptions');
+        if (\Illuminate\Support\Facades\File::isDirectory($prescriptionDir)) {
+            $files = \Illuminate\Support\Facades\File::files($prescriptionDir);
+            foreach ($files as $file) {
+                $filename = $file->getFilename();
+                if ($filename === '.gitignore') continue;
+
+                $existingVisit = PatientVisit::where('photo_path', 'LIKE', "%{$filename}%")->first();
+                if (!$existingVisit) {
+                    $ext = strtolower($file->getExtension());
+                    $mime = ($ext === 'png') ? 'image/png' : 'image/jpeg';
+                    $extracted = $this->ocrService->analyzePrescription($file->getPathname(), $mime);
+
+                    if (!empty($extracted['patient_name']) && $extracted['patient_name'] !== 'અજ્ઞાત દર્દી') {
+                        $targetClinic = (int)($clinicId ?: 1);
+                        $patient = Patient::create([
+                            'clinic_id' => $targetClinic,
+                            'name' => $extracted['patient_name'],
+                            'name_normalized' => Str::slug(mb_strtolower($extracted['patient_name']), ''),
+                            'name_gujarati' => $extracted['patient_name_gujarati'] ?? null,
+                            'opd_number' => $extracted['opd_number'] ?? null,
+                            'age' => !empty($extracted['age']) ? (int)$extracted['age'] : null,
+                            'gender' => $extracted['gender'] ?? 'Male',
+                            'city' => $extracted['city'] ?? null,
+                            'address' => $extracted['address'] ?? null,
+                            'phone' => $extracted['phone'] ?? null,
+                            'last_diagnosis' => $extracted['diagnosis'] ?? 'સામાન્ય તપાસ',
+                            'last_medicines' => $extracted['medicines'] ?? '',
+                            'last_summary' => $extracted['summary'] ?? '',
+                            'last_visit_date' => $extracted['visit_date'] ?? date('Y-m-d'),
+                            'total_visits' => 1,
+                        ]);
+
+                        PatientVisit::create([
+                            'clinic_id' => $targetClinic,
+                            'patient_id' => $patient->id,
+                            'visit_date' => $extracted['visit_date'] ?? date('Y-m-d'),
+                            'photo_path' => '/storage/prescriptions/' . $filename,
+                            'diagnosis' => $extracted['diagnosis'] ?? 'સામાન્ય તપાસ',
+                            'medicines' => $extracted['medicines'] ?? '',
+                            'symptoms' => $extracted['symptoms'] ?? '',
+                            'raw_ocr_text' => $extracted['raw_text'] ?? null,
+                            'extracted_data' => $extracted,
+                        ]);
+
+                        $updatedPatients[] = $patient;
+                        $updatedCount++;
+                    }
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "જૂના રેકોર્ડ્સ સફળતાપૂર્વક ફરી સ્કેન થઈ ગયા! ({$updatedCount} દર્દીઓ અપડેટ)",
+            'updated_count' => $updatedCount,
+            'patients' => $updatedPatients,
+        ]);
+    }
+
     protected function isGujarati(string $str): bool
     {
         return preg_match('/[\x{0A80}-\x{0AFF}]/u', $str) === 1;
