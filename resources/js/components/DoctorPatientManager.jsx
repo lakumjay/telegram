@@ -20,16 +20,20 @@ import {
     PhoneCall
 } from 'lucide-react';
 
+import PatientDetailModal from './PatientDetailModal';
+
 export default function DoctorPatientManager({ 
     onOpenVoiceCall, 
     activeClinicId = 1,
-    onBack = null
+    onBack = null,
+    onOpenNewBill = null
 }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterPeriod, setFilterPeriod] = useState('All'); // 'All' | 'Today' | 'This Week' | 'This Month'
     const [suggestions, setSuggestions] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
-    const [selectedPatient, setSelectedPatient] = useState(null);
+    const [selectedPatientId, setSelectedPatientId] = useState(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [patientList, setPatientList] = useState([]);
     const [isLoadingList, setIsLoadingList] = useState(false);
 
@@ -93,17 +97,10 @@ export default function DoctorPatientManager({
         }, 150);
     };
 
-    const handleSelectPatient = async (patient) => {
+    const handleSelectPatient = (patient) => {
         setSuggestions([]);
-        setSearchQuery(patient.name);
-        try {
-            const res = await axios.get(`/api/patients/${patient.id}`);
-            if (res.data?.success) {
-                setSelectedPatient(res.data.patient);
-            }
-        } catch (err) {
-            setSelectedPatient(patient);
-        }
+        setSelectedPatientId(patient.id);
+        setIsDetailModalOpen(true);
     };
 
     const handleCreatePatient = async (e) => {
@@ -338,84 +335,20 @@ export default function DoctorPatientManager({
                 )}
             </div>
 
-            {/* Selected Patient Details Drawer/Modal */}
-            {selectedPatient && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 my-8">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <div className="flex items-center space-x-2.5">
-                                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-800 flex items-center justify-center font-bold text-sm">
-                                    {selectedPatient.name.charAt(0)}
-                                </div>
-                                <div>
-                                    <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
-                                        {selectedPatient.name}
-                                    </h3>
-                                    <p className="text-[11px] text-slate-400">
-                                        {selectedPatient.age ? `${selectedPatient.age} વર્ષ` : ''} {selectedPatient.city ? `• ${selectedPatient.city}` : ''} {selectedPatient.phone ? `• 📞 ${selectedPatient.phone}` : ''}
-                                    </p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => setSelectedPatient(null)}
-                                className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        <div className="bg-slate-50 rounded-2xl p-3 space-y-1 text-xs">
-                            <p className="font-bold text-slate-500 text-[10px]">છેલ્લી તકલીફ & દવા:</p>
-                            <p className="font-bold text-slate-900">{selectedPatient.last_diagnosis || 'સામાન્ય તપાસ'}</p>
-                            {selectedPatient.last_medicines && (
-                                <p className="text-slate-600 font-medium">દવા: {selectedPatient.last_medicines}</p>
-                            )}
-                        </div>
-
-                        {/* Prescription photos if any */}
-                        {selectedPatient.visits && selectedPatient.visits.length > 0 && (
-                            <div className="space-y-2">
-                                <p className="font-bold text-xs text-slate-400">પ્રિસ્ક્રિપ્શન હિસ્ટ્રી ({selectedPatient.visits.length})</p>
-                                <div className="space-y-2 max-h-56 overflow-y-auto">
-                                    {selectedPatient.visits.map(v => (
-                                        <div key={v.id} className="p-2.5 rounded-xl border border-slate-100 bg-white space-y-1 text-xs">
-                                            <div className="flex items-center justify-between font-bold text-slate-700 text-[11px]">
-                                                <span>📅 {v.visit_date}</span>
-                                                <span className="text-emerald-700">{v.diagnosis}</span>
-                                            </div>
-                                            {v.photo_path && (
-                                                <a href={v.photo_path} target="_blank" rel="noreferrer" className="block rounded-lg overflow-hidden border border-slate-100">
-                                                    <img src={v.photo_path} alt="Prescription" className="w-full h-32 object-cover" />
-                                                </a>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex items-center space-x-2 pt-2">
-                            <a
-                                href={`tel:${selectedPatient.phone}`}
-                                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-1.5"
-                            >
-                                <Phone className="w-4 h-4" />
-                                <span>ફોન કૉલ</span>
-                            </a>
-                            <button
-                                onClick={() => {
-                                    setSelectedPatient(null);
-                                    if (onOpenVoiceCall) onOpenVoiceCall();
-                                }}
-                                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-1.5"
-                            >
-                                <PhoneCall className="w-4 h-4" />
-                                <span>AI વૉઇસ કૉલ</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Comprehensive Patient Details & Photo Management Modal */}
+            <PatientDetailModal
+                patientId={selectedPatientId}
+                isOpen={isDetailModalOpen}
+                onClose={() => {
+                    setIsDetailModalOpen(false);
+                    setSelectedPatientId(null);
+                }}
+                onOpenVoiceCall={onOpenVoiceCall}
+                onOpenNewBill={onOpenNewBill}
+                onPatientUpdated={() => {
+                    loadPatients();
+                }}
+            />
 
             {/* Add New Patient Modal */}
             {isAddModalOpen && (

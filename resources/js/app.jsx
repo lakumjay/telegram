@@ -188,7 +188,10 @@ function App() {
                             }}
                             onOpenVoiceCall={() => setIsCallModalOpen(true)}
                             onOpenScan={() => setActiveTab('scan')}
-                            onOpenNewBill={() => setActiveTab('new-bill')}
+                            onOpenNewBill={(pt) => {
+                                setSelectedPatientForBill(pt || null);
+                                setActiveTab('new-bill');
+                            }}
                             onOpenNewPatient={() => setActiveTab('patients')}
                             onOpenAddExpense={() => setActiveTab('expenses')}
                         />
@@ -199,6 +202,10 @@ function App() {
                         <DoctorPatientManager
                             activeClinicId={activeClinicId}
                             onOpenVoiceCall={() => setIsCallModalOpen(true)}
+                            onOpenNewBill={(pt) => {
+                                setSelectedPatientForBill(pt || null);
+                                setActiveTab('new-bill');
+                            }}
                             onBack={() => setActiveTab('home')}
                         />
                     )}

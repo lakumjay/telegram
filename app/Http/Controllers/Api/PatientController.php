@@ -293,6 +293,100 @@ class PatientController extends Controller
         ]);
     }
 
+    /**
+     * Upload photo / prescription document directly to an existing patient
+     */
+    public function uploadPhoto(Request $request, int $id): JsonResponse
+    {
+        $patient = Patient::findOrFail($id);
+
+        $request->validate([
+            'photo' => 'required|file|mimes:jpg,jpeg,png,webp,pdf|max:20480',
+            'diagnosis' => 'nullable|string|max:255',
+            'medicines' => 'nullable|string',
+            'notes' => 'nullable|string',
+            'visit_date' => 'nullable|date',
+        ]);
+
+        $file = $request->file('photo');
+        $originalExt = $file->getClientOriginalExtension() ?: 'jpg';
+        $filename = 'rx_pt_' . $patient->id . '_' . date('Ymd_His') . '_' . Str::random(6) . '.' . $originalExt;
+
+        $storedPath = $file->storeAs('prescriptions', $filename, 'public');
+        $fullPath = storage_path('app/public/' . $storedPath);
+
+        // Run Gemini OCR
+        $extracted = [];
+        try {
+            $extracted = $this->ocrService->analyzePrescription($fullPath, $file->getClientMimeType());
+        } catch (\Throwable $e) {}
+
+        $diagnosis = $request->input('diagnosis') ?: ($extracted['diagnosis'] ?? $patient->last_diagnosis ?: 'સામાન્ય તપાસ');
+        $medicines = $request->input('medicines') ?: ($extracted['medicines'] ?? $patient->last_medicines ?: '');
+        $visitDate = $request->input('visit_date') ?: date('Y-m-d');
+
+        $visit = PatientVisit::create([
+            'clinic_id' => $patient->clinic_id,
+            'patient_id' => $patient->id,
+            'visit_date' => $visitDate,
+            'photo_path' => '/storage/' . $storedPath,
+            'diagnosis' => $diagnosis,
+            'medicines' => $medicines,
+            'symptoms' => $extracted['symptoms'] ?? null,
+            'notes' => $request->input('notes') ?: (!empty($extracted['raw_text']) ? Str::limit($extracted['raw_text'], 300) : null),
+            'raw_ocr_text' => $extracted['raw_text'] ?? null,
+        ]);
+
+        $patient->update([
+            'last_diagnosis' => $diagnosis,
+            'last_medicines' => $medicines,
+            'last_visit_date' => $visitDate,
+            'total_visits' => $patient->total_visits + 1,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ફોટો અને પ્રિસ્ક્રિપ્શન સફળતાપૂર્વક અપલોડ થઈ ગયો!',
+            'visit' => $visit,
+            'patient' => $patient->load(['visits' => function ($q) {
+                $q->orderBy('visit_date', 'desc')->orderBy('id', 'desc');
+            }])
+        ]);
+    }
+
+    /**
+     * Delete a visit / prescription photo
+     */
+    public function deleteVisit(int $visitId): JsonResponse
+    {
+        $visit = PatientVisit::findOrFail($visitId);
+        $patientId = $visit->patient_id;
+
+        // Try deleting local file
+        if ($visit->photo_path) {
+            $relPath = str_replace('/storage/', '', $visit->photo_path);
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($relPath);
+        }
+
+        $visit->delete();
+
+        $patient = Patient::with(['visits' => function ($q) {
+            $q->orderBy('visit_date', 'desc')->orderBy('id', 'desc');
+        }])->find($patientId);
+
+        if ($patient) {
+            $patient->update([
+                'total_visits' => max(0, $patient->visits->count()),
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'પ્રિસ્ક્રિપ્શન ફોટો સફળતાપૂર્વક ડિલીટ થઈ ગયો!',
+            'patient' => $patient
+        ]);
+    }
+
     protected function isGujarati(string $str): bool
     {
         return preg_match('/[\x{0A80}-\x{0AFF}]/u', $str) === 1;

@@ -77,6 +77,8 @@ Route::prefix('patients')->group(function () {
     Route::post('/upload-prescription', [PatientController::class, 'uploadPrescription']);
     Route::get('/{id}', [PatientController::class, 'show']);
     Route::post('/{id}', [PatientController::class, 'update']);
+    Route::post('/{id}/upload-photo', [PatientController::class, 'uploadPhoto']);
+    Route::delete('/visits/{visitId}', [PatientController::class, 'deleteVisit']);
     Route::delete('/{id}', [PatientController::class, 'destroy']);
 });
 
