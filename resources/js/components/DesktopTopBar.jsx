@@ -15,7 +15,8 @@ export default function DesktopTopBar({
     onSelectClinic, 
     onOpenProfileModal,
     onOpenNotifications,
-    onSearch 
+    onSearch,
+    isSuperAdmin = true
 }) {
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
     const [searchValue, setSearchValue] = useState('');
@@ -37,17 +38,24 @@ export default function DesktopTopBar({
             
             {/* Left: Clinic Switcher Dropdown matching Desktop Screen 2 */}
             <div className="relative">
-                <button
-                    type="button"
-                    onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}
-                    className="bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 flex items-center space-x-2 transition cursor-pointer"
-                >
-                    <Building2 className="w-4 h-4 text-emerald-600" />
-                    <span>{activeClinic.name}</span>
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                </button>
+                {isSuperAdmin ? (
+                    <button
+                        type="button"
+                        onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}
+                        className="bg-slate-50 hover:bg-slate-100 border border-slate-200/90 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 flex items-center space-x-2 transition cursor-pointer"
+                    >
+                        <Building2 className="w-4 h-4 text-emerald-600" />
+                        <span>{activeClinic.name}</span>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                    </button>
+                ) : (
+                    <div className="inline-flex items-center space-x-2 bg-slate-50 border border-slate-200/90 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700">
+                        <Building2 className="w-4 h-4 text-emerald-600" />
+                        <span>{activeClinic.name}</span>
+                    </div>
+                )}
 
-                {isSwitcherOpen && (
+                {isSuperAdmin && isSwitcherOpen && (
                     <div className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl w-64 p-2 space-y-1 animate-in fade-in">
                         <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                             <span>Switch Clinic</span>

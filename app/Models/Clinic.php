@@ -23,6 +23,8 @@ class Clinic extends Model
         'default_consultation_fee',
         'ai_assistant_name',
         'voice_name',
+        'telegram_username',
+        'status',
     ];
 
     protected $casts = [

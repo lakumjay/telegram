@@ -24,6 +24,7 @@ import DoctorProfileModal from './components/DoctorProfileModal';
 import NotificationModal from './components/NotificationModal';
 import VoiceCallModal from './components/VoiceCallModal';
 import DocumentUploadModal from './components/DocumentUploadModal';
+import MultiClinicManagerModal from './components/MultiClinicManagerModal';
 
 // Icons
 import { 
@@ -54,6 +55,7 @@ function App() {
     const [clinics, setClinics] = useState([]);
     const [activeClinicId, setActiveClinicId] = useState(1);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [isMultiClinicModalOpen, setIsMultiClinicModalOpen] = useState(false);
     const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
     const [isCallModalOpen, setIsCallModalOpen] = useState(false);
     const [selectedPatientForCall, setSelectedPatientForCall] = useState(null);
@@ -107,9 +109,16 @@ function App() {
         try {
             const res = await axios.get('/api/clinic-accounts/clinics');
             if (res.data?.success) {
-                setClinics(res.data.clinics || []);
-                if (res.data.clinics?.length > 0) {
-                    setActiveClinicId(res.data.clinics[0].id);
+                const list = res.data.clinics || [];
+                setClinics(list);
+                if (list.length > 0) {
+                    // If user is locked to a clinic, prioritize it
+                    const savedUser = currentUser || JSON.parse(localStorage.getItem('auth_user') || 'null');
+                    if (savedUser?.clinic_id) {
+                        setActiveClinicId(savedUser.clinic_id);
+                    } else if (!activeClinicId) {
+                        setActiveClinicId(list[0].id);
+                    }
                 }
             }
         } catch(e) {}
@@ -167,8 +176,19 @@ function App() {
     };
 
     if (!currentUser) {
-        return <LoginScreen onLoginSuccess={(u) => setCurrentUser(u)} />;
+        return (
+            <LoginScreen 
+                onLoginSuccess={(u) => {
+                    setCurrentUser(u);
+                    if (u.clinic_id) {
+                        setActiveClinicId(u.clinic_id);
+                    }
+                }} 
+            />
+        );
     }
+
+    const isSuperAdmin = currentUser?.isSuperAdmin !== false;
 
     const activeClinic = clinics.find(c => c.id === activeClinicId) || clinics[0] || {
         id: 1,
@@ -227,6 +247,7 @@ function App() {
                         onOpenVoiceCall={() => setIsCallModalOpen(true)}
                         onOpenProfileModal={() => setIsProfileModalOpen(true)}
                         onOpenNotifications={() => setIsNotificationModalOpen(true)}
+                        isSuperAdmin={isSuperAdmin}
                     />
                 </div>
 
@@ -244,6 +265,7 @@ function App() {
                         onSearch={(q) => {
                             navigateTo('patients');
                         }}
+                        isSuperAdmin={isSuperAdmin}
                     />
                 </div>
 
@@ -340,11 +362,13 @@ function App() {
                             activeClinic={activeClinic}
                             onBack={handleBack}
                             onOpenProfileModal={() => setIsProfileModalOpen(true)}
+                            onOpenMultiClinicModal={() => setIsMultiClinicModalOpen(true)}
                             onOpenNotifications={() => setIsNotificationModalOpen(true)}
                             onNavigate={(tab) => navigateTo(tab)}
                             onLogout={handleLogout}
                             canInstall={canInstall}
                             onInstallPwa={handleInstallPWA}
+                            isSuperAdmin={isSuperAdmin}
                         />
                     )}
 
@@ -559,6 +583,19 @@ function App() {
                 isOpen={isUploadModalOpen}
                 onClose={() => setIsUploadModalOpen(false)}
                 onUploaded={() => {}}
+            />
+
+            {/* 8. MULTI-CLINIC MANAGER MODAL (Super Admin) */}
+            <MultiClinicManagerModal
+                isOpen={isMultiClinicModalOpen}
+                onClose={() => setIsMultiClinicModalOpen(false)}
+                clinics={clinics}
+                activeClinicId={activeClinicId}
+                onSelectClinic={(id) => {
+                    setActiveClinicId(id);
+                    window.triggerAppRefresh && window.triggerAppRefresh();
+                }}
+                onClinicsUpdated={fetchClinics}
             />
 
         </div>

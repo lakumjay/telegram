@@ -21,18 +21,40 @@ export default function LoginScreen({ onLoginSuccess }) {
         setIsLoading(true);
 
         setTimeout(() => {
-            // Master Admin / Jay Sir or approved user
             const lowerUser = username.trim().toLowerCase();
+            const cleanPass = password.trim();
+
+            // 1. Master Super Admin (Jay Sir - Full Access to all clinics)
             if ((lowerUser === 'admin' || lowerUser === 'jay' || lowerUser === 'demo') && 
-                (password === '123456' || password === 'admin123' || password === 'jay@123')) {
-                const userData = { username: username.trim(), isFirstTime: true, loggedAt: Date.now() };
+                (cleanPass === '123456' || cleanPass === 'admin123' || cleanPass === 'jay@123')) {
+                const userData = { 
+                    username: 'Dr. Jay Lakum', 
+                    role: 'admin', 
+                    isSuperAdmin: true, 
+                    clinic_id: 1,
+                    loggedAt: Date.now() 
+                };
                 localStorage.setItem('auth_user', JSON.stringify(userData));
                 onLoginSuccess(userData);
-            } else {
-                setError('Invalid username or password. Please check your credentials or request approval.');
+            } 
+            // 2. Dr. Dhaval (Specific Clinic ID: 3)
+            else if ((lowerUser === 'dhaval' || lowerUser === 'dr.dhaval' || lowerUser === 'drdhaval') && 
+                (cleanPass === '123456' || cleanPass === 'dhaval123' || cleanPass === 'dhaval@123')) {
+                const userData = { 
+                    username: 'Dr. Dhaval', 
+                    role: 'doctor', 
+                    isSuperAdmin: false, 
+                    clinic_id: 3,
+                    loggedAt: Date.now() 
+                };
+                localStorage.setItem('auth_user', JSON.stringify(userData));
+                onLoginSuccess(userData);
+            } 
+            else {
+                setError('Invalid username or password. Please check your credentials or contact Dr. Jay Lakum.');
             }
             setIsLoading(false);
-        }, 350);
+        }, 300);
     };
 
     const handleRegister = async (e) => {

@@ -20,17 +20,19 @@ export default function MoreSettingsPage({
     activeClinic, 
     onBack, 
     onOpenProfileModal, 
+    onOpenMultiClinicModal,
     onOpenNotifications,
     onNavigate, 
     onLogout,
     canInstall,
-    onInstallPwa
+    onInstallPwa,
+    isSuperAdmin = true
 }) {
     const doctorName = activeClinic?.doctor_name || 'Dr. Jay Lakum';
     const qualification = activeClinic?.qualification || 'MBBS, MD';
     const clinicName = activeClinic?.name || 'શ્રીરામ ક્લિનિક';
 
-    const menuItems = [
+    const allMenuItems = [
         {
             id: 'clinic-settings',
             title: 'Clinic Settings',
@@ -45,7 +47,8 @@ export default function MoreSettingsPage({
             desc: 'બધા ક્લિનિક્સ મેનેજ કરો',
             icon: Building2,
             color: 'bg-teal-50 text-teal-600',
-            action: () => onOpenProfileModal()
+            action: () => (onOpenMultiClinicModal ? onOpenMultiClinicModal() : onOpenProfileModal()),
+            superAdminOnly: true
         },
         {
             id: 'files',
@@ -98,6 +101,8 @@ export default function MoreSettingsPage({
             action: () => onNavigate('staff')
         }
     ];
+
+    const menuItems = allMenuItems.filter(item => !item.superAdminOnly || isSuperAdmin);
 
     return (
         <div className="max-w-xl mx-auto space-y-4 pb-20">

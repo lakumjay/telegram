@@ -21,10 +21,120 @@ class ClinicAccountsController extends Controller
      */
     public function getClinics(): JsonResponse
     {
-        $clinics = Clinic::all();
+        $clinics = Clinic::orderBy('id', 'asc')->get();
         return response()->json([
             'success' => true,
             'clinics' => $clinics,
+        ]);
+    }
+
+    /**
+     * Create New Clinic (Multi-Clinic SaaS Tenant Provisioning)
+     */
+    public function storeClinic(Request $request): JsonResponse
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'doctor_name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:30',
+            'email' => 'nullable|email|max:100',
+            'city' => 'nullable|string|max:100',
+            'clinic_address' => 'nullable|string',
+            'specialization' => 'nullable|string|max:255',
+            'qualification' => 'nullable|string|max:255',
+            'registration_number' => 'nullable|string|max:100',
+            'default_consultation_fee' => 'nullable|numeric',
+            'ai_assistant_name' => 'nullable|string|max:50',
+            'telegram_username' => 'nullable|string|max:100',
+            'logo' => 'nullable|file|mimes:jpg,jpeg,png,webp,svg|max:10240',
+        ]);
+
+        $data = $request->only([
+            'name',
+            'doctor_name',
+            'phone',
+            'email',
+            'city',
+            'clinic_address',
+            'specialization',
+            'qualification',
+            'registration_number',
+            'default_consultation_fee',
+            'ai_assistant_name',
+            'telegram_username',
+        ]);
+
+        $data['default_consultation_fee'] = $data['default_consultation_fee'] ?: 300;
+        $data['ai_assistant_name'] = $data['ai_assistant_name'] ?: 'Alexa';
+        $data['voice_name'] = 'Aoede';
+        $data['status'] = 'active';
+
+        $clinic = Clinic::create($data);
+
+        if ($request->hasFile('logo')) {
+            $logoFile = $request->file('logo');
+            $logoPath = $logoFile->storeAs('clinic_logos', 'logo_' . $clinic->id . '_' . time() . '.' . $logoFile->getClientOriginalExtension(), 'public');
+            $clinic->update(['logo_url' => '/storage/' . $logoPath]);
+        }
+
+        // Seed 3 basic standard medicines for this new clinic
+        ClinicMedicine::create([
+            'clinic_id' => $clinic->id,
+            'name' => 'Paracetamol 650',
+            'category' => 'Tablet',
+            'dosage' => '650mg',
+            'stock_quantity' => 150,
+            'low_stock_alert' => 30,
+            'unit_cost' => 1.5,
+            'selling_price' => 3.0,
+        ]);
+        ClinicMedicine::create([
+            'clinic_id' => $clinic->id,
+            'name' => 'Azithromycin 500',
+            'category' => 'Tablet',
+            'dosage' => '500mg',
+            'stock_quantity' => 60,
+            'low_stock_alert' => 15,
+            'unit_cost' => 12.0,
+            'selling_price' => 20.0,
+        ]);
+        ClinicMedicine::create([
+            'clinic_id' => $clinic->id,
+            'name' => 'Pantoprazole 40',
+            'category' => 'Tablet',
+            'dosage' => '40mg',
+            'stock_quantity' => 100,
+            'low_stock_alert' => 25,
+            'unit_cost' => 3.0,
+            'selling_price' => 6.0,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "નવું ક્લિનિક '{$clinic->name}' સફળતાપૂર્વક બની ગયું!",
+            'clinic' => $clinic,
+        ], 201);
+    }
+
+    /**
+     * Delete Clinic
+     */
+    public function deleteClinic(int $id): JsonResponse
+    {
+        if ($id === 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'મુખ્ય ક્લિનિક ડિલીટ કરી શકાય નહીં.',
+            ], 422);
+        }
+
+        $clinic = Clinic::findOrFail($id);
+        $clinicName = $clinic->name;
+        $clinic->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => "ક્લિનિક '{$clinicName}' ડિલીટ થઈ ગયું.",
         ]);
     }
 
@@ -47,6 +157,8 @@ class ClinicAccountsController extends Controller
             'registration_number' => 'nullable|string|max:100',
             'default_consultation_fee' => 'nullable|numeric',
             'ai_assistant_name' => 'nullable|string|max:50',
+            'telegram_username' => 'nullable|string|max:100',
+            'status' => 'nullable|string|max:20',
             'logo' => 'nullable|file|mimes:jpg,jpeg,png,webp,svg|max:10240',
         ]);
 
@@ -62,6 +174,8 @@ class ClinicAccountsController extends Controller
             'registration_number',
             'default_consultation_fee',
             'ai_assistant_name',
+            'telegram_username',
+            'status',
         ]);
 
         if ($request->hasFile('logo')) {
