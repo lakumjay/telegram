@@ -228,6 +228,7 @@ function App() {
                     setActiveTab={(tab) => navigateTo(tab)}
                     activeClinic={activeClinic}
                     onLogout={handleLogout}
+                    isSuperAdmin={isSuperAdmin}
                 />
             </div>
 

@@ -18,7 +18,8 @@ export default function DesktopSidebar({
     activeTab, 
     setActiveTab, 
     activeClinic, 
-    onLogout 
+    onLogout,
+    isSuperAdmin = false
 }) {
     const clinicName = activeClinic?.name || 'શ્રીરામ ક્લિનિક';
     const doctorName = activeClinic?.doctor_name || 'Dr. Jay Lakum';
@@ -57,6 +58,11 @@ export default function DesktopSidebar({
                         <p className="text-[11px] font-bold text-slate-400 leading-none mt-1 truncate">
                             {doctorName}, {qualification}
                         </p>
+                        {isSuperAdmin && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs mt-1.5">
+                                👑 Super Admin
+                            </span>
+                        )}
                     </div>
                 </div>
 

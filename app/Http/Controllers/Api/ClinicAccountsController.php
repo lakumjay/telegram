@@ -23,11 +23,45 @@ class ClinicAccountsController extends Controller
      */
     public function getClinics(): JsonResponse
     {
-        $clinics = Clinic::orderBy('id', 'asc')->get();
-        return response()->json([
-            'success' => true,
-            'clinics' => $clinics,
-        ]);
+        try {
+            if (!Schema::hasTable('clinics')) {
+                return response()->json([
+                    'success' => true,
+                    'clinics' => [],
+                ]);
+            }
+
+            // Auto-seed default Super Admin Clinic if table is empty
+            if (Clinic::count() === 0) {
+                Clinic::create([
+                    'name' => 'શ્રીરામ ક્લિનિક',
+                    'doctor_name' => 'Dr. Jay Lakum',
+                    'phone' => '9898012345',
+                    'city' => 'અમદાવાદ',
+                    'clinic_address' => '102, શ્રીરામ મેડિકલ સેન્ટર, અમદાવાદ',
+                    'specialization' => 'જનરલ ફિઝિશિયન (General Physician)',
+                    'qualification' => 'MBBS',
+                    'default_consultation_fee' => 300,
+                    'ai_assistant_name' => 'Alexa',
+                    'telegram_username' => 'dr_jay',
+                    'voice_name' => 'Aoede',
+                    'status' => 'active',
+                ]);
+            }
+
+            $clinics = Clinic::orderBy('id', 'asc')->get();
+            return response()->json([
+                'success' => true,
+                'clinics' => $clinics,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('getClinics error: ' . $e->getMessage());
+            return response()->json([
+                'success' => true,
+                'clinics' => [],
+                'warning' => 'Fallback defaults returned: ' . $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -51,27 +85,39 @@ class ClinicAccountsController extends Controller
             'logo' => 'nullable|file|mimes:jpg,jpeg,png,webp,svg|max:10240',
         ]);
 
-        $data = $request->only([
-            'name',
-            'doctor_name',
-            'phone',
-            'email',
-            'city',
-            'clinic_address',
-            'specialization',
-            'qualification',
-            'registration_number',
-            'default_consultation_fee',
-            'ai_assistant_name',
-            'telegram_username',
-        ]);
+        $telegramUser = $request->input('telegram_username');
+        if ($telegramUser) {
+            $telegramUser = ltrim(trim($telegramUser), '@');
+        }
 
-        $data['default_consultation_fee'] = $data['default_consultation_fee'] ?: 300;
-        $data['ai_assistant_name'] = $data['ai_assistant_name'] ?: 'Alexa';
-        $data['voice_name'] = 'Aoede';
-        $data['status'] = 'active';
+        $fee = $request->input('default_consultation_fee');
+        $fee = (is_numeric($fee) && $fee !== '') ? (float)$fee : 300.0;
+
+        $data = [
+            'name' => $request->input('name'),
+            'doctor_name' => $request->input('doctor_name'),
+            'phone' => $request->input('phone'),
+            'email' => $request->input('email'),
+            'city' => $request->input('city'),
+            'clinic_address' => $request->input('clinic_address'),
+            'specialization' => $request->input('specialization') ?: 'General Physician & Consulting Doctor',
+            'qualification' => $request->input('qualification') ?: 'MBBS',
+            'registration_number' => $request->input('registration_number'),
+            'default_consultation_fee' => $fee,
+            'ai_assistant_name' => $request->input('ai_assistant_name') ?: 'Alexa',
+            'telegram_username' => $telegramUser ?: null,
+            'voice_name' => 'Aoede',
+            'status' => $request->input('status') ?: 'active',
+        ];
 
         $clinic = Clinic::create($data);
+
+        if (isset($data['telegram_username']) && $data['telegram_username']) {
+            $data['telegram_username'] = ltrim(trim($data['telegram_username']), '@');
+        }
+        if (isset($data['default_consultation_fee']) && is_numeric($data['default_consultation_fee'])) {
+            $data['default_consultation_fee'] = (float)$data['default_consultation_fee'];
+        }
 
         if ($request->hasFile('logo')) {
             $logoFile = $request->file('logo');
@@ -79,37 +125,39 @@ class ClinicAccountsController extends Controller
             $clinic->update(['logo_url' => '/storage/' . $logoPath]);
         }
 
-        // Seed 3 basic standard medicines for this new clinic
-        ClinicMedicine::create([
-            'clinic_id' => $clinic->id,
-            'name' => 'Paracetamol 650',
-            'category' => 'Tablet',
-            'dosage' => '650mg',
-            'stock_quantity' => 150,
-            'low_stock_alert' => 30,
-            'unit_cost' => 1.5,
-            'selling_price' => 3.0,
-        ]);
-        ClinicMedicine::create([
-            'clinic_id' => $clinic->id,
-            'name' => 'Azithromycin 500',
-            'category' => 'Tablet',
-            'dosage' => '500mg',
-            'stock_quantity' => 60,
-            'low_stock_alert' => 15,
-            'unit_cost' => 12.0,
-            'selling_price' => 20.0,
-        ]);
-        ClinicMedicine::create([
-            'clinic_id' => $clinic->id,
-            'name' => 'Pantoprazole 40',
-            'category' => 'Tablet',
-            'dosage' => '40mg',
-            'stock_quantity' => 100,
-            'low_stock_alert' => 25,
-            'unit_cost' => 3.0,
-            'selling_price' => 6.0,
-        ]);
+        // Seed 3 basic standard medicines for this new clinic if table exists
+        if (Schema::hasTable('clinic_medicines')) {
+            ClinicMedicine::create([
+                'clinic_id' => $clinic->id,
+                'name' => 'Paracetamol 650',
+                'category' => 'Tablet',
+                'dosage' => '650mg',
+                'stock_quantity' => 150,
+                'low_stock_alert' => 30,
+                'unit_cost' => 1.5,
+                'selling_price' => 3.0,
+            ]);
+            ClinicMedicine::create([
+                'clinic_id' => $clinic->id,
+                'name' => 'Azithromycin 500',
+                'category' => 'Tablet',
+                'dosage' => '500mg',
+                'stock_quantity' => 60,
+                'low_stock_alert' => 15,
+                'unit_cost' => 12.0,
+                'selling_price' => 20.0,
+            ]);
+            ClinicMedicine::create([
+                'clinic_id' => $clinic->id,
+                'name' => 'Pantoprazole 40',
+                'category' => 'Tablet',
+                'dosage' => '40mg',
+                'stock_quantity' => 100,
+                'low_stock_alert' => 25,
+                'unit_cost' => 3.0,
+                'selling_price' => 6.0,
+            ]);
+        }
 
         return response()->json([
             'success' => true,
@@ -179,6 +227,13 @@ class ClinicAccountsController extends Controller
             'telegram_username',
             'status',
         ]);
+
+        if (isset($data['telegram_username']) && $data['telegram_username']) {
+            $data['telegram_username'] = ltrim(trim($data['telegram_username']), '@');
+        }
+        if (isset($data['default_consultation_fee']) && is_numeric($data['default_consultation_fee'])) {
+            $data['default_consultation_fee'] = (float)$data['default_consultation_fee'];
+        }
 
         if ($request->hasFile('logo')) {
             $logoFile = $request->file('logo');

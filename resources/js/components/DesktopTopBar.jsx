@@ -121,9 +121,16 @@ export default function DesktopTopBar({
                         )}
                     </div>
                     <div className="text-left hidden xl:block">
-                        <p className="text-xs font-extrabold text-slate-900 group-hover:text-emerald-700 transition leading-tight">
-                            {activeClinic.doctor_name || 'Dr. Jay Lakum'}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-extrabold text-slate-900 group-hover:text-emerald-700 transition leading-tight">
+                                {activeClinic.doctor_name || 'Dr. Jay Lakum'}
+                            </p>
+                            {isSuperAdmin && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs">
+                                    👑 Super Admin
+                                </span>
+                            )}
+                        </div>
                         <p className="text-[10px] text-slate-400 font-bold leading-none mt-0.5">
                             {activeClinic.qualification || 'MBBS'}
                         </p>

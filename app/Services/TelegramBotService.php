@@ -617,7 +617,7 @@ class TelegramBotService
     protected function handleZipCommand(int $chatId, string $query): array
     {
         if (empty($query)) {
-            $this->sendMessage($chatId, "ℹ️ કૃપા કરીને કંપની કે ફાઇલનું નામ લખો.\nદા.ત. `/zip Rajeshwari Solar` અથવા `/zip all`");
+            $this->sendMessage($chatId, "ℹ️ કૃપા કરીને દર્દીનું નામ અથવા ફાઇલ લખો.\nદા.ત. `/zip દર્દીનું નામ` અથવા `/zip all`");
             return ['status' => 'zip_empty'];
         }
 
@@ -851,9 +851,9 @@ class TelegramBotService
         }
 
         // Auto-link to clinic by matching Telegram username
-        if (!$user->clinic_id && !empty($user->username)) {
-            $cleanUser = ltrim($user->username, '@');
-            $matchingClinic = Clinic::where('telegram_username', $cleanUser)->first();
+        if (!empty($user->username)) {
+            $cleanUser = strtolower(ltrim(trim($user->username), '@'));
+            $matchingClinic = Clinic::whereRaw('LOWER(telegram_username) = ?', [$cleanUser])->first();
             if ($matchingClinic) {
                 $user->update([
                     'clinic_id' => $matchingClinic->id,
@@ -865,7 +865,7 @@ class TelegramBotService
 
         // Super Admin (Dr. Jay Lakum) auto-authorization
         $uName = strtolower($user->username ?? '');
-        if (in_array($uName, ['jaylakum', 'jay_lakum', 'lakumjay']) || $user->telegram_id == 999888777) {
+        if (in_array($uName, ['dr_jay', 'jaylakum', 'jay_lakum', 'lakumjay']) || $user->telegram_id == 999888777) {
             $user->update([
                 'is_authorized' => true,
                 'role' => 'admin',
@@ -879,16 +879,18 @@ class TelegramBotService
     /**
      * Help command
      */
-    protected function handleHelpCommand(int $chatId): array
+    protected function handleHelpCommand(int $chatId, ?TelegramUser $user = null): array
     {
-        $help = "ℹ️ *બોટનો ઉપયોગ કેવી રીતે કરવો?*\n\n"
-              . "1️⃣ *ફાઇલ શોધવા:* કંપની અને ફાઇલનું નામ લખો.\n"
-              . "   _દા.ત._ `Rajeshwari Solar PAN`\n\n"
-              . "2️⃣ *અંદરનું લખાણ શોધવા (OCR):*\n"
-              . "   _દા.ત._ `₹300 વાળો સ્ટેમ્પ પેપર ટેસ્ટ વ્યક્તિ`\n\n"
-              . "3️⃣ *ZIP ફાઇલ ડાઉનલોડ કરવા:*\n"
-              . "   _દા.ત._ `/zip Rajeshwari Solar` અથવા `/zip all`\n\n"
-              . "4️⃣ *AI Voice Call:* `/call` લખીને લાઇવ AI સાથે કૉલ પર વાત કરો.";
+        $clinic = $user ? $this->resolveUserClinic($user) : null;
+        $clinicName = $clinic ? $clinic->name : 'ક્લિનિક AI સહાયક';
+
+        $help = "ℹ️ *{$clinicName} - બોટ કમાન્ડ્સ અને ઉપયોગ:*\n\n"
+              . "1️⃣ *દર્દીની માહિતી શોધવા:* દર્દીનું નામ અથવા મોબાઇલ નંબર લખો.\n"
+              . "   _દા.ત._ `રમેશભાઈ`, `9824512345`\n\n"
+              . "2️⃣ *પ્રિસ્ક્રિપ્શન / કેસ ફાઇલ:* ડાયરેક્ટ ફોટો મોકલો, AI આપોઆપ વાંચીને દવા અને હિસ્ટ્રી ક્લિનિકમાં સેવ કરશે.\n\n"
+              . "3️⃣ *આજનો હિસાબ / OPD:* `/today` લખો અથવા 'આજનો હિસાબ' કહો.\n\n"
+              . "4️⃣ *દવા સ્ટોક એલર્ટ:* `/stock` લખીને ઓછી પડેલી દવાઓ જુઓ.\n\n"
+              . "5️⃣ *AI Voice Call:* `/call` લખો અથવા 'Voice Call' બટન દબાવીને દર્દીઓની કેસ હિસ્ટ્રી પૂછવા ડૉક્ટર લાઈવ AI સાથે વાત કરો.";
 
         $this->sendMessage($chatId, $help);
         return ['status' => 'help_sent'];

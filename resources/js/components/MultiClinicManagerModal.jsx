@@ -104,7 +104,8 @@ export default function MultiClinicManagerModal({
                     city: city.trim() || null,
                     qualification: qualification.trim(),
                     specialization: specialization.trim(),
-                    default_consultation_fee: defaultFee,
+                    default_consultation_fee: parseFloat(defaultFee) || 0,
+                    ai_assistant_name: 'Alexa',
                     telegram_username: telegramUsername.trim() || null
                 });
 
@@ -122,7 +123,8 @@ export default function MultiClinicManagerModal({
                     city: city.trim() || null,
                     qualification: qualification.trim(),
                     specialization: specialization.trim(),
-                    default_consultation_fee: defaultFee,
+                    default_consultation_fee: parseFloat(defaultFee) || 0,
+                    ai_assistant_name: 'Alexa',
                     telegram_username: telegramUsername.trim() || null
                 });
 

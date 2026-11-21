@@ -50,9 +50,16 @@ export default function MobileHeader({
                         </div>
                         
                         <div>
-                            <h1 className="font-black text-sm sm:text-base text-slate-900 tracking-tight leading-none group-hover:text-emerald-700 transition">
-                                {activeClinic.name}
-                            </h1>
+                            <div className="flex items-center gap-1.5">
+                                <h1 className="font-black text-sm sm:text-base text-slate-900 tracking-tight leading-none group-hover:text-emerald-700 transition">
+                                    {activeClinic.name}
+                                </h1>
+                                {isSuperAdmin && (
+                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                                        👑 Super Admin
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-[11px] font-bold text-slate-400 leading-none mt-1">
                                 {activeClinic.doctor_name || 'Dr. Jay Lakum'}{activeClinic.qualification ? `, ${activeClinic.qualification}` : ', MBBS'}
                             </p>
