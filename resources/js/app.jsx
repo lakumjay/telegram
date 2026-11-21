@@ -233,8 +233,8 @@ function App() {
 
             </main>
 
-            {/* Mobile Bottom Navigation Bar (Clinic, AI Call, Billing & More) */}
-            <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-6 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] md:hidden flex items-center justify-between shadow-lg">
+            {/* Mobile Bottom Navigation Bar (Clinic, AI Call, Billing & More) - Balanced & Centered */}
+            <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-6 py-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] md:hidden flex items-center justify-around shadow-lg">
                 
                 {/* 1. Clinic Tab */}
                 <button
@@ -242,25 +242,27 @@ function App() {
                         triggerHaptic(10);
                         setActiveTab('patients');
                     }}
-                    className={`flex flex-col items-center py-1 transition active:scale-95 cursor-pointer ${
-                        activeTab === 'patients' ? 'text-emerald-700 font-extrabold' : 'text-slate-400 font-semibold'
+                    className={`flex flex-col items-center justify-center w-16 py-1 transition active:scale-95 cursor-pointer ${
+                        activeTab === 'patients' ? 'text-emerald-700 font-extrabold' : 'text-slate-400 font-medium'
                     }`}
                 >
                     <Stethoscope className="w-5 h-5 mb-0.5" />
-                    <span className="text-[11px]">Clinic</span>
+                    <span className="text-[11px] leading-tight">Clinic</span>
                 </button>
 
-                {/* 2. Central Big Round AI Call Dial Button */}
-                <button
-                    onClick={() => {
-                        triggerHaptic(20);
-                        setIsCallModalOpen(true);
-                    }}
-                    className="relative -top-4 w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white shadow-xl shadow-emerald-700/30 border-4 border-[#f8fafc] flex items-center justify-center cursor-pointer active:scale-90 transition"
-                    title="Start AI Call"
-                >
-                    <PhoneCall className="w-6 h-6 text-white" />
-                </button>
+                {/* 2. Central AI Call Button (Perfect Geometry & Alignment) */}
+                <div className="relative -top-3 flex items-center justify-center">
+                    <button
+                        onClick={() => {
+                            triggerHaptic(20);
+                            setIsCallModalOpen(true);
+                        }}
+                        className="w-13 h-13 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-700/25 border-4 border-[#f8fafc] flex items-center justify-center cursor-pointer active:scale-90 transition"
+                        title="Start AI Call"
+                    >
+                        <PhoneCall className="w-5 h-5 text-white" />
+                    </button>
+                </div>
 
                 {/* 3. Billing & Stock Tab */}
                 <button
@@ -268,12 +270,12 @@ function App() {
                         triggerHaptic(10);
                         setActiveTab('billing');
                     }}
-                    className={`flex flex-col items-center py-1 transition active:scale-95 cursor-pointer ${
-                        activeTab === 'billing' ? 'text-emerald-700 font-extrabold' : 'text-slate-400 font-semibold'
+                    className={`flex flex-col items-center justify-center w-16 py-1 transition active:scale-95 cursor-pointer ${
+                        activeTab === 'billing' ? 'text-emerald-700 font-extrabold' : 'text-slate-400 font-medium'
                     }`}
                 >
                     <Receipt className="w-5 h-5 mb-0.5" />
-                    <span className="text-[11px]">Billing</span>
+                    <span className="text-[11px] leading-tight">Billing</span>
                 </button>
 
                 {/* 4. More Tab */}
@@ -282,10 +284,10 @@ function App() {
                         triggerHaptic(10);
                         setIsMoreDrawerOpen(true);
                     }}
-                    className="flex flex-col items-center py-1 text-slate-400 font-semibold hover:text-slate-700 transition active:scale-95 cursor-pointer"
+                    className="flex flex-col items-center justify-center w-16 py-1 text-slate-400 font-medium hover:text-slate-700 transition active:scale-95 cursor-pointer"
                 >
                     <Sliders className="w-5 h-5 mb-0.5" />
-                    <span className="text-[11px]">More</span>
+                    <span className="text-[11px] leading-tight">More</span>
                 </button>
             </div>
 
