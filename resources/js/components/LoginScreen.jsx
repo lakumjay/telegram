@@ -15,46 +15,84 @@ export default function LoginScreen({ onLoginSuccess }) {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
 
-        setTimeout(() => {
-            const lowerUser = username.trim().toLowerCase();
-            const cleanPass = password.trim();
+        const lowerUser = username.trim().toLowerCase();
+        const cleanPass = password.trim();
 
-            // 1. Master Super Admin (Jay Sir - Full Access to all clinics)
-            if ((lowerUser === 'admin' || lowerUser === 'jay' || lowerUser === 'demo') && 
-                (cleanPass === '123456' || cleanPass === 'admin123' || cleanPass === 'jay@123')) {
-                const userData = { 
-                    username: 'Dr. Jay Lakum', 
-                    role: 'admin', 
-                    isSuperAdmin: true, 
-                    clinic_id: 1,
-                    loggedAt: Date.now() 
-                };
-                localStorage.setItem('auth_user', JSON.stringify(userData));
-                onLoginSuccess(userData);
-            } 
-            // 2. Dr. Dhaval (Specific Clinic ID: 3)
-            else if ((lowerUser === 'dhaval' || lowerUser === 'dr.dhaval' || lowerUser === 'drdhaval') && 
-                (cleanPass === '123456' || cleanPass === 'dhaval123' || cleanPass === 'dhaval@123')) {
-                const userData = { 
-                    username: 'Dr. Dhaval', 
-                    role: 'doctor', 
-                    isSuperAdmin: false, 
-                    clinic_id: 3,
-                    loggedAt: Date.now() 
-                };
-                localStorage.setItem('auth_user', JSON.stringify(userData));
-                onLoginSuccess(userData);
-            } 
-            else {
-                setError('Invalid username or password. Please check your credentials or contact Dr. Jay Lakum.');
-            }
+        // 1. Master Super Admin (Dr. Jay Lakum - Full Unrestricted Access to all clinics)
+        const superAdminUsers = ['admin', 'jay', 'jaylakum', 'lakumjay', 'superadmin', 'dr.jay', 'drjay', 'demo'];
+        const superAdminPass = ['123456', 'admin123', 'jay@123', 'jay123'];
+        if (superAdminUsers.includes(lowerUser) && (superAdminPass.includes(cleanPass) || cleanPass === '123456')) {
+            const userData = { 
+                username: 'Dr. Jay Lakum (Super Admin)', 
+                role: 'admin', 
+                isSuperAdmin: true, 
+                clinic_id: 1,
+                loggedAt: Date.now() 
+            };
+            localStorage.setItem('auth_user', JSON.stringify(userData));
+            onLoginSuccess(userData);
             setIsLoading(false);
-        }, 300);
+            return;
+        }
+
+        // 2. Specific Quick Match for Dr. Dhaval
+        if ((lowerUser === 'dhaval' || lowerUser === 'dr.dhaval' || lowerUser === 'drdhaval') && 
+            (cleanPass === '123456' || cleanPass === 'dhaval123' || cleanPass === 'dhaval@123')) {
+            const userData = { 
+                username: 'Dr. Dhaval', 
+                role: 'doctor', 
+                isSuperAdmin: false, 
+                clinic_id: 3,
+                loggedAt: Date.now() 
+            };
+            localStorage.setItem('auth_user', JSON.stringify(userData));
+            onLoginSuccess(userData);
+            setIsLoading(false);
+            return;
+        }
+
+        // 3. Dynamic Doctor Login (Matches any clinic created in the system by Super Admin)
+        try {
+            const res = await axios.get('/api/clinic-accounts/clinics');
+            const clinics = res.data?.clinics || [];
+
+            const matchedClinic = clinics.find(c => {
+                const docRaw = (c.doctor_name || '').toLowerCase().replace('dr.', '').replace('dr ', '').trim();
+                const clinicRaw = (c.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const tgUser = (c.telegram_username || '').toLowerCase().replace('@', '');
+                
+                return docRaw === lowerUser || 
+                       docRaw.includes(lowerUser) || 
+                       clinicRaw === lowerUser ||
+                       tgUser === lowerUser ||
+                       ('dr.' + docRaw) === lowerUser ||
+                       ('dr' + docRaw) === lowerUser;
+            });
+
+            if (matchedClinic && (cleanPass === '123456' || cleanPass === 'doctor123' || cleanPass === `${matchedClinic.id}123`)) {
+                const userData = {
+                    username: matchedClinic.doctor_name || 'Doctor',
+                    role: 'doctor',
+                    isSuperAdmin: false,
+                    clinic_id: matchedClinic.id,
+                    loggedAt: Date.now()
+                };
+                localStorage.setItem('auth_user', JSON.stringify(userData));
+                onLoginSuccess(userData);
+                setIsLoading(false);
+                return;
+            }
+        } catch (err) {
+            console.error('Dynamic login verification error', err);
+        }
+
+        setError('અમાન્ય યુઝરનેમ અથવા પાસવર્ડ. કૃપા કરીને તપાસો અથવા સુપર એડમિન ડૉ. જય લાકુમનો સંપર્ક કરો.');
+        setIsLoading(false);
     };
 
     const handleRegister = async (e) => {
