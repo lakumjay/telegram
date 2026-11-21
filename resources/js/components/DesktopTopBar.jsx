@@ -16,7 +16,7 @@ export default function DesktopTopBar({
     onOpenProfileModal,
     onOpenNotifications,
     onSearch,
-    isSuperAdmin = true
+    isSuperAdmin = false
 }) {
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
     const [searchValue, setSearchValue] = useState('');

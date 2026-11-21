@@ -17,7 +17,7 @@ export default function MobileHeader({
     onOpenVoiceCall,
     onOpenProfileModal,
     onOpenNotifications,
-    isSuperAdmin = true
+    isSuperAdmin = false
 }) {
     const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
 

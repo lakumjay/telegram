@@ -17,7 +17,8 @@ import {
     UserPlus,
     Eye,
     ArrowLeft,
-    PhoneCall
+    PhoneCall,
+    Trash2
 } from 'lucide-react';
 
 import PatientDetailModal from './PatientDetailModal';
@@ -111,6 +112,23 @@ export default function DoctorPatientManager({
         setSuggestions([]);
         setSelectedPatientId(patient.id);
         setIsDetailModalOpen(true);
+    };
+
+    const handleDeletePatient = async (patient, e) => {
+        if (e) e.stopPropagation();
+        if (!window.confirm(`શું તમે દર્દી '${patient.name}' અને તેમની બધી કેસ હિસ્ટ્રી ડિલીટ કરવા માંગો છો?`)) {
+            return;
+        }
+
+        try {
+            const res = await axios.delete(`/api/patients/${patient.id}`);
+            if (res.data?.success) {
+                if (window.showAppToast) window.showAppToast(`✅ દર્દી '${patient.name}' ડિલીટ થઈ ગયો.`);
+                loadPatients();
+            }
+        } catch (err) {
+            alert('દર્દી ડિલીટ કરવામાં ક્ષતિ આવી.');
+        }
     };
 
     const handleCreatePatient = async (e) => {
@@ -383,6 +401,14 @@ export default function DoctorPatientManager({
                                     title="View Patient Details"
                                 >
                                     <Eye className="w-4 h-4" />
+                                </button>
+
+                                <button
+                                    onClick={(e) => handleDeletePatient(patient, e)}
+                                    className="w-8 h-8 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition cursor-pointer"
+                                    title="Delete Patient"
+                                >
+                                    <Trash2 className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>

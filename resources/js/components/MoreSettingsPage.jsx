@@ -26,7 +26,7 @@ export default function MoreSettingsPage({
     onLogout,
     canInstall,
     onInstallPwa,
-    isSuperAdmin = true
+    isSuperAdmin = false
 }) {
     const doctorName = activeClinic?.doctor_name || 'Dr. Jay Lakum';
     const qualification = activeClinic?.qualification || 'MBBS, MD';

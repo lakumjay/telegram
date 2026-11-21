@@ -49,7 +49,38 @@ class ClinicAccountsController extends Controller
                 ]);
             }
 
-            $clinics = Clinic::orderBy('id', 'asc')->get();
+            $hasPatients = Schema::hasTable('patients');
+            $hasBills = Schema::hasTable('clinic_bills');
+            $hasMedicines = Schema::hasTable('clinic_medicines');
+            $hasAppointments = Schema::hasTable('clinic_appointments');
+
+            $clinics = Clinic::orderBy('id', 'asc')->get()->map(function ($c) use ($hasPatients, $hasBills, $hasMedicines, $hasAppointments) {
+                return [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'doctor_name' => $c->doctor_name,
+                    'phone' => $c->phone,
+                    'email' => $c->email,
+                    'city' => $c->city,
+                    'clinic_address' => $c->clinic_address,
+                    'specialization' => $c->specialization,
+                    'qualification' => $c->qualification,
+                    'registration_number' => $c->registration_number,
+                    'default_consultation_fee' => (float)$c->default_consultation_fee,
+                    'ai_assistant_name' => $c->ai_assistant_name ?: 'Alexa',
+                    'telegram_username' => $c->telegram_username,
+                    'voice_name' => $c->voice_name ?: 'Aoede',
+                    'status' => $c->status ?: 'active',
+                    'logo_url' => $c->logo_url,
+                    'created_at' => $c->created_at ? $c->created_at->format('d-m-Y') : '21-11-2026',
+                    'total_patients' => $hasPatients ? Patient::where('clinic_id', $c->id)->count() : 0,
+                    'total_bills' => $hasBills ? ClinicBill::where('clinic_id', $c->id)->count() : 0,
+                    'total_revenue' => $hasBills ? (float)ClinicBill::where('clinic_id', $c->id)->sum('total_amount') : 0.0,
+                    'total_medicines' => $hasMedicines ? ClinicMedicine::where('clinic_id', $c->id)->count() : 0,
+                    'total_appointments' => $hasAppointments ? ClinicAppointment::where('clinic_id', $c->id)->count() : 0,
+                ];
+            });
+
             return response()->json([
                 'success' => true,
                 'clinics' => $clinics,
@@ -167,7 +198,7 @@ class ClinicAccountsController extends Controller
     }
 
     /**
-     * Delete Clinic
+     * Delete Clinic with clean-up of associated records
      */
     public function deleteClinic(int $id): JsonResponse
     {
@@ -180,11 +211,93 @@ class ClinicAccountsController extends Controller
 
         $clinic = Clinic::findOrFail($id);
         $clinicName = $clinic->name;
+
+        // Clean up all related records for this clinic
+        if (Schema::hasTable('clinic_bills')) {
+            ClinicBill::where('clinic_id', $id)->delete();
+        }
+        if (Schema::hasTable('clinic_expenses')) {
+            ClinicExpense::where('clinic_id', $id)->delete();
+        }
+        if (Schema::hasTable('clinic_medicines')) {
+            ClinicMedicine::where('clinic_id', $id)->delete();
+        }
+        if (Schema::hasTable('clinic_appointments')) {
+            ClinicAppointment::where('clinic_id', $id)->delete();
+        }
+        if (Schema::hasTable('patients')) {
+            Patient::where('clinic_id', $id)->delete();
+        }
+
         $clinic->delete();
 
         return response()->json([
             'success' => true,
-            'message' => "ક્લિનિક '{$clinicName}' ડિલીટ થઈ ગયું.",
+            'message' => "ક્લિનિક '{$clinicName}' અને તેનો તમામ ડેટા સફળતાપૂર્વક ડિલીટ થઈ ગયો છે.",
+        ]);
+    }
+
+    /**
+     * Toggle Clinic Status (Active / Inactive)
+     */
+    public function toggleClinicStatus(int $id): JsonResponse
+    {
+        if ($id === 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'મુખ્ય ક્લિનિકને નિષ્ક્રિય (Inactive) કરી શકાય નહીં.',
+            ], 422);
+        }
+
+        $clinic = Clinic::findOrFail($id);
+        $newStatus = ($clinic->status === 'inactive') ? 'active' : 'inactive';
+        $clinic->update(['status' => $newStatus]);
+
+        $statusText = ($newStatus === 'active') ? 'સક્રિય (Active)' : 'નિષ્ક્રિય (Inactive)';
+
+        return response()->json([
+            'success' => true,
+            'message' => "ક્લિનિક '{$clinic->name}' હવે {$statusText} છે.",
+            'clinic' => $clinic,
+            'new_status' => $newStatus,
+        ]);
+    }
+
+    /**
+     * Get Clinic History & Audit Stats
+     */
+    public function getClinicHistory(int $id): JsonResponse
+    {
+        $clinic = Clinic::findOrFail($id);
+
+        $recentBills = Schema::hasTable('clinic_bills') 
+            ? ClinicBill::where('clinic_id', $id)->latest('id')->take(10)->get() 
+            : collect();
+
+        $recentPatients = Schema::hasTable('patients') 
+            ? Patient::where('clinic_id', $id)->latest('id')->take(10)->get() 
+            : collect();
+
+        $recentExpenses = Schema::hasTable('clinic_expenses') 
+            ? ClinicExpense::where('clinic_id', $id)->latest('id')->take(10)->get() 
+            : collect();
+
+        $stats = [
+            'total_patients' => Schema::hasTable('patients') ? Patient::where('clinic_id', $id)->count() : 0,
+            'total_bills' => Schema::hasTable('clinic_bills') ? ClinicBill::where('clinic_id', $id)->count() : 0,
+            'total_revenue' => Schema::hasTable('clinic_bills') ? (float)ClinicBill::where('clinic_id', $id)->sum('total_amount') : 0.0,
+            'total_expenses' => Schema::hasTable('clinic_expenses') ? (float)ClinicExpense::where('clinic_id', $id)->sum('amount') : 0.0,
+            'total_appointments' => Schema::hasTable('clinic_appointments') ? ClinicAppointment::where('clinic_id', $id)->count() : 0,
+            'total_medicines' => Schema::hasTable('clinic_medicines') ? ClinicMedicine::where('clinic_id', $id)->count() : 0,
+        ];
+
+        return response()->json([
+            'success' => true,
+            'clinic' => $clinic,
+            'stats' => $stats,
+            'recent_bills' => $recentBills,
+            'recent_patients' => $recentPatients,
+            'recent_expenses' => $recentExpenses,
         ]);
     }
 

@@ -70,6 +70,12 @@ class TelegramBotService
         $clinic = $this->resolveUserClinic($user);
         $isSuperAdmin = ($user->role === 'admin' || $user->telegram_id == 999888777);
 
+        // Check if clinic is marked inactive (Regular doctors blocked, Super Admin allowed)
+        if ($clinic && $clinic->status === 'inactive' && !$isSuperAdmin) {
+            $this->sendMessage($chatId, "⚠️ *ક્લિનિક નિષ્ક્રિય છે (Inactive Account)*\n\nતમારું ક્લિનિક '{$clinic->name}' હાલ સુપર એડમિન દ્વારા નિષ્ક્રિય કરવામાં આવ્યું છે.\n\nકૃપા કરીને સુપર એડમિન ડૉ. જય લાકુમનો સંપર્ક કરો.");
+            return ['status' => 'clinic_inactive'];
+        }
+
         $whitelistActive = SystemSetting::get('whitelist_enabled', true);
         if ($whitelistActive && !$user->is_authorized && !$isSuperAdmin) {
             $text = trim($message['text'] ?? '');

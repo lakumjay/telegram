@@ -72,17 +72,26 @@ export default function LoginScreen({ onLoginSuccess }) {
         // 2. Specific Quick Match for Dr. Dhaval
         if ((lowerUser === 'dhaval' || lowerUser === 'dr.dhaval' || lowerUser === 'drdhaval') && 
             (cleanPass === '123456' || cleanPass === 'dhaval123' || cleanPass === 'dhaval@123')) {
-            const userData = { 
-                username: 'Dr. Dhaval', 
-                role: 'doctor', 
-                isSuperAdmin: false, 
-                clinic_id: 3,
-                loggedAt: Date.now() 
-            };
-            localStorage.setItem('auth_user', JSON.stringify(userData));
-            onLoginSuccess(userData);
-            setIsLoading(false);
-            return;
+            try {
+                const res = await axios.get('/api/clinic-accounts/clinics');
+                const dClinic = (res.data?.clinics || []).find(c => (c.doctor_name || '').toLowerCase().includes('dhaval'));
+                if (dClinic && dClinic.status === 'inactive') {
+                    setError('આ ક્લિનિક એકાઉન્ટ હાલ નિષ્ક્રિય (Inactive) કરવામાં આવ્યું છે. કૃપા કરીને સુપર એડમિન ડૉ. જય લાકુમનો સંપર્ક કરો.');
+                    setIsLoading(false);
+                    return;
+                }
+                const userData = { 
+                    username: dClinic?.doctor_name || 'Dr. Dhaval', 
+                    role: 'doctor', 
+                    isSuperAdmin: false, 
+                    clinic_id: dClinic?.id || 3,
+                    loggedAt: Date.now() 
+                };
+                localStorage.setItem('auth_user', JSON.stringify(userData));
+                onLoginSuccess(userData);
+                setIsLoading(false);
+                return;
+            } catch(e) {}
         }
 
         // 3. Dynamic Doctor Login (Matches any clinic created in the system by Super Admin)
@@ -104,6 +113,12 @@ export default function LoginScreen({ onLoginSuccess }) {
             });
 
             if (matchedClinic && (cleanPass === '123456' || cleanPass === 'doctor123' || cleanPass === `${matchedClinic.id}123`)) {
+                if (matchedClinic.status === 'inactive') {
+                    setError('આ ક્લિનિક એકાઉન્ટ હાલ નિષ્ક્રિય (Inactive) કરવામાં આવ્યું છે. કૃપા કરીને સુપર એડમિન ડૉ. જય લાકુમનો સંપર્ક કરો.');
+                    setIsLoading(false);
+                    return;
+                }
+
                 const userData = {
                     username: matchedClinic.doctor_name || 'Doctor',
                     role: 'doctor',

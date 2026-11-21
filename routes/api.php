@@ -88,6 +88,8 @@ Route::prefix('clinic-accounts')->group(function () {
     Route::get('/clinics', [ClinicAccountsController::class, 'getClinics']);
     Route::post('/clinics', [ClinicAccountsController::class, 'storeClinic']);
     Route::post('/clinics/{id}', [ClinicAccountsController::class, 'updateClinicProfile']);
+    Route::post('/clinics/{id}/toggle-status', [ClinicAccountsController::class, 'toggleClinicStatus']);
+    Route::get('/clinics/{id}/history', [ClinicAccountsController::class, 'getClinicHistory']);
     Route::delete('/clinics/{id}', [ClinicAccountsController::class, 'deleteClinic']);
     Route::get('/summary', [ClinicAccountsController::class, 'getFinancialSummary']);
     Route::get('/financial', [ClinicAccountsController::class, 'getFinancialSummary']);

@@ -188,7 +188,11 @@ function App() {
         );
     }
 
-    const isSuperAdmin = currentUser?.isSuperAdmin !== false;
+    const isSuperAdmin = Boolean(
+        currentUser?.isSuperAdmin === true || 
+        currentUser?.role === 'admin' || 
+        currentUser?.role === 'super_admin'
+    );
 
     const activeClinic = clinics.find(c => c.id === activeClinicId) || clinics[0] || {
         id: 1,
@@ -586,18 +590,20 @@ function App() {
                 onUploaded={() => {}}
             />
 
-            {/* 8. MULTI-CLINIC MANAGER MODAL (Super Admin) */}
-            <MultiClinicManagerModal
-                isOpen={isMultiClinicModalOpen}
-                onClose={() => setIsMultiClinicModalOpen(false)}
-                clinics={clinics}
-                activeClinicId={activeClinicId}
-                onSelectClinic={(id) => {
-                    setActiveClinicId(id);
-                    window.triggerAppRefresh && window.triggerAppRefresh();
-                }}
-                onClinicsUpdated={fetchClinics}
-            />
+            {/* 8. MULTI-CLINIC MANAGER MODAL (Super Admin Only) */}
+            {isSuperAdmin && (
+                <MultiClinicManagerModal
+                    isOpen={isMultiClinicModalOpen}
+                    onClose={() => setIsMultiClinicModalOpen(false)}
+                    clinics={clinics}
+                    activeClinicId={activeClinicId}
+                    onSelectClinic={(id) => {
+                        setActiveClinicId(id);
+                        window.triggerAppRefresh && window.triggerAppRefresh();
+                    }}
+                    onClinicsUpdated={fetchClinics}
+                />
+            )}
 
         </div>
     );
