@@ -24,51 +24,65 @@ class PatientOcrService
             
             // System prompt tailored for medical prescription recognition (handwritten / English / Gujarati / Hindi)
             $prompt = <<<EOT
-You are an expert Medical AI Assistant analyzing a handwritten or printed clinic doctor's prescription or patient notes page.
-The doctor writes patient details, symptoms/diagnosis, and prescribed medicines in English, Gujarati or Hindi.
+You are an expert Medical AI Assistant analyzing a handwritten or printed clinic doctor's prescription or patient case sheet page.
+The doctor writes clinic header, case number/OPD number, patient name, date, address/village, age, gender, symptoms/complaints, diagnosis, and prescribed medicines in English, Gujarati or Hindi.
 
-Analyze the image carefully and output ONLY a valid JSON object with the following fields:
+Analyze the image carefully, read the handwritten and printed text, and output ONLY a valid JSON object with the following fields:
 {
-  "patient_name": "Full name of the patient (e.g., Jay Lakum or રમેશ પટેલ)",
-  "patient_name_gujarati": "Name in Gujarati script if present or transliterated (e.g. જય લાકુમ)",
-  "age": 28, // number or null
+  "patient_name": "Full name of the patient (e.g. Kamleshbhai Dabhi, Jay Lakum or રમેશ પટેલ). Never return 'અજ્ઞાત દર્દી' if a name or label is visible.",
+  "patient_name_gujarati": "Name in Gujarati script if present or transliterated (e.g. કમલેશભાઈ ડાભી)",
+  "opd_number": "Case No or OPD number written at top (e.g. 187)",
+  "age": 40, // integer number or null
   "gender": "Male", // "Male", "Female", or null
-  "city": "Patient city/village if mentioned or null",
+  "city": "Patient city/village if mentioned (e.g. Botad)",
+  "address": "Full address or village name if written",
   "phone": "Phone number if written or null",
   "visit_date": "YYYY-MM-DD", // Date of prescription if visible, otherwise null
-  "diagnosis": "Short primary illness/complaint (e.g., તાવ અને માથાનો દુખાવો / High Fever & Headache, or ઉધરસ અને શરદી / Severe Cough & Cold)",
-  "medicines": "Summary list of medicines written with dosage (e.g., Paracetamol 650 TDS, Azithromycin 500 OD, Cough Syrup)",
-  "symptoms": "Symptoms mentioned (e.g., fever for 3 days, dry cough, weakness)",
-  "summary": "Brief 1-line doctor reminder summary in Gujarati (e.g., તાવ અને માથાનો દુખાવો (દવા: Paracetamol, Azithro))",
+  "diagnosis": "Short primary illness/complaint/symptom (e.g., White patch on right toe, તાવ, શરદી, ચામડીની તકલીફ)",
+  "medicines": "Summary list of medicines written with dosage (e.g., Paracetamol 650 TDS, Azithromycin 500 OD)",
+  "symptoms": "Detailed symptoms and complaints mentioned (e.g., White patch on right toe for 10 months, itching)",
+  "summary": "Brief 1-line doctor reminder summary in Gujarati (e.g., કમલેશભાઈ ડાભી - જમણા પગના અંગૂઠા પર સફેદ ડાઘ (૧૦ મહિનાથી))",
   "raw_text": "Full extracted readable text from the page"
 }
 
 Ensure the JSON is strictly valid. Do NOT wrap in markdown code blocks if possible.
 EOT;
 
-            $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$geminiApiKey}";
+            $modelsToTry = ['gemini-3-flash-preview', 'gemini-3.5-flash', 'gemini-flash-latest'];
+            $response = null;
 
-            $response = Http::withHeaders(['Content-Type' => 'application/json'])
-                ->timeout(35)
-                ->post($endpoint, [
-                    'contents' => [
-                        [
-                            'parts' => [
-                                ['text' => $prompt],
+            foreach ($modelsToTry as $modelName) {
+                $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key={$geminiApiKey}";
+                try {
+                    $response = Http::withHeaders(['Content-Type' => 'application/json'])
+                        ->timeout(25)
+                        ->post($endpoint, [
+                            'contents' => [
                                 [
-                                    'inline_data' => [
-                                        'mime_type' => $mimeType ?: 'image/jpeg',
-                                        'data' => $fileBytes,
+                                    'parts' => [
+                                        ['text' => $prompt],
+                                        [
+                                            'inline_data' => [
+                                                'mime_type' => $mimeType ?: 'image/jpeg',
+                                                'data' => $fileBytes,
+                                            ]
+                                        ]
                                     ]
                                 ]
+                            ],
+                            'generationConfig' => [
+                                'responseMimeType' => 'application/json',
+                                'temperature' => 0.1,
                             ]
-                        ]
-                    ],
-                    'generationConfig' => [
-                        'responseMimeType' => 'application/json',
-                        'temperature' => 0.1,
-                    ]
-                ]);
+                        ]);
+
+                    if ($response->successful()) {
+                        break;
+                    }
+                } catch (\Throwable $err) {
+                    Log::warning("Model {$modelName} failed: " . $err->getMessage());
+                }
+            }
 
             if ($response->successful()) {
                 $body = $response->json();
@@ -95,11 +109,13 @@ EOT;
     protected function fallbackExtraction(): array
     {
         return [
-            'patient_name' => 'અજ્ઞાત દર્દી (New Patient)',
+            'patient_name' => 'ઓપીડી દર્દી ' . date('d-m H:i'),
             'patient_name_gujarati' => null,
+            'opd_number' => null,
             'age' => null,
             'gender' => null,
             'city' => null,
+            'address' => null,
             'phone' => null,
             'visit_date' => date('Y-m-d'),
             'diagnosis' => 'સામાન્ય તપાસ (General Checkup)',

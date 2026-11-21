@@ -44,10 +44,13 @@ export default function DoctorPatientManager({
     // New Patient Modal
     const [isAddModalOpen, setIsAddModalOpen] = useState(initialOpenAdd);
     const [newPatientName, setNewPatientName] = useState('');
+    const [newPatientOpdNumber, setNewPatientOpdNumber] = useState('');
     const [newPatientPhone, setNewPatientPhone] = useState('');
     const [newPatientAge, setNewPatientAge] = useState('');
     const [newPatientGender, setNewPatientGender] = useState('Male');
     const [newPatientCity, setNewPatientCity] = useState('');
+    const [newPatientAddress, setNewPatientAddress] = useState('');
+    const [newPatientVisitDate, setNewPatientVisitDate] = useState(new Date().toISOString().split('T')[0]);
     const [newPatientDiagnosis, setNewPatientDiagnosis] = useState('');
     const [isSavingNew, setIsSavingNew] = useState(false);
     const [formError, setFormError] = useState('');
@@ -151,11 +154,14 @@ export default function DoctorPatientManager({
         try {
             const res = await axios.post('/api/patients', {
                 name: cleanName,
+                opd_number: newPatientOpdNumber.trim() || null,
                 phone: cleanPhone || null,
                 age: newPatientAge ? parseInt(newPatientAge) : null,
                 gender: newPatientGender,
-                city: newPatientCity || null,
-                last_diagnosis: newPatientDiagnosis || 'સામાન્ય તપાસ',
+                city: newPatientCity.trim() || null,
+                address: newPatientAddress.trim() || null,
+                visit_date: newPatientVisitDate || null,
+                last_diagnosis: newPatientDiagnosis.trim() || 'સામાન્ય તપાસ',
                 clinic_id: activeClinicId
             });
 
@@ -170,9 +176,13 @@ export default function DoctorPatientManager({
                 setIsAddModalOpen(false);
                 if (onCloseAdd) onCloseAdd();
                 setNewPatientName('');
+                setNewPatientOpdNumber('');
                 setNewPatientPhone('');
                 setNewPatientAge('');
+                setNewPatientGender('Male');
                 setNewPatientCity('');
+                setNewPatientAddress('');
+                setNewPatientVisitDate(new Date().toISOString().split('T')[0]);
                 setNewPatientDiagnosis('');
                 setFormError('');
                 loadPatients();
@@ -190,9 +200,12 @@ export default function DoctorPatientManager({
         // Query match
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
-            const matchName = p.name?.toLowerCase().includes(q);
+            const matchName = p.name?.toLowerCase().includes(q) || p.name_gujarati?.includes(q);
             const matchPhone = p.phone?.includes(q);
-            if (!matchName && !matchPhone) return false;
+            const matchOpd = p.opd_number?.toLowerCase().includes(q);
+            const matchCity = (p.city?.toLowerCase().includes(q) || p.address?.toLowerCase().includes(q));
+            const matchDiag = p.last_diagnosis?.toLowerCase().includes(q);
+            if (!matchName && !matchPhone && !matchOpd && !matchCity && !matchDiag) return false;
         }
 
         // Period filter with timezone-safe Date objects
@@ -367,38 +380,49 @@ export default function DoctorPatientManager({
                         >
                             <div 
                                 onClick={() => handleSelectPatient(patient)}
-                                className="flex items-center space-x-3 cursor-pointer flex-1"
+                                className="flex items-start space-x-3 cursor-pointer flex-1 min-w-0"
                             >
-                                <div className="w-10 h-10 rounded-2xl bg-emerald-100/70 text-emerald-800 font-bold text-sm flex items-center justify-center flex-shrink-0">
+                                <div className="w-10 h-10 rounded-2xl bg-emerald-100/70 text-emerald-800 font-bold text-sm flex items-center justify-center shrink-0 mt-0.5">
                                     {patient.name.charAt(0)}
                                 </div>
-                                <div className="space-y-0.5">
-                                    <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight">
-                                        {patient.name}
-                                    </h4>
-                                    <p className="text-[11px] text-slate-400 font-medium">
-                                        {patient.phone || '9876543210'}
+                                <div className="space-y-0.5 min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 leading-tight">
+                                            {patient.name}
+                                        </h4>
+                                        {patient.opd_number && (
+                                            <span className="text-[10px] bg-slate-100 text-slate-800 font-extrabold px-1.5 py-0.5 rounded border border-slate-200">
+                                                #{patient.opd_number}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 font-medium">
+                                        {[
+                                            patient.age ? `${patient.age} yrs` : null,
+                                            patient.gender ? (patient.gender.toLowerCase().startsWith('m') ? 'પુરુષ' : 'સ્ત્રી') : null,
+                                            patient.city || patient.address || null,
+                                            patient.phone || null
+                                        ].filter(Boolean).join(' • ')}
                                     </p>
-                                    <p className="text-[10px] font-bold text-slate-400">
-                                        Last Visit: <span className="text-emerald-700">{formatVisitDate(patient.last_visit_date)}</span>
-                                    </p>
+                                    <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                                        <p className="text-[10px] font-bold text-slate-400">
+                                            મુલાકાત: <span className="text-emerald-700">{formatVisitDate(patient.last_visit_date)}</span>
+                                        </p>
+                                        {(patient.last_diagnosis || patient.last_summary) && (
+                                            <span className="text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded font-medium truncate max-w-[240px]">
+                                                🩺 {patient.last_diagnosis || patient.last_summary}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Action Icons matching Screen 4: Call & View Eye */}
-                            <div className="flex items-center space-x-1.5 flex-shrink-0">
-                                <a
-                                    href={`tel:${patient.phone}`}
-                                    className="w-8 h-8 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition"
-                                    title="Call Patient"
-                                >
-                                    <Phone className="w-4 h-4" />
-                                </a>
-
+                            {/* Action Icons: View Details & Delete (Call icon removed per request) */}
+                            <div className="flex items-center space-x-1.5 shrink-0 ml-2">
                                 <button
                                     onClick={() => handleSelectPatient(patient)}
-                                    className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 flex items-center justify-center transition cursor-pointer"
-                                    title="View Patient Details"
+                                    className="w-8 h-8 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition cursor-pointer"
+                                    title="દર્દીની વિગત અને પ્રિસ્ક્રિપ્શન જુઓ"
                                 >
                                     <Eye className="w-4 h-4" />
                                 </button>
@@ -406,7 +430,7 @@ export default function DoctorPatientManager({
                                 <button
                                     onClick={(e) => handleDeletePatient(patient, e)}
                                     className="w-8 h-8 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition cursor-pointer"
-                                    title="Delete Patient"
+                                    title="દર્દી ડિલીટ કરો"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
@@ -456,48 +480,107 @@ export default function DoctorPatientManager({
                         )}
 
                         <form onSubmit={handleCreatePatient} className="space-y-3 text-xs">
-                            <div>
-                                <label className="block font-bold text-slate-600 mb-1">દર્દીનું નામ *</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={newPatientName}
-                                    onChange={(e) => setNewPatientName(e.target.value)}
-                                    placeholder="દર્દીનું પૂરું નામ"
-                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
-                                />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                    <label className="block font-bold text-slate-600 mb-1">દર્દીનું પૂરું નામ *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={newPatientName}
+                                        onChange={(e) => setNewPatientName(e.target.value)}
+                                        placeholder="દા.ત. કમલેશભાઈ ડાભી"
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block font-bold text-slate-600 mb-1">ઓપીડી / કેસ નં. (OPD No)</label>
+                                    <input
+                                        type="text"
+                                        value={newPatientOpdNumber}
+                                        onChange={(e) => setNewPatientOpdNumber(e.target.value)}
+                                        placeholder="દા.ત. 187"
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
+                                    />
+                                </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                    <label className="block font-bold text-slate-600 mb-1">મુલાકાત તારીખ (Date)</label>
+                                    <input
+                                        type="date"
+                                        value={newPatientVisitDate}
+                                        onChange={(e) => setNewPatientVisitDate(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
+                                    />
+                                </div>
                                 <div>
                                     <label className="block font-bold text-slate-600 mb-1">મોબાઈલ નંબર</label>
                                     <input
                                         type="tel"
                                         value={newPatientPhone}
                                         onChange={(e) => setNewPatientPhone(e.target.value)}
-                                        placeholder="મોબાઈલ નંબર"
+                                        placeholder="૧૦ અંકનો નંબર"
                                         className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
                                     />
                                 </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="block font-bold text-slate-600 mb-1">ઉંમર</label>
+                                    <label className="block font-bold text-slate-600 mb-1">ઉંમર (Age)</label>
                                     <input
                                         type="number"
                                         value={newPatientAge}
                                         onChange={(e) => setNewPatientAge(e.target.value)}
-                                        placeholder="ઉંમર"
+                                        placeholder="દા.ત. 40"
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block font-bold text-slate-600 mb-1">જાતિ (Gender)</label>
+                                    <select
+                                        value={newPatientGender}
+                                        onChange={(e) => setNewPatientGender(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500 bg-white"
+                                    >
+                                        <option value="Male">પુરુષ (Male)</option>
+                                        <option value="Female">સ્ત્રી (Female)</option>
+                                        <option value="Other">અન્ય (Other)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                    <label className="block font-bold text-slate-600 mb-1">ગામ / શહેર (City)</label>
+                                    <input
+                                        type="text"
+                                        value={newPatientCity}
+                                        onChange={(e) => setNewPatientCity(e.target.value)}
+                                        placeholder="દા.ત. બોટાદ"
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block font-bold text-slate-600 mb-1">સરનામું (Address)</label>
+                                    <input
+                                        type="text"
+                                        value={newPatientAddress}
+                                        onChange={(e) => setNewPatientAddress(e.target.value)}
+                                        placeholder="સોસાયટી / વિસ્તાર"
                                         className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
                                     />
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block font-bold text-slate-600 mb-1">તકલીફ (Diagnosis)</label>
+                                <label className="block font-bold text-slate-600 mb-1">તકલીફ / નિદાન (Diagnosis / Symptoms)</label>
                                 <input
                                     type="text"
                                     value={newPatientDiagnosis}
                                     onChange={(e) => setNewPatientDiagnosis(e.target.value)}
-                                    placeholder="તકલીફ / નિદાન"
+                                    placeholder="દા.ત. White patch on right toe / સામાન્ય તપાસ"
                                     className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold focus:outline-none focus:border-emerald-500"
                                 />
                             </div>

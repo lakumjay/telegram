@@ -467,9 +467,17 @@ class ClinicAccountsController extends Controller
                         return [
                             'id' => $patient->id,
                             'name' => $patient->name,
+                            'name_gujarati' => $patient->name_gujarati,
+                            'opd_number' => $patient->opd_number,
                             'phone' => $patient->phone,
+                            'age' => $patient->age,
+                            'gender' => $patient->gender,
+                            'city' => $patient->city,
+                            'address' => $patient->address,
                             'last_visit_date' => $visitDateStr,
                             'last_diagnosis' => $patient->last_diagnosis,
+                            'last_medicines' => $patient->last_medicines,
+                            'last_summary' => $patient->last_summary,
                             'status' => $lastBill ? ($lastBill->payment_status ?: 'Paid') : 'Paid',
                             'amount' => $lastBill ? (float)$lastBill->total_amount : 300.0,
                         ];

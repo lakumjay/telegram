@@ -353,6 +353,8 @@ class TelegramBotService
 
             $phone = trim($extracted['phone'] ?? null);
             $city = trim($extracted['city'] ?? $clinic->city ?? null);
+            $address = trim($extracted['address'] ?? $city ?? null);
+            $opdNumber = trim($extracted['opd_number'] ?? null);
             $age = !empty($extracted['age']) ? (int)$extracted['age'] : null;
             $gender = $extracted['gender'] ?? null;
             $visitDate = $extracted['visit_date'] ?? date('Y-m-d');
@@ -367,6 +369,9 @@ class TelegramBotService
             if (!empty($phone)) {
                 $patient = Patient::where('clinic_id', $clinic->id)->where('phone', $phone)->first();
             }
+            if (!$patient && !empty($opdNumber)) {
+                $patient = Patient::where('clinic_id', $clinic->id)->where('opd_number', $opdNumber)->first();
+            }
             if (!$patient && !empty($finalName)) {
                 $patient = Patient::where('clinic_id', $clinic->id)
                     ->where(function($q) use ($finalName, $normalizedName) {
@@ -379,6 +384,7 @@ class TelegramBotService
             if (!$patient) {
                 $patient = Patient::create([
                     'clinic_id' => $clinic->id,
+                    'opd_number' => $opdNumber,
                     'name' => $finalName,
                     'name_normalized' => $normalizedName,
                     'name_gujarati' => $finalGujarati,
@@ -386,6 +392,7 @@ class TelegramBotService
                     'age' => $age,
                     'gender' => $gender,
                     'city' => $city,
+                    'address' => $address,
                     'last_diagnosis' => $diagnosis,
                     'last_medicines' => $medicines,
                     'last_summary' => $summary,
@@ -394,9 +401,11 @@ class TelegramBotService
                 ]);
             } else {
                 $patient->update([
+                    'opd_number' => $opdNumber ?: $patient->opd_number,
                     'age' => $age ?: $patient->age,
                     'gender' => $gender ?: $patient->gender,
                     'city' => $city ?: $patient->city,
+                    'address' => $address ?: $patient->address,
                     'phone' => $phone ?: $patient->phone,
                     'last_diagnosis' => $diagnosis,
                     'last_medicines' => $medicines,

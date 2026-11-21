@@ -456,28 +456,47 @@ export default function DashboardHome({
                                         onClick={() => handleOpenPatientDetail(pt.id)}
                                         className="p-3 rounded-2xl border border-slate-100 hover:border-emerald-300 transition bg-slate-50/40 flex items-center justify-between cursor-pointer group"
                                     >
-                                        <div className="flex items-center space-x-2.5">
-                                            <div className="w-9 h-9 rounded-xl bg-emerald-100/80 text-emerald-800 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition">
+                                        <div className="flex items-start space-x-2.5 min-w-0">
+                                            <div className="w-9 h-9 rounded-xl bg-emerald-100/80 text-emerald-800 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition shrink-0 mt-0.5">
                                                 {pt.name.charAt(0)}
                                             </div>
-                                            <div>
-                                                <p className="font-bold text-xs text-slate-900 group-hover:text-emerald-800 transition">{pt.name}</p>
-                                                <p className="text-[10px] text-slate-400">{pt.phone} • {pt.last_visit_date}</p>
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <p className="font-bold text-xs text-slate-900 group-hover:text-emerald-800 transition truncate">{pt.name}</p>
+                                                    {pt.opd_number && (
+                                                        <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded border border-emerald-100">
+                                                            #{pt.opd_number}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] text-slate-500 font-medium">
+                                                    {[
+                                                        pt.age ? `${pt.age} yrs` : null,
+                                                        pt.gender ? (pt.gender.toLowerCase().startsWith('m') ? 'પુરુષ' : 'સ્ત્રી') : null,
+                                                        pt.city || pt.address || null,
+                                                        pt.phone || null
+                                                    ].filter(Boolean).join(' • ')}
+                                                </p>
+                                                {(pt.last_diagnosis || pt.last_summary) && (
+                                                    <p className="text-[10px] text-emerald-700 font-semibold truncate max-w-[200px] mt-0.5">
+                                                        🩺 {pt.last_diagnosis || pt.last_summary}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
-                                        <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex items-center space-x-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                                             <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
                                                 pt.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
                                             }`}>
                                                 {pt.status}
                                             </span>
-                                            <a
-                                                href={`tel:${pt.phone}`}
-                                                className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center hover:bg-emerald-100"
-                                                title="Call"
+                                            <button
+                                                onClick={() => handleOpenPatientDetail(pt.id)}
+                                                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 flex items-center justify-center transition cursor-pointer"
+                                                title="વિગત જુઓ"
                                             >
-                                                <Phone className="w-3.5 h-3.5" />
-                                            </a>
+                                                <Eye className="w-3.5 h-3.5" />
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -488,11 +507,13 @@ export default function DashboardHome({
                                 <table className="w-full text-left text-xs">
                                     <thead>
                                         <tr className="text-slate-400 font-bold border-b border-slate-100 text-[11px]">
-                                            <th className="pb-2.5">Patient Name</th>
-                                            <th className="pb-2.5">Mobile</th>
-                                            <th className="pb-2.5">Visit Date</th>
-                                            <th className="pb-2.5">Status</th>
-                                            <th className="pb-2.5 text-right">Action</th>
+                                            <th className="pb-2.5">દર્દીનું નામ (Patient)</th>
+                                            <th className="pb-2.5">ઓપીડી / ઉંમર (OPD / Age)</th>
+                                            <th className="pb-2.5">ગામ / શહેર (City)</th>
+                                            <th className="pb-2.5">તકલીફ / નિદાન (Diagnosis)</th>
+                                            <th className="pb-2.5">મુલાકાત તારીખ</th>
+                                            <th className="pb-2.5">સ્ટેટસ</th>
+                                            <th className="pb-2.5 text-right">વિગત</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
@@ -503,13 +524,37 @@ export default function DashboardHome({
                                                 className="hover:bg-slate-50/60 transition cursor-pointer group"
                                             >
                                                 <td className="py-2.5 font-bold text-slate-800 flex items-center space-x-2.5 group-hover:text-emerald-800 transition">
-                                                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center justify-center">
+                                                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center justify-center shrink-0">
                                                         {pt.name.charAt(0)}
                                                     </div>
-                                                    <span>{pt.name}</span>
+                                                    <div>
+                                                        <span className="font-bold text-slate-900 block group-hover:text-emerald-800">{pt.name}</span>
+                                                        {pt.phone && <span className="text-[10px] text-slate-400 font-normal">{pt.phone}</span>}
+                                                    </div>
                                                 </td>
-                                                <td className="py-2.5 text-slate-500 font-medium">{pt.phone}</td>
-                                                <td className="py-2.5 text-slate-500 font-medium">{pt.last_visit_date}</td>
+                                                <td className="py-2.5 text-slate-600 font-medium">
+                                                    <div className="flex items-center gap-1.5">
+                                                        {pt.opd_number ? (
+                                                            <span className="bg-slate-100 text-slate-800 font-extrabold text-[10px] px-1.5 py-0.5 rounded border border-slate-200">
+                                                                #{pt.opd_number}
+                                                            </span>
+                                                        ) : <span className="text-slate-400 text-[11px]">-</span>}
+                                                        {pt.age && (
+                                                            <span className="text-[11px] text-slate-500 font-semibold">
+                                                                {pt.age} yrs {pt.gender ? `(${pt.gender.toLowerCase().startsWith('m') ? 'M' : 'F'})` : ''}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="py-2.5 text-slate-600 font-medium">
+                                                    <span className="text-[11px]">{pt.city || pt.address || '-'}</span>
+                                                </td>
+                                                <td className="py-2.5 text-slate-600 font-medium max-w-[160px]">
+                                                    <span className="text-[11px] bg-emerald-50/80 text-emerald-800 px-2 py-0.5 rounded font-medium truncate block" title={pt.last_diagnosis || pt.last_summary || ''}>
+                                                        {pt.last_diagnosis || pt.last_summary || 'સામાન્ય તપાસ'}
+                                                    </span>
+                                                </td>
+                                                <td className="py-2.5 text-slate-500 font-medium text-[11px]">{pt.last_visit_date || '-'}</td>
                                                 <td className="py-2.5">
                                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                                                         pt.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
@@ -518,22 +563,13 @@ export default function DashboardHome({
                                                     </span>
                                                 </td>
                                                 <td className="py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                                                    <div className="flex items-center justify-end space-x-1.5">
-                                                        <a 
-                                                            href={`tel:${pt.phone}`}
-                                                            className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition"
-                                                            title="Call Patient"
-                                                        >
-                                                            <Phone className="w-3.5 h-3.5" />
-                                                        </a>
-                                                        <button 
-                                                            onClick={() => handleOpenPatientDetail(pt.id)}
-                                                            className="p-1.5 rounded-lg bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 transition cursor-pointer"
-                                                            title="View Details & Prescription Photos"
-                                                        >
-                                                            <Eye className="w-3.5 h-3.5" />
-                                                        </button>
-                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleOpenPatientDetail(pt.id)}
+                                                        className="p-1.5 rounded-lg bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 transition cursor-pointer"
+                                                        title="વિગત અને પ્રિસ્ક્રિપ્શન ફોટો જુઓ"
+                                                    >
+                                                        <Eye className="w-3.5 h-3.5" />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}

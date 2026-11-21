@@ -44,10 +44,12 @@ export default function PatientDetailModal({
     // Edit Patient State
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState('');
+    const [editOpdNumber, setEditOpdNumber] = useState('');
     const [editPhone, setEditPhone] = useState('');
     const [editAge, setEditAge] = useState('');
     const [editGender, setEditGender] = useState('Male');
     const [editCity, setEditCity] = useState('');
+    const [editAddress, setEditAddress] = useState('');
     const [editDiagnosis, setEditDiagnosis] = useState('');
     const [isSavingEdit, setIsSavingEdit] = useState(false);
 
@@ -67,10 +69,12 @@ export default function PatientDetailModal({
                 const pt = res.data.patient;
                 setPatient(pt);
                 setEditName(pt.name || '');
+                setEditOpdNumber(pt.opd_number || '');
                 setEditPhone(pt.phone || '');
                 setEditAge(pt.age || '');
                 setEditGender(pt.gender || 'Male');
                 setEditCity(pt.city || '');
+                setEditAddress(pt.address || '');
                 setEditDiagnosis(pt.last_diagnosis || '');
             }
         } catch (err) {
@@ -102,10 +106,12 @@ export default function PatientDetailModal({
         try {
             const res = await axios.post(`/api/patients/${patientId}`, {
                 name: cleanName,
+                opd_number: editOpdNumber.trim() || null,
                 phone: cleanPhone || null,
                 age: editAge ? parseInt(editAge) : null,
                 gender: editGender,
                 city: editCity || null,
+                address: editAddress.trim() || null,
                 last_diagnosis: editDiagnosis || 'સામાન્ય તપાસ',
             });
 
@@ -221,14 +227,23 @@ export default function PatientDetailModal({
                         <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black text-base shadow-md shadow-emerald-700/20">
                             {patient ? patient.name.charAt(0) : 'P'}
                         </div>
-                        <div>
-                            <h2 className="font-extrabold text-base sm:text-lg text-slate-900 leading-tight">
-                                {patient?.name || 'દર્દીની વિગતો'}
-                            </h2>
-                            <p className="text-[11px] text-slate-400 font-medium flex items-center gap-2 mt-0.5">
-                                {patient?.phone ? `📞 ${patient.phone}` : 'મોબાઈલ નંબર નથી'}
-                                {patient?.age ? `• ${patient.age} વર્ષ` : ''}
-                                {patient?.city ? `• ${patient.city}` : ''}
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h2 className="font-extrabold text-base sm:text-lg text-slate-900 leading-tight">
+                                    {patient?.name || 'દર્દીની વિગતો'}
+                                </h2>
+                                {patient?.opd_number && (
+                                    <span className="text-[11px] bg-emerald-50 text-emerald-800 font-extrabold px-2 py-0.5 rounded border border-emerald-200">
+                                        OPD #{patient.opd_number}
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                {patient?.phone ? <span>{patient.phone}</span> : null}
+                                {patient?.age ? <span>• {patient.age} વર્ષ {patient?.gender ? `(${patient.gender.toLowerCase().startsWith('m') ? 'પુરુષ' : 'સ્ત્રી'})` : ''}</span> : null}
+                                {(patient?.city || patient?.address) ? (
+                                    <span>• {patient.city || ''} {patient.address ? `(${patient.address})` : ''}</span>
+                                ) : null}
                             </p>
                         </div>
                     </div>
@@ -269,18 +284,30 @@ export default function PatientDetailModal({
                             <button type="button" onClick={() => setIsEditing(false)} className="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer">રદ કરો</button>
                         </div>
 
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-500 mb-0.5">દર્દીનું નામ *</label>
-                            <input
-                                type="text"
-                                required
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                className="w-full px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
-                            />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-0.5">દર્દીનું નામ *</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={editName}
+                                    onChange={(e) => setEditName(e.target.value)}
+                                    className="w-full px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-0.5">ઓપીડી / કેસ નં.</label>
+                                <input
+                                    type="text"
+                                    value={editOpdNumber}
+                                    onChange={(e) => setEditOpdNumber(e.target.value)}
+                                    placeholder="દા.ત. 187"
+                                    className="w-full px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                                />
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
                             <div>
                                 <label className="block text-[11px] font-bold text-slate-500 mb-0.5">મોબાઈલ નંબર</label>
                                 <input
@@ -297,6 +324,39 @@ export default function PatientDetailModal({
                                     type="number"
                                     value={editAge}
                                     onChange={(e) => setEditAge(e.target.value)}
+                                    className="w-full px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-0.5">જાતિ</label>
+                                <select
+                                    value={editGender}
+                                    onChange={(e) => setEditGender(e.target.value)}
+                                    className="w-full px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                                >
+                                    <option value="Male">પુરુષ</option>
+                                    <option value="Female">સ્ત્રી</option>
+                                    <option value="Other">અન્ય</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-0.5">શહેર / ગામ</label>
+                                <input
+                                    type="text"
+                                    value={editCity}
+                                    onChange={(e) => setEditCity(e.target.value)}
+                                    className="w-full px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold text-slate-500 mb-0.5">સરનામું</label>
+                                <input
+                                    type="text"
+                                    value={editAddress}
+                                    onChange={(e) => setEditAddress(e.target.value)}
                                     className="w-full px-3 py-1.5 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
                                 />
                             </div>

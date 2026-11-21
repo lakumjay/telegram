@@ -11,6 +11,7 @@ class Patient extends Model
 
     protected $fillable = [
         'clinic_id',
+        'opd_number',
         'name',
         'name_normalized',
         'name_gujarati',
@@ -18,6 +19,7 @@ class Patient extends Model
         'age',
         'gender',
         'city',
+        'address',
         'last_diagnosis',
         'last_medicines',
         'last_summary',

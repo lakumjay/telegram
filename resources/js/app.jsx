@@ -130,9 +130,16 @@ function App() {
                 const list = res.data.clinics || [];
                 setClinics(list);
                 if (list.length > 0) {
-                    // If user is locked to a clinic, prioritize it
                     const savedUser = currentUser || JSON.parse(localStorage.getItem('auth_user') || 'null');
-                    if (savedUser?.clinic_id) {
+                    const userIsSuper = Boolean(savedUser?.isSuperAdmin || savedUser?.role === 'admin' || savedUser?.role === 'super_admin');
+                    if (userIsSuper) {
+                        const storedId = localStorage.getItem('superadmin_active_clinic_id');
+                        if (storedId && list.some(c => c.id === Number(storedId))) {
+                            setActiveClinicId(Number(storedId));
+                        } else {
+                            setActiveClinicId(1);
+                        }
+                    } else if (savedUser?.clinic_id) {
                         setActiveClinicId(savedUser.clinic_id);
                     } else if (!activeClinicId) {
                         setActiveClinicId(list[0].id);
@@ -198,7 +205,11 @@ function App() {
             <LoginScreen 
                 onLoginSuccess={(u) => {
                     setCurrentUser(u);
-                    if (u.clinic_id) {
+                    const userIsSuper = Boolean(u?.isSuperAdmin || u?.role === 'admin' || u?.role === 'super_admin');
+                    if (userIsSuper) {
+                        setActiveClinicId(1);
+                        localStorage.setItem('superadmin_active_clinic_id', '1');
+                    } else if (u.clinic_id) {
                         setActiveClinicId(u.clinic_id);
                     }
                 }} 
@@ -264,6 +275,9 @@ function App() {
                         activeClinicId={activeClinicId}
                         onSelectClinic={(id) => {
                             setActiveClinicId(id);
+                            if (isSuperAdmin) {
+                                localStorage.setItem('superadmin_active_clinic_id', String(id));
+                            }
                             window.triggerAppRefresh && window.triggerAppRefresh();
                         }}
                         onOpenMoreMenu={() => navigateTo('more')}
@@ -281,6 +295,9 @@ function App() {
                         activeClinicId={activeClinicId}
                         onSelectClinic={(id) => {
                             setActiveClinicId(id);
+                            if (isSuperAdmin) {
+                                localStorage.setItem('superadmin_active_clinic_id', String(id));
+                            }
                             window.triggerAppRefresh && window.triggerAppRefresh();
                         }}
                         onOpenProfileModal={() => setIsProfileModalOpen(true)}

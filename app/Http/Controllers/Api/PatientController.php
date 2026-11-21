@@ -48,7 +48,9 @@ class PatientController extends Controller
                     ->orWhere('name_gujarati', 'LIKE', "%{$cleanQ}%")
                     ->orWhere('name_normalized', 'LIKE', "%{$cleanNormalized}%")
                     ->orWhere('phone', 'LIKE', "{$cleanQ}%")
+                    ->orWhere('opd_number', 'LIKE', "{$cleanQ}%")
                     ->orWhere('city', 'LIKE', "{$cleanQ}%")
+                    ->orWhere('address', 'LIKE', "%{$cleanQ}%")
                     ->orWhere('last_diagnosis', 'LIKE', "%{$cleanQ}%");
             })
             ->where('clinic_id', $clinicId)
@@ -56,9 +58,11 @@ class PatientController extends Controller
                 'id',
                 'name',
                 'name_gujarati',
+                'opd_number',
                 'age',
                 'gender',
                 'city',
+                'address',
                 'phone',
                 'last_diagnosis',
                 'last_medicines',
@@ -97,7 +101,9 @@ class PatientController extends Controller
                 $sub->where('name', 'LIKE', "%{$search}%")
                     ->orWhere('name_gujarati', 'LIKE', "%{$search}%")
                     ->orWhere('phone', 'LIKE', "%{$search}%")
+                    ->orWhere('opd_number', 'LIKE', "%{$search}%")
                     ->orWhere('city', 'LIKE', "%{$search}%")
+                    ->orWhere('address', 'LIKE', "%{$search}%")
                     ->orWhere('last_diagnosis', 'LIKE', "%{$search}%")
                     ->orWhere('last_medicines', 'LIKE', "%{$search}%");
             });
@@ -158,6 +164,8 @@ class PatientController extends Controller
 
         $phone = trim($request->input('phone') ?: ($extracted['phone'] ?? null));
         $city = trim($request->input('city') ?: ($extracted['city'] ?? null));
+        $address = trim($request->input('address') ?: ($extracted['address'] ?? null));
+        $opdNumber = trim($request->input('opd_number') ?: ($extracted['opd_number'] ?? null));
         $age = !empty($extracted['age']) ? (int)$extracted['age'] : null;
         $gender = $extracted['gender'] ?? null;
         $visitDate = $request->input('visit_date') ?: ($extracted['visit_date'] ?? date('Y-m-d'));
@@ -171,9 +179,12 @@ class PatientController extends Controller
 
         $clinicId = (int)$request->input('clinic_id', 1);
 
-        // Match existing patient by phone OR close name+city within the same clinic
+        // Match existing patient by opd_number OR phone OR close name+city within the same clinic
         $patient = null;
-        if (!empty($phone)) {
+        if (!empty($opdNumber)) {
+            $patient = Patient::where('clinic_id', $clinicId)->where('opd_number', $opdNumber)->first();
+        }
+        if (!$patient && !empty($phone)) {
             $patient = Patient::where('clinic_id', $clinicId)->where('phone', $phone)->first();
         }
         if (!$patient && !empty($finalName) && $finalName !== 'અજ્ઞાત દર્દી') {
@@ -193,10 +204,12 @@ class PatientController extends Controller
                     'name' => $finalName,
                     'name_normalized' => $normalizedName,
                     'name_gujarati' => $finalGujarati,
+                    'opd_number' => $opdNumber,
                     'phone' => $phone,
                     'age' => $age,
                     'gender' => $gender,
                     'city' => $city,
+                    'address' => $address,
                     'last_diagnosis' => $diagnosis,
                     'last_medicines' => $medicines,
                     'last_summary' => $summary,
@@ -205,9 +218,11 @@ class PatientController extends Controller
                 ]);
             } else {
                 $patient->update([
+                    'opd_number' => $opdNumber ?: $patient->opd_number,
                     'age' => $age ?: $patient->age,
                     'gender' => $gender ?: $patient->gender,
                     'city' => $city ?: $patient->city,
+                    'address' => $address ?: $patient->address,
                     'phone' => $phone ?: $patient->phone,
                     'last_diagnosis' => $diagnosis,
                     'last_medicines' => $medicines,
@@ -257,9 +272,12 @@ class PatientController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'phone' => 'nullable|string|max:30',
+            'opd_number' => 'nullable|string|max:50',
+            'address' => 'nullable|string',
             'age' => 'nullable|integer',
             'gender' => 'nullable|string|max:20',
             'city' => 'nullable|string|max:100',
+            'visit_date' => 'nullable|date',
             'last_diagnosis' => 'nullable|string',
             'last_medicines' => 'nullable|string',
             'clinic_id' => 'nullable|integer',
@@ -270,8 +288,21 @@ class PatientController extends Controller
         $nameNormalized = Str::slug(mb_strtolower($name), '');
         $nameGujarati = $this->isGujarati($name) ? $name : null;
         $phone = trim($request->input('phone') ?: '');
+        $opdNumber = trim($request->input('opd_number') ?: '');
 
-        // Check if patient exists with same phone in this clinic
+        // Check if patient exists with same OPD number or phone in this clinic
+        if (!empty($opdNumber)) {
+            $existing = Patient::where('clinic_id', $clinicId)->where('opd_number', $opdNumber)->first();
+            if ($existing) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'આ ઓપીડી / કેસ નંબર વાળો દર્દી પહેલેથી નોંધાયેલ છે.',
+                    'patient' => $existing,
+                    'is_existing' => true,
+                ]);
+            }
+        }
+
         if (!empty($phone)) {
             $existing = Patient::where('clinic_id', $clinicId)->where('phone', $phone)->first();
             if ($existing) {
@@ -289,14 +320,16 @@ class PatientController extends Controller
             'name' => $name,
             'name_normalized' => $nameNormalized,
             'name_gujarati' => $nameGujarati,
+            'opd_number' => $opdNumber ?: null,
             'phone' => $phone ?: null,
             'age' => $request->input('age') ? (int)$request->input('age') : null,
             'gender' => $request->input('gender') ?: 'Male',
             'city' => $request->input('city') ?: null,
+            'address' => $request->input('address') ?: null,
             'last_diagnosis' => $request->input('last_diagnosis') ?: 'સામાન્ય તપાસ',
             'last_medicines' => $request->input('last_medicines') ?: '',
             'last_summary' => $request->input('last_diagnosis') ?: 'સામાન્ય તપાસ',
-            'last_visit_date' => date('Y-m-d'),
+            'last_visit_date' => $request->input('visit_date') ?: date('Y-m-d'),
             'total_visits' => 1,
         ]);
 
@@ -316,12 +349,15 @@ class PatientController extends Controller
         $patient->update($request->only([
             'name',
             'phone',
+            'opd_number',
+            'address',
             'age',
             'gender',
             'city',
             'last_diagnosis',
             'last_medicines',
-            'last_summary'
+            'last_summary',
+            'last_visit_date',
         ]));
 
         if ($request->has('name')) {
